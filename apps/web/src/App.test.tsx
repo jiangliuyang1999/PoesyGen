@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -13,6 +13,7 @@ import type {
 } from '@poesygen/client-sdk';
 
 import { App, type AppClient } from './App.js';
+import { generationHistoryStorageKey } from './generation-history.js';
 
 const pattern: CiPattern = {
   id: 'test-standard',
@@ -67,6 +68,12 @@ const alternatePattern: CiPattern = {
   ],
 };
 
+const otherPattern: CiPattern = {
+  ...pattern,
+  id: 'other-standard',
+  name: '另一令',
+};
+
 const rhymeGroups: ReadonlyArray<RhymeGroupSummary> = [
   {
     id: 'cilin-01',
@@ -89,17 +96,31 @@ const groupDetail: RhymeGroupDetail = {
   sections: [{ name: '一东', tone: 'level', characters: '东风' }],
 };
 
-afterEach(cleanup);
+beforeEach(() => {
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: createTestStorage(),
+  });
+});
+
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 describe('web creation workspace', () => {
   it('switches between forms of the same tune and submits the selected pattern ID', async () => {
-    const client = createClient([pattern, alternatePattern]);
+    const client = createClient([pattern, alternatePattern, otherPattern]);
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole('heading', { name: '测试令' });
 
+    await user.selectOptions(screen.getByRole('combobox', { name: '创作词牌' }), otherPattern.name);
+    expect(screen.getByRole('heading', { name: '另一令' })).toBeTruthy();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: '创作词牌' }), pattern.name);
     await user.selectOptions(
-      screen.getByRole('combobox', { name: '测试令体式' }),
+      screen.getByRole('combobox', { name: '创作体式' }),
       alternatePattern.id,
     );
 
@@ -158,6 +179,18 @@ describe('web creation workspace', () => {
     await user.click(poemView);
     expect(poemView.getAttribute('aria-pressed')).toBe('true');
     expect(screen.queryByLabelText('平仄韵脚标注')).toBeNull();
+
+    expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('session-1');
+    await user.click(screen.getByRole('button', { name: /历史记录/ }));
+    expect(await screen.findByRole('heading', { name: '生成历史' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '春归' })).toBeTruthy();
+
+    const historySearch = screen.getByRole('searchbox', { name: '搜索历史结果' });
+    await user.type(historySearch, '不存在的主题');
+    expect(screen.getByText('没有匹配的历史记录。')).toBeTruthy();
+    await user.clear(historySearch);
+    await user.type(historySearch, '暮春江上');
+    expect(screen.getByRole('button', { name: /春归.*测试令.*暮春江上/ })).toBeTruthy();
   });
 
   it('opens the dictionary by selecting a character in the example poem', async () => {
@@ -177,6 +210,7 @@ describe('web creation workspace', () => {
 });
 
 function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
+  let requestedPatternId = patterns[0]?.id ?? pattern.id;
   const getCharacterPronunciations = vi.fn(
     async (character: string): Promise<CharacterPronunciationResponse> => ({
       character,
@@ -203,11 +237,16 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
     })),
     getCilinRhymeGroup: vi.fn(async () => groupDetail),
     getCharacterPronunciations,
-    createGenerationSession: vi.fn(async () => ({
-      id: 'session-1',
-      jobId: 'job-1',
-      status: 'queued' as const,
-    })),
+    createGenerationSession: vi.fn(
+      async (request: Parameters<AppClient['createGenerationSession']>[0]) => {
+        requestedPatternId = request.patternId;
+        return {
+          id: 'session-1',
+          jobId: 'job-1',
+          status: 'queued' as const,
+        };
+      },
+    ),
     waitForGenerationSession: vi.fn(
       async (_sessionId, options): Promise<GenerationSessionStatusResponse> => {
         options?.onUpdate?.({
@@ -230,7 +269,7 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
             rounds: 2,
             draft: {
               id: 'draft-1',
-              patternId: pattern.id,
+              patternId: requestedPatternId,
               theme: '暮春江上归舟，怀念故友',
               version: 2,
               title: '春归',
@@ -246,4 +285,28 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
     ),
   };
   return client;
+}
+
+function createTestStorage(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() {
+      return values.size;
+    },
+    clear(): void {
+      values.clear();
+    },
+    getItem(key: string): string | null {
+      return values.get(key) ?? null;
+    },
+    key(index: number): string | null {
+      return [...values.keys()][index] ?? null;
+    },
+    removeItem(key: string): void {
+      values.delete(key);
+    },
+    setItem(key: string, value: string): void {
+      values.set(key, value);
+    },
+  };
 }

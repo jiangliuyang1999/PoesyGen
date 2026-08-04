@@ -5,6 +5,7 @@ import { patternStats } from './model.js';
 interface PatternPreviewProps {
   readonly pattern: CiPattern;
   readonly onInspectCharacter: (character: string) => void;
+  readonly onCreate?: () => void;
 }
 
 const toneLabels = {
@@ -13,7 +14,7 @@ const toneLabels = {
   either: '中',
 } as const;
 
-export function PatternPreview({ pattern, onInspectCharacter }: PatternPreviewProps) {
+export function PatternPreview({ pattern, onInspectCharacter, onCreate }: PatternPreviewProps) {
   const stats = patternStats(pattern);
   let exampleIndex = 0;
 
@@ -27,9 +28,16 @@ export function PatternPreview({ pattern, onInspectCharacter }: PatternPreviewPr
             {pattern.variant} · {stats.characters} 字 · {stats.sections === 1 ? '单调' : '双调'}
           </p>
         </div>
-        <span className="review-badge" data-status={pattern.reviewStatus}>
-          {pattern.reviewStatus === 'verified' ? '已校勘' : '机器回查'}
-        </span>
+        <div className="pattern-header-actions">
+          <span className="review-badge" data-status={pattern.reviewStatus}>
+            {pattern.reviewStatus === 'verified' ? '已校勘' : '机器回查'}
+          </span>
+          {onCreate !== undefined && (
+            <button className="pattern-create-action" type="button" onClick={onCreate}>
+              用此体创作
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="stat-row" aria-label="词牌统计">
