@@ -209,7 +209,10 @@ const patternsReport = {
     (sum, tune) => sum + tune.qinding_templates.length,
     0,
   ),
-  importedStandardPatterns: patternsResult.patterns.length,
+  importedTunes: new Set(patternsResult.patterns.map(({ name }) => name)).size,
+  importedVariants: patternsResult.patterns.length,
+  importedStandardPatterns: patternsResult.patterns.filter(({ variant }) => variant === '正体')
+    .length,
   rejected: patternsResult.rejected,
 };
 const rhymeOutput = {
@@ -241,7 +244,7 @@ await emit(prosodyReportPath, pretty(prosodyReport));
 
 process.stdout.write(
   [
-    `词谱：${patternsResult.patterns.length} 个常用正体（候选 ${patternsReport.candidateVariants} 体）`,
+    `词谱：${patternsReport.importedTunes} 个常用词牌，${patternsResult.patterns.length} 体（候选 ${patternsReport.candidateVariants} 体）`,
     `词林正韵：${prosodyReport.rhymeGroups} 部，${prosodyReport.rhymeCharacters} 个字形`,
     `Unihan：${prosodyReport.readingCharacters} 个汉字读音记录`,
     checkOnly ? '生成数据与锁定来源一致。' : '权威数据导入完成。',
@@ -658,123 +661,150 @@ function compilePatterns(
   matcher: ReturnType<typeof createVariantMatcher>,
   cilin: Readonly<Record<string, ReadonlyArray<CilinMembership>>>,
 ) {
-  const patterns: unknown[] = [];
-  const rejected: Array<{ name: string; reason: string }> = [];
+  const patterns: Array<{
+    readonly id: string;
+    readonly name: string;
+    readonly variant: string;
+    readonly [key: string]: unknown;
+  }> = [];
+  const rejected: Array<{ name: string; variant?: string; reason: string }> = [];
 
   for (const [name, tune] of Object.entries(data)) {
     const idPrefix = patternIds[name];
-    const standard = tune.qinding_templates[0];
-    if (idPrefix === undefined || standard === undefined) {
+    if (idPrefix === undefined || tune.qinding_templates.length === 0) {
       rejected.push({ name, reason: '缺少稳定 ID 或正体模板' });
       continue;
     }
 
-    try {
-      const sourceSections = splitPatternSections(standard.example, standard.template);
-      const flattenedExamples = sourceSections.flatMap((section) =>
-        section.lines.map((line) => line.example),
-      );
-      const sourceMatch = (() => {
-        try {
-          return alignExampleToQinding(flattenedExamples, qinding, matcher);
-        } catch {
-          return {
-            editDistance: -1,
-            markerCount: 0,
-            markers: flattenedExamples.map(() => ''),
-          };
-        }
-      })();
-      if (sourceMatch.editDistance < 0) {
-        throw new Error('例词未能逐句回查《御定词谱》');
-      }
-      const expectedRhymes = parseExpectedRhymeCount(standard.gelv);
-      let rhymeMarkers: ReadonlyArray<boolean> = sourceMatch.markers.map(isRhymeMarker);
+    for (const [variantIndex, candidate] of tune.qinding_templates.entries()) {
+      const variant = variantIndex === 0 ? '正体' : candidate.name;
+      const patternId =
+        variantIndex === 0
+          ? `${idPrefix}-standard`
+          : `${idPrefix}-variant-${String(variantIndex + 1).padStart(2, '0')}`;
 
-      if (rhymeMarkers.filter(Boolean).length !== expectedRhymes) {
-        rhymeMarkers = inferRhymeMarkers(sourceSections, standard.gelv, cilin, idPrefix);
-      }
-      if (rhymeMarkers.filter(Boolean).length !== expectedRhymes) {
-        throw new Error(
-          `韵位数量不匹配：词谱记载 ${expectedRhymes}，解析为 ${rhymeMarkers.filter(Boolean).length}`,
+      try {
+        const sourceSections = splitPatternSections(candidate.example, candidate.template);
+        const flattenedExamples = sourceSections.flatMap((section) =>
+          section.lines.map((line) => line.example),
         );
-      }
-
-      const rhymeLabels = createRhymeLabels(
-        sourceMatch.markers,
-        rhymeMarkers,
-        sourceSections.flatMap((section) => section.lines),
-        cilin,
-      );
-      const totalCharacters = sourceSections
-        .flatMap((section) => section.lines)
-        .reduce((sum, line) => sum + Array.from(line.tones).length, 0);
-      const declaredCharacters = parseDeclaredCharacterCount(standard.gelv);
-      if (totalCharacters !== declaredCharacters) {
-        throw new Error(`总字数应为 ${declaredCharacters}，模板实际为 ${totalCharacters}`);
-      }
-
-      let flatIndex = 0;
-      const sections = sourceSections.map((section, sectionIndex) => ({
-        id: sourceSections.length === 1 ? 'single-stanza' : `stanza-${sectionIndex + 1}`,
-        name: section.name,
-        lines: section.lines.map((line, lineIndex) => {
-          if (Array.from(line.example).length !== Array.from(line.tones).length) {
-            throw new Error(`例词与平仄模板字数不同：${line.example}`);
+        const sourceMatch = (() => {
+          try {
+            return alignExampleToQinding(flattenedExamples, qinding, matcher);
+          } catch {
+            return {
+              editDistance: -1,
+              markerCount: 0,
+              markers: flattenedExamples.map(() => ''),
+            };
           }
-          const positions = Array.from(line.tones).map((toneMarker, characterIndex, tones) => {
-            const tone = toneMarker === '平' ? 'level' : toneMarker === '仄' ? 'oblique' : 'either';
-            const rhyme = characterIndex === tones.length - 1 ? rhymeLabels[flatIndex] : undefined;
-            return compactRecord({
-              tone,
-              rhyme,
-              rhymeTone: rhyme === undefined ? undefined : tone,
-            });
-          });
-          flatIndex += 1;
-          return {
-            id: `line-${sectionIndex + 1}-${lineIndex + 1}`,
-            positions,
-            punctuation: line.punctuation,
-          };
-        }),
-      }));
+        })();
+        if (sourceMatch.editDistance < 0) {
+          throw new Error('例词未能逐句回查《御定词谱》');
+        }
+        const expectedRhymes = parseExpectedRhymeCount(candidate.gelv);
+        let rhymeMarkers: ReadonlyArray<boolean> = sourceMatch.markers.map(isRhymeMarker);
 
-      patterns.push({
-        id: `${idPrefix}-standard`,
-        name,
-        variant: '正体',
-        source: `《御定词谱》；CCiV 结构化转录 ${lock.sources.cciv.revision.slice(0, 12)}`,
-        dataVersion: `${lock.retrievedAt}.qinding-cipu`,
-        reviewStatus: 'imported',
-        provenance: [
-          toProvenance(lock.sources.qindingCipu, lock.retrievedAt),
-          toProvenance(lock.sources.cciv, lock.retrievedAt),
-        ],
-        example: {
-          author: standard.poet,
-          lines: flattenedExamples,
-        },
-        description: tune.qinding_desc,
-        specification: standard.gelv,
-        sourceValidation: {
-          editDistance: sourceMatch.editDistance,
-          matchedMarkers: sourceMatch.markers.filter((marker) => marker !== '').length,
-        },
-        sections,
-      });
-    } catch (error) {
-      rejected.push({
-        name,
-        reason: error instanceof Error ? error.message : String(error),
-      });
+        if (rhymeMarkers.filter(Boolean).length !== expectedRhymes) {
+          rhymeMarkers = inferRhymeMarkers(
+            sourceSections,
+            candidate.gelv,
+            cilin,
+            variantIndex === 0 ? idPrefix : patternId,
+          );
+        }
+        if (rhymeMarkers.filter(Boolean).length !== expectedRhymes) {
+          throw new Error(
+            `韵位数量不匹配：词谱记载 ${expectedRhymes}，解析为 ${rhymeMarkers.filter(Boolean).length}`,
+          );
+        }
+
+        const rhymeLabels = createRhymeLabels(
+          sourceMatch.markers,
+          rhymeMarkers,
+          sourceSections.flatMap((section) => section.lines),
+          cilin,
+        );
+        const totalCharacters = sourceSections
+          .flatMap((section) => section.lines)
+          .reduce((sum, line) => sum + Array.from(line.tones).length, 0);
+        const declaredCharacters = parseDeclaredCharacterCount(candidate.gelv);
+        if (totalCharacters !== declaredCharacters) {
+          throw new Error(`总字数应为 ${declaredCharacters}，模板实际为 ${totalCharacters}`);
+        }
+
+        let flatIndex = 0;
+        const sections = sourceSections.map((section, sectionIndex) => ({
+          id: sourceSections.length === 1 ? 'single-stanza' : `stanza-${sectionIndex + 1}`,
+          name: section.name,
+          lines: section.lines.map((line, lineIndex) => {
+            if (Array.from(line.example).length !== Array.from(line.tones).length) {
+              throw new Error(`例词与平仄模板字数不同：${line.example}`);
+            }
+            const positions = Array.from(line.tones).map((toneMarker, characterIndex, tones) => {
+              const tone =
+                toneMarker === '平' ? 'level' : toneMarker === '仄' ? 'oblique' : 'either';
+              const rhyme =
+                characterIndex === tones.length - 1 ? rhymeLabels[flatIndex] : undefined;
+              return compactRecord({
+                tone,
+                rhyme,
+                rhymeTone: rhyme === undefined ? undefined : tone,
+              });
+            });
+            flatIndex += 1;
+            return {
+              id: `line-${sectionIndex + 1}-${lineIndex + 1}`,
+              positions,
+              punctuation: line.punctuation,
+            };
+          }),
+        }));
+
+        patterns.push({
+          id: patternId,
+          name,
+          variant,
+          source: `《御定词谱》；CCiV 结构化转录 ${lock.sources.cciv.revision.slice(0, 12)}`,
+          dataVersion: `${lock.retrievedAt}.qinding-cipu`,
+          reviewStatus: 'imported',
+          provenance: [
+            toProvenance(lock.sources.qindingCipu, lock.retrievedAt),
+            toProvenance(lock.sources.cciv, lock.retrievedAt),
+          ],
+          example: {
+            author: candidate.poet,
+            lines: flattenedExamples,
+          },
+          description: tune.qinding_desc,
+          specification: candidate.gelv,
+          sourceValidation: {
+            editDistance: sourceMatch.editDistance,
+            matchedMarkers: sourceMatch.markers.filter((marker) => marker !== '').length,
+          },
+          sections,
+        });
+      } catch (error) {
+        rejected.push({
+          name,
+          variant,
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
   }
 
-  if (patterns.length < 30) {
+  const importedTunes = new Set(patterns.map(({ name }) => name));
+  const missingStandards = Object.keys(patternIds).filter(
+    (name) => !patterns.some((pattern) => pattern.name === name && pattern.variant === '正体'),
+  );
+  if (importedTunes.size < 30 || missingStandards.length > 0) {
     throw new Error(
-      `词谱导入仅成功 ${patterns.length} 个，低于安全阈值 30：\n${rejected
-        .map(({ name, reason }) => `${name}: ${reason}`)
+      `词谱导入仅成功 ${importedTunes.size} 个词牌，缺失正体 ${missingStandards.join('、') || '无'}：\n${rejected
+        .map(
+          ({ name, variant, reason }) =>
+            `${name}${variant === undefined ? '' : `·${variant}`}: ${reason}`,
+        )
         .join('\n')}`,
     );
   }

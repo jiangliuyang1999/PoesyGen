@@ -31,12 +31,16 @@ describe('API', () => {
     const response = await app.inject({ method: 'GET', url: '/v1/patterns' });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toHaveLength(36);
+    expect(response.json()).toHaveLength(231);
     expect(response.json()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'ru-meng-ling-standard',
           reviewStatus: 'imported',
+        }),
+        expect.objectContaining({
+          id: 'ru-meng-ling-variant-06',
+          variant: '格六',
         }),
       ]),
     );

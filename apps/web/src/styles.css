@@ -231,7 +231,7 @@ button:disabled {
 }
 
 .count-badge {
-  min-width: 30px;
+  min-width: max-content;
   padding: 4px 7px;
   border-radius: 999px;
   background: var(--paper-deep);
@@ -269,6 +269,11 @@ button:disabled {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
+}
+
+.pattern-family {
+  display: grid;
+  gap: 4px;
 }
 
 .pattern-option {
@@ -313,6 +318,27 @@ button:disabled {
 
 .pattern-measure {
   font-family: ui-monospace, monospace;
+}
+
+.pattern-variant-picker {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  margin: 0 8px 7px 12px;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.pattern-variant-picker select {
+  min-width: 0;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fffdf8;
+  color: var(--ink);
+  font-size: 0.74rem;
 }
 
 .creation-form {
@@ -1171,8 +1197,8 @@ button:disabled {
     overflow-y: hidden;
   }
 
-  .pattern-option {
-    flex: 0 0 165px;
+  .pattern-family {
+    flex: 0 0 210px;
   }
 
   .dictionary-layout {

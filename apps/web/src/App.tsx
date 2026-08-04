@@ -77,14 +77,15 @@ export function App({ client: providedClient }: AppProps = {}) {
     ])
       .then(([loadedPatterns, loadedGroups, generation]) => {
         if (!active) return;
+        const tuneCount = new Set(loadedPatterns.map(({ name }) => name)).size;
         setPatterns(loadedPatterns);
         setRhymeGroups(loadedGroups);
         setGenerationAvailable(generation.available);
         setSelectedPatternId(loadedPatterns[0]?.id ?? '');
         setConnectionStatus(
           generation.available
-            ? `已载入 ${loadedPatterns.length} 个词牌，生成 Worker 已就绪`
-            : `已载入词谱，但生成 Worker 未连接`,
+            ? `已载入 ${tuneCount} 个词牌、${loadedPatterns.length} 种体式，生成 Worker 已就绪`
+            : `已载入 ${tuneCount} 个词牌、${loadedPatterns.length} 种体式，但生成 Worker 未连接`,
         );
       })
       .catch((error: unknown) => {

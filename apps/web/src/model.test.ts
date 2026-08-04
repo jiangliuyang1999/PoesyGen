@@ -5,6 +5,7 @@ import type { CiPattern, RhymeGroupSummary } from '@poesygen/client-sdk';
 import {
   compatibleRhymeGroups,
   filterPatterns,
+  groupPatternsByName,
   patternRhymeLabels,
   patternStats,
   splitRequirements,
@@ -52,6 +53,34 @@ const groups: ReadonlyArray<RhymeGroupSummary> = [
 ];
 
 describe('web interaction model', () => {
+  it('groups different forms under the same tune name', () => {
+    const alternate: CiPattern = {
+      ...testPattern,
+      id: 'test-variant-02',
+      variant: '格二',
+      sections: [
+        {
+          id: 'single',
+          name: '单调',
+          lines: [
+            {
+              id: 'line-1',
+              positions: [{ tone: 'oblique' }, { tone: 'level' }, { tone: 'oblique' }],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(groupPatternsByName([testPattern, alternate])).toEqual([
+      {
+        name: '测试令',
+        patterns: [testPattern, alternate],
+      },
+    ]);
+    expect(patternStats(alternate).characters).toBe(3);
+  });
+
   it('derives pattern metrics and rhyme controls', () => {
     expect(patternStats(testPattern)).toEqual({
       characters: 2,

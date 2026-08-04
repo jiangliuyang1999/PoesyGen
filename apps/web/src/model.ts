@@ -5,6 +5,23 @@ export interface PatternRhymeLabel {
   readonly tone: 'level' | 'oblique' | 'either';
 }
 
+export interface PatternFamily {
+  readonly name: string;
+  readonly patterns: ReadonlyArray<CiPattern>;
+}
+
+export function groupPatternsByName(
+  patterns: ReadonlyArray<CiPattern>,
+): ReadonlyArray<PatternFamily> {
+  const grouped = new Map<string, CiPattern[]>();
+  for (const pattern of patterns) {
+    const variants = grouped.get(pattern.name) ?? [];
+    variants.push(pattern);
+    grouped.set(pattern.name, variants);
+  }
+  return [...grouped].map(([name, variants]) => ({ name, patterns: variants }));
+}
+
 export function patternStats(pattern: CiPattern): {
   readonly characters: number;
   readonly lines: number;

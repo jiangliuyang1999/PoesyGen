@@ -40,6 +40,33 @@ const pattern: CiPattern = {
   ],
 };
 
+const alternatePattern: CiPattern = {
+  ...pattern,
+  id: 'test-variant-02',
+  variant: '格二',
+  example: {
+    author: '某氏',
+    lines: ['春江晚'],
+  },
+  sections: [
+    {
+      id: 'single',
+      name: '单调',
+      lines: [
+        {
+          id: 'line-1',
+          positions: [
+            { tone: 'oblique' },
+            { tone: 'level' },
+            { tone: 'oblique', rhyme: 'main', rhymeTone: 'oblique' },
+          ],
+          punctuation: '。',
+        },
+      ],
+    },
+  ],
+};
+
 const rhymeGroups: ReadonlyArray<RhymeGroupSummary> = [
   {
     id: 'cilin-01',
@@ -65,6 +92,28 @@ const groupDetail: RhymeGroupDetail = {
 afterEach(cleanup);
 
 describe('web creation workspace', () => {
+  it('switches between forms of the same tune and submits the selected pattern ID', async () => {
+    const client = createClient([pattern, alternatePattern]);
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令' });
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '测试令体式' }),
+      alternatePattern.id,
+    );
+
+    expect(screen.getByText('格二 · 3 字 · 单调')).toBeTruthy();
+    await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上晚归');
+    await user.click(screen.getByRole('button', { name: /开始生成/ }));
+    await screen.findByText('词作已完成');
+    expect(client.createGenerationSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        patternId: alternatePattern.id,
+      }),
+    );
+  });
+
   it('submits theme, rhyme and optimization settings through the shared client', async () => {
     const client = createClient();
     const user = userEvent.setup();
@@ -105,7 +154,7 @@ describe('web creation workspace', () => {
   });
 });
 
-function createClient() {
+function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
   const getCharacterPronunciations = vi.fn(
     async (character: string): Promise<CharacterPronunciationResponse> => ({
       character,
@@ -123,7 +172,7 @@ function createClient() {
     }),
   );
   const client: AppClient = {
-    listPatterns: vi.fn(async () => [pattern]),
+    listPatterns: vi.fn(async () => patterns),
     listCilinRhymeGroups: vi.fn(async () => rhymeGroups),
     getGenerationHealth: vi.fn(async () => ({
       available: true,

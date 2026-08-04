@@ -2,6 +2,79 @@
   "generatedAt": "2026-08-03",
   "candidateTunes": 36,
   "candidateVariants": 245,
+  "importedTunes": 36,
+  "importedVariants": 231,
   "importedStandardPatterns": 36,
-  "rejected": []
+  "rejected": [
+    {
+      "name": "临江仙",
+      "variant": "格三",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "满江红",
+      "variant": "格八",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "沁园春",
+      "variant": "格五",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "念奴娇",
+      "variant": "格九",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "满庭芳",
+      "variant": "格五",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "西江月",
+      "variant": "格二",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "西江月",
+      "variant": "格三",
+      "reason": "无法唯一推定 下阕 韵位"
+    },
+    {
+      "name": "减字木兰花",
+      "variant": "格二",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "水龙吟",
+      "variant": "格十一",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "摸鱼儿",
+      "variant": "格八",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "忆秦娥",
+      "variant": "格七",
+      "reason": "无法解析词牌字数：双调四十一句，前后段各四句、四仄韵"
+    },
+    {
+      "name": "一剪梅",
+      "variant": "格二",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "一剪梅",
+      "variant": "格三",
+      "reason": "例词未能逐句回查《御定词谱》"
+    },
+    {
+      "name": "一剪梅",
+      "variant": "格四",
+      "reason": "例词未能逐句回查《御定词谱》"
+    }
+  ]
 }

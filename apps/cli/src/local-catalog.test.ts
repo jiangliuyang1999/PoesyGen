@@ -11,7 +11,8 @@ describe('local CLI catalog', () => {
   it('reads patterns and rhyme groups without an API server', async () => {
     const [patterns, groups] = await Promise.all([listLocalPatterns(), listLocalRhymeGroups()]);
 
-    expect(patterns).toHaveLength(36);
+    expect(patterns).toHaveLength(231);
+    expect(new Set(patterns.map(({ name }) => name)).size).toBe(36);
     expect(groups).toHaveLength(19);
     expect(groups[0]?.sections[0]?.characterCount).toBeGreaterThan(0);
   });
