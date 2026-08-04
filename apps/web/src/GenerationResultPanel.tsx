@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 
 import type { CiPattern, GenerationResult } from '@poesygen/client-sdk';
 
+import { formatGenerationTitle } from './model.js';
+
 interface GenerationResultPanelProps {
   readonly result: GenerationResult;
   readonly pattern: CiPattern;
@@ -43,7 +45,7 @@ export function GenerationResultPanel({
       <header>
         <div>
           <p className="section-kicker">生成结果</p>
-          <h2 id="result-title">{result.draft.title ?? '无题'}</h2>
+          <h2 id="result-title">{formatGenerationTitle(pattern.name, result.draft.title)}</h2>
         </div>
         <span data-passed={result.report.passed}>
           {result.report.passed ? '格律通过' : '达到轮次上限'}

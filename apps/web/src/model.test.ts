@@ -5,6 +5,7 @@ import type { CiPattern, RhymeGroupSummary } from '@poesygen/client-sdk';
 import {
   compatibleRhymeGroups,
   filterPatterns,
+  formatGenerationTitle,
   groupPatternsByName,
   patternRhymeLabels,
   patternStats,
@@ -100,5 +101,7 @@ describe('web interaction model', () => {
       '江南意象',
       '避免重字',
     ]);
+    expect(formatGenerationTitle('临江仙', '故园新雨')).toBe('临江仙·故园新雨');
+    expect(formatGenerationTitle('临江仙', undefined)).toBe('临江仙·无题');
   });
 });

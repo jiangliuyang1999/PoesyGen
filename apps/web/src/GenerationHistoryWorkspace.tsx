@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { GenerationResultPanel } from './GenerationResultPanel.js';
 import { filterGenerationHistory, type GenerationHistoryEntry } from './generation-history.js';
+import { formatGenerationTitle } from './model.js';
 
 interface GenerationHistoryWorkspaceProps {
   readonly entries: ReadonlyArray<GenerationHistoryEntry>;
@@ -57,7 +58,9 @@ export function GenerationHistoryWorkspace({
               onClick={() => setSelectedEntryId(entry.id)}
             >
               <span>
-                <strong>{entry.result.draft.title ?? '无题'}</strong>
+                <strong>
+                  {formatGenerationTitle(entry.pattern.name, entry.result.draft.title)}
+                </strong>
                 <time dateTime={entry.createdAt}>{formatHistoryDate(entry.createdAt)}</time>
               </span>
               <span>

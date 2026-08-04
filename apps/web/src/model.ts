@@ -78,6 +78,11 @@ export function splitRequirements(value: string): ReadonlyArray<string> {
     .filter(Boolean);
 }
 
+export function formatGenerationTitle(patternName: string, title: string | undefined): string {
+  const normalizedTitle = title?.trim();
+  return `${patternName}·${normalizedTitle === undefined || normalizedTitle === '' ? '无题' : normalizedTitle}`;
+}
+
 export function displayRhymeLabel(label: PatternRhymeLabel, index: number): string {
   const tone = label.tone === 'level' ? '平声' : label.tone === 'oblique' ? '仄声' : '平仄';
   return `第 ${index + 1} 组${tone}韵`;

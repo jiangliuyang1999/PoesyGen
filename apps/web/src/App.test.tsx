@@ -156,7 +156,7 @@ describe('web creation workspace', () => {
     });
     expect(screen.getByText('会话 session-1')).toBeTruthy();
     expect(screen.getByText('任务 job-1')).toBeTruthy();
-    expect(screen.getByRole('heading', { name: '春归' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
 
     const poemView = screen.getByRole('button', { name: '正文' });
     const prosodyView = screen.getByRole('button', { name: '格律标注' });
@@ -183,7 +183,7 @@ describe('web creation workspace', () => {
     expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('session-1');
     await user.click(screen.getByRole('button', { name: /历史记录/ }));
     expect(await screen.findByRole('heading', { name: '生成历史' })).toBeTruthy();
-    expect(screen.getByRole('heading', { name: '春归' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
 
     const historySearch = screen.getByRole('searchbox', { name: '搜索历史结果' });
     await user.type(historySearch, '不存在的主题');
