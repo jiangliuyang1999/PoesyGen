@@ -247,6 +247,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                 {submissionStatus.result !== undefined && (
                   <GenerationResultPanel
                     result={submissionStatus.result}
+                    pattern={selectedPattern}
                     onInspectCharacter={inspectCharacter}
                   />
                 )}

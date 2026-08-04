@@ -136,6 +136,28 @@ describe('web creation workspace', () => {
     expect(screen.getByText('会话 session-1')).toBeTruthy();
     expect(screen.getByText('任务 job-1')).toBeTruthy();
     expect(screen.getByRole('heading', { name: '春归' })).toBeTruthy();
+
+    const poemView = screen.getByRole('button', { name: '正文' });
+    const prosodyView = screen.getByRole('button', { name: '格律标注' });
+    expect(poemView.getAttribute('aria-pressed')).toBe('true');
+
+    await user.click(prosodyView);
+
+    expect(prosodyView.getAttribute('aria-pressed')).toBe('true');
+    expect(
+      screen.getByRole('button', {
+        name: '第1句第1字“春”：平声位',
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('button', {
+        name: '第1句第2字“晚”：仄声韵脚',
+      }),
+    ).toBeTruthy();
+
+    await user.click(poemView);
+    expect(poemView.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByLabelText('平仄韵脚标注')).toBeNull();
   });
 
   it('opens the dictionary by selecting a character in the example poem', async () => {
