@@ -179,38 +179,41 @@ button:disabled {
   box-shadow: 0 0 0 3px rgb(54 88 75 / 12%);
 }
 
-.pattern-catalog-layout {
-  display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
-  gap: 20px;
-  width: min(1500px, calc(100% - 40px));
-  margin: 20px auto 48px;
-}
-
-.creation-workspace {
+.page-workspace {
   width: min(1220px, calc(100% - 40px));
   margin: 24px auto 48px;
 }
 
-.creation-workspace-header {
+.workspace-header {
   display: flex;
   gap: 24px;
   align-items: flex-end;
   justify-content: space-between;
+  min-height: 76px;
   margin-bottom: 20px;
 }
 
-.creation-workspace-header h1 {
+.workspace-header h1 {
   margin: 0;
   font-size: clamp(1.65rem, 3vw, 2.35rem);
   font-weight: 500;
   letter-spacing: 0.04em;
 }
 
-.creation-workspace-header > div:first-child > p:last-child {
+.workspace-header > div:first-child > p:last-child {
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.workspace-grid {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
+
+.pattern-catalog-layout {
+  grid-template-columns: 300px minmax(0, 1fr);
 }
 
 .create-view-switcher {
@@ -945,7 +948,7 @@ button:disabled {
 
 .generation-history-layout {
   display: grid;
-  grid-template-columns: 310px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
@@ -1320,33 +1323,29 @@ button:disabled {
 }
 
 .dictionary-layout {
-  display: grid;
-  grid-template-columns: minmax(360px, 0.8fr) minmax(520px, 1.2fr);
-  gap: 20px;
-  width: min(1280px, calc(100% - 40px));
-  margin: 20px auto 48px;
+  grid-template-columns: 300px minmax(0, 1fr);
 }
 
 .dictionary-lookup,
 .rhyme-browser {
-  min-height: calc(100vh - 140px);
-  padding: clamp(24px, 4vw, 44px);
+  min-height: 520px;
+  padding: clamp(22px, 3vw, 32px);
 }
 
-.dictionary-lookup > header h1 {
-  max-width: 10ch;
+.dictionary-panel-header h2 {
   margin: 0 0 15px;
-  font-size: clamp(2.2rem, 4.5vw, 4rem);
-  font-weight: 500;
-  line-height: 1.18;
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.3;
   letter-spacing: 0.04em;
 }
 
-.dictionary-lookup > header > p:last-child {
+.dictionary-panel-header > p:last-child {
   max-width: 34rem;
   margin: 0;
   color: var(--muted);
-  line-height: 1.8;
+  font-size: 0.78rem;
+  line-height: 1.7;
 }
 
 .character-search {
@@ -1598,11 +1597,15 @@ button:disabled {
 
 @media (max-width: 1120px) {
   .pattern-catalog-layout {
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: 260px minmax(0, 1fr);
   }
 
   .generation-history-layout {
-    grid-template-columns: 270px minmax(0, 1fr);
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .dictionary-layout {
+    grid-template-columns: 260px minmax(0, 1fr);
   }
 
   .creation-form {
@@ -1629,19 +1632,18 @@ button:disabled {
     display: none;
   }
 
-  .pattern-catalog-layout {
-    grid-template-columns: 1fr;
-    width: min(100% - 24px, 720px);
-    margin-top: 12px;
-  }
-
-  .creation-workspace {
+  .page-workspace {
     width: min(100% - 24px, 720px);
     margin-top: 16px;
   }
 
-  .creation-workspace-header {
+  .workspace-header {
     align-items: flex-start;
+  }
+
+  .pattern-catalog-layout,
+  .dictionary-layout {
+    grid-template-columns: 1fr;
   }
 
   .pattern-browser {
@@ -1673,12 +1675,6 @@ button:disabled {
 
   .history-list {
     max-height: 320px;
-  }
-
-  .dictionary-layout {
-    grid-template-columns: 1fr;
-    width: min(100% - 24px, 720px);
-    margin-top: 12px;
   }
 
   .dictionary-lookup,
@@ -1719,8 +1715,9 @@ button:disabled {
     border-radius: 6px;
   }
 
-  .creation-workspace-header {
+  .workspace-header {
     display: grid;
+    min-height: 0;
   }
 
   .create-view-switcher {

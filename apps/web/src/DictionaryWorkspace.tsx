@@ -93,79 +93,89 @@ export function DictionaryWorkspace({
   };
 
   return (
-    <main className="dictionary-layout">
-      <section className="dictionary-lookup" aria-labelledby="dictionary-title">
-        <header>
-          <p className="section-kicker">音韵字典</p>
-          <h1 id="dictionary-title">一字，见古今声韵</h1>
-          <p>普通话读音来自 Unihan；平仄与韵部以《词林正韵》为准。</p>
-        </header>
+    <main className="page-workspace">
+      <header className="workspace-header">
+        <div>
+          <p className="section-kicker">字典</p>
+          <h1>音韵字典</h1>
+          <p>查询古今读音、传统平仄和《词林正韵》十九部。</p>
+        </div>
+      </header>
 
-        <form className="character-search" onSubmit={submitLookup}>
-          <label>
-            <span className="sr-only">输入一个汉字</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(Array.from(event.target.value).slice(0, 1).join(''))}
-              placeholder="字"
-              aria-label="输入一个汉字"
-            />
-          </label>
-          <button type="submit">查询</button>
-        </form>
-        <p className="lookup-status" role="status">
-          {characterStatus}
-        </p>
+      <div className="workspace-grid dictionary-layout">
+        <section className="dictionary-lookup" aria-labelledby="dictionary-title">
+          <header className="dictionary-panel-header">
+            <p className="section-kicker">单字查询</p>
+            <h2 id="dictionary-title">一字，见古今声韵</h2>
+            <p>普通话读音来自 Unihan；平仄与韵部以《词林正韵》为准。</p>
+          </header>
 
-        {characterResult !== undefined && <CharacterCard result={characterResult} />}
-      </section>
+          <form className="character-search" onSubmit={submitLookup}>
+            <label>
+              <span className="sr-only">输入一个汉字</span>
+              <input
+                value={query}
+                onChange={(event) => setQuery(Array.from(event.target.value).slice(0, 1).join(''))}
+                placeholder="字"
+                aria-label="输入一个汉字"
+              />
+            </label>
+            <button type="submit">查询</button>
+          </form>
+          <p className="lookup-status" role="status">
+            {characterStatus}
+          </p>
 
-      <section className="rhyme-browser" aria-labelledby="rhyme-title">
-        <header className="rhyme-browser-header">
-          <div>
-            <p className="section-kicker">词林正韵</p>
-            <h2 id="rhyme-title">十九部</h2>
-          </div>
-          <select
-            value={selectedGroupId}
-            onChange={(event) => setSelectedGroupId(event.target.value)}
-            aria-label="选择词林正韵韵部"
-          >
-            {rhymeGroups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
-        </header>
+          {characterResult !== undefined && <CharacterCard result={characterResult} />}
+        </section>
 
-        {groupDetail === undefined ? (
-          <p className="empty-copy">正在载入韵字…</p>
-        ) : (
-          <div className="rhyme-sections">
-            {groupDetail.sections.map((section) => (
-              <section key={`${groupDetail.id}-${section.name}`}>
-                <h3>
-                  {section.name}
-                  <span>{section.tone === 'level' ? '平声' : '仄声'}</span>
-                </h3>
-                <div className="rhyme-characters">
-                  {Array.from(section.characters).map((character, index) => (
-                    <button
-                      key={`${character}-${index}`}
-                      type="button"
-                      onClick={() => inspectRhymeCharacter(character)}
-                      title={`查询“${character}”`}
-                    >
-                      {character}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        )}
-      </section>
+        <section className="rhyme-browser" aria-labelledby="rhyme-title">
+          <header className="rhyme-browser-header">
+            <div>
+              <p className="section-kicker">词林正韵</p>
+              <h2 id="rhyme-title">十九部</h2>
+            </div>
+            <select
+              value={selectedGroupId}
+              onChange={(event) => setSelectedGroupId(event.target.value)}
+              aria-label="选择词林正韵韵部"
+            >
+              {rhymeGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </header>
+
+          {groupDetail === undefined ? (
+            <p className="empty-copy">正在载入韵字…</p>
+          ) : (
+            <div className="rhyme-sections">
+              {groupDetail.sections.map((section) => (
+                <section key={`${groupDetail.id}-${section.name}`}>
+                  <h3>
+                    {section.name}
+                    <span>{section.tone === 'level' ? '平声' : '仄声'}</span>
+                  </h3>
+                  <div className="rhyme-characters">
+                    {Array.from(section.characters).map((character, index) => (
+                      <button
+                        key={`${character}-${index}`}
+                        type="button"
+                        onClick={() => inspectRhymeCharacter(character)}
+                        title={`查询“${character}”`}
+                      >
+                        {character}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

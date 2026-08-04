@@ -274,26 +274,35 @@ export function App({ client: providedClient }: AppProps = {}) {
       ) : patterns.length === 0 || selectedPattern === undefined ? (
         <LoadingState message={connectionStatus} />
       ) : view === 'patterns' ? (
-        <main className="pattern-catalog-layout">
-          <PatternBrowser
-            patterns={patterns}
-            query={patternQuery}
-            selectedPatternId={selectedPattern.id}
-            onQueryChange={setPatternQuery}
-            onSelect={selectPattern}
-          />
-          <PatternPreview
-            pattern={selectedPattern}
-            onInspectCharacter={inspectCharacter}
-            onCreate={() => {
-              setCreateView('compose');
-              setView('create');
-            }}
-          />
+        <main className="page-workspace">
+          <header className="workspace-header">
+            <div>
+              <p className="section-kicker">词谱</p>
+              <h1>格律词谱</h1>
+              <p>浏览词牌与体式，查看逐句字数、平仄和韵位。</p>
+            </div>
+          </header>
+          <div className="workspace-grid pattern-catalog-layout">
+            <PatternBrowser
+              patterns={patterns}
+              query={patternQuery}
+              selectedPatternId={selectedPattern.id}
+              onQueryChange={setPatternQuery}
+              onSelect={selectPattern}
+            />
+            <PatternPreview
+              pattern={selectedPattern}
+              onInspectCharacter={inspectCharacter}
+              onCreate={() => {
+                setCreateView('compose');
+                setView('create');
+              }}
+            />
+          </div>
         </main>
       ) : (
-        <main className="creation-workspace">
-          <header className="creation-workspace-header">
+        <main className="page-workspace creation-workspace">
+          <header className="workspace-header creation-workspace-header">
             <div>
               <p className="section-kicker">创作</p>
               <h1>依谱填词</h1>
