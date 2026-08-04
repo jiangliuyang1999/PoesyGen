@@ -1,0 +1,6 @@
+{
+  "name": "@poesygen/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Expo React Native client reserved for the shared API SDK"
+}

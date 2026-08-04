@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "retrievedAt": "2026-08-03",
+  "sources": {
+    "qindingCipu": {
+      "title": "《御定词谱》（《四库全书》本）40卷",
+      "url": "https://zh.wikisource.org/wiki/御定詞譜_(四庫全書本)",
+      "apiUrl": "https://zh.wikisource.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=681920%7C776656%7C776659%7C776662%7C681952%7C776665%7C776668%7C776671%7C776674%7C776677%7C776680%7C776683%7C776686%7C776689%7C776692%7C682054%7C776695%7C776698%7C776701%7C776704%7C776707%7C776710%7C776713%7C776716%7C776719%7C776722%7C776725%7C776728%7C776731%7C776734%7C776737%7C682111%7C776740%7C776743%7C776746%7C776749%7C776752%7C776755%7C776758%7C776761",
+      "revision": "681920,776656,776659,776662,681952,776665,776668,776671,776674,776677,776680,776683,776686,776689,776692,682054,776695,776698,776701,776704,776707,776710,776713,776716,776719,776722,776725,776728,776731,776734,776737,682111,776740,776743,776746,776749,776752,776755,776758,776761",
+      "license": "Public Domain original; Wikisource transcription CC BY-SA 4.0"
+    },
+    "cilinZhengyun": {
+      "title": "戈载《词林正韵》",
+      "url": "https://zh.wikisource.org/wiki/詞林正韻",
+      "apiUrl": "https://zh.wikisource.org/w/api.php?action=query&format=json&formatversion=2&prop=revisions&rvprop=ids%7Ctimestamp%7Ccontent&rvslots=main&revids=2123337",
+      "revision": "2123337",
+      "contentSha256": "8ebf6c275f59e612e8ce61762b7adea24399de3a97023689d88647c2e9a8737a",
+      "license": "Public Domain original; Wikisource transcription CC BY-SA 4.0"
+    },
+    "unihan": {
+      "title": "Unicode Han Database (Unihan) 17.0.0",
+      "url": "https://www.unicode.org/Public/17.0.0/ucd/Unihan.zip",
+      "revision": "17.0.0",
+      "sha256": "f7a48b2b545acfaa77b2d607ae28747404ce02baefee16396c5d2d7a8ef34b5e",
+      "license": "Unicode License v3"
+    },
+    "cciv": {
+      "title": "CCiV structured Qin Ding Ci Pu templates",
+      "url": "https://github.com/cubenlp/CCiV",
+      "archiveUrl": "https://codeload.github.com/cubenlp/CCiV/zip/1fc85a6fef7e815f87106f9c78ad4c9f691d46d5",
+      "revision": "1fc85a6fef7e815f87106f9c78ad4c9f691d46d5",
+      "sha256": "df69d8f3fd750e4cf1f9e3b05fe6ae732417eac13421063f077210c601a86626",
+      "license": "MIT (declared in repository README)"
+    }
+  }
+}

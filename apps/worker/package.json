@@ -1,0 +1,24 @@
+{
+  "name": "@poesygen/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "dev": "node --env-file-if-exists=../../.env --watch --import tsx src/main.ts",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@poesygen/llm": "workspace:*",
+    "@poesygen/patterns": "workspace:*",
+    "@poesygen/prosody": "workspace:*",
+    "@poesygen/queue": "workspace:*",
+    "@poesygen/workflow": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.5"
+  }
+}

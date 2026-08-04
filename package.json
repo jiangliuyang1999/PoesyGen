@@ -1,0 +1,34 @@
+{
+  "name": "poesygen",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "多端 AI 词作生成与韵律优化平台",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "clean": "turbo run clean",
+    "data:check": "tsx tooling/data/import-authoritative-data.ts --check",
+    "data:import": "tsx tooling/data/import-authoritative-data.ts",
+    "dev": "node --env-file-if-exists=.env ./node_modules/turbo/bin/turbo run dev --parallel",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "infra:down": "docker compose down",
+    "infra:up": "docker compose up -d redis",
+    "test": "turbo run test",
+    "typecheck": "tsc -p tooling/tsconfig.json --noEmit && turbo run typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "fflate": "^0.8.3",
+    "prettier": "^3.9.6",
+    "tsx": "^4.23.5",
+    "turbo": "^2.10.8",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}

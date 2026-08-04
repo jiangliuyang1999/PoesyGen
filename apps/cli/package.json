@@ -1,0 +1,27 @@
+{
+  "name": "@poesygen/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "poesygen": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "dev": "node --env-file-if-exists=../../.env --import tsx src/main.ts",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.5.2",
+    "@poesygen/client-sdk": "workspace:*",
+    "@poesygen/patterns": "workspace:*",
+    "@poesygen/prosody": "workspace:*",
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.5"
+  }
+}
