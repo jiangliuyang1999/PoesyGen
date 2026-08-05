@@ -19,8 +19,23 @@ export interface GenerationHistoryEntry {
   readonly id: string;
   readonly createdAt: string;
   readonly theme: string;
+  readonly settings?: GenerationHistorySettings;
   readonly pattern: CiPattern;
   readonly result: GenerationResult;
+}
+
+export interface GenerationHistorySettings {
+  readonly maxRounds: number;
+  readonly additionalRequirements: ReadonlyArray<string>;
+  readonly rhymeSettings: ReadonlyArray<GenerationHistoryRhymeSetting>;
+}
+
+export interface GenerationHistoryRhymeSetting {
+  readonly label: string;
+  readonly tone: 'level' | 'oblique' | 'either';
+  readonly groupId?: string;
+  readonly groupName?: string;
+  readonly sections?: ReadonlyArray<string>;
 }
 
 export function loadGenerationHistory(
@@ -74,13 +89,19 @@ export function filterGenerationHistory(
 ): ReadonlyArray<GenerationHistoryEntry> {
   const normalized = query.trim().toLocaleLowerCase('zh-CN');
   if (normalized === '') return entries;
-  return entries.filter(({ id, pattern, result, theme }) =>
+  return entries.filter(({ id, pattern, result, settings, theme }) =>
     [
       id,
       pattern.name,
       pattern.variant,
       result.draft.title ?? '',
       theme,
+      ...(settings?.additionalRequirements ?? []),
+      ...(settings?.rhymeSettings.flatMap((setting) => [
+        setting.label,
+        setting.groupName ?? '',
+        ...(setting.sections ?? []),
+      ]) ?? []),
       ...result.draft.lines.map(({ text }) => text),
     ]
       .join(' ')
@@ -102,6 +123,7 @@ function isGenerationHistoryEntry(value: unknown): value is GenerationHistoryEnt
   if (!isRecord(value)) return false;
   const pattern = value['pattern'];
   const result = value['result'];
+  const settings = value['settings'];
   if (
     typeof value['id'] !== 'string' ||
     typeof value['createdAt'] !== 'string' ||
@@ -121,7 +143,35 @@ function isGenerationHistoryEntry(value: unknown): value is GenerationHistoryEnt
   ) {
     return false;
   }
+  if (settings !== undefined && !isGenerationHistorySettings(settings)) {
+    return false;
+  }
   return true;
+}
+
+function isGenerationHistorySettings(value: unknown): value is GenerationHistorySettings {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value['maxRounds'] === 'number' &&
+    Array.isArray(value['additionalRequirements']) &&
+    value['additionalRequirements'].every((requirement) => typeof requirement === 'string') &&
+    Array.isArray(value['rhymeSettings']) &&
+    value['rhymeSettings'].every(isGenerationHistoryRhymeSetting)
+  );
+}
+
+function isGenerationHistoryRhymeSetting(value: unknown): value is GenerationHistoryRhymeSetting {
+  if (!isRecord(value)) return false;
+  const tone = value['tone'];
+  return (
+    typeof value['label'] === 'string' &&
+    (tone === 'level' || tone === 'oblique' || tone === 'either') &&
+    (value['groupId'] === undefined || typeof value['groupId'] === 'string') &&
+    (value['groupName'] === undefined || typeof value['groupName'] === 'string') &&
+    (value['sections'] === undefined ||
+      (Array.isArray(value['sections']) &&
+        value['sections'].every((section) => typeof section === 'string')))
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -25,6 +25,7 @@ import {
   type GenerationHistoryEntry,
 } from './generation-history.js';
 import {
+  displayRhymeLabel,
   groupPatternsByName,
   patternRhymeLabels,
   patternStats,
@@ -113,6 +114,8 @@ export function App({ client: providedClient }: AppProps = {}) {
   }, [client]);
 
   const selectedPattern = patterns.find(({ id }) => id === selectedPatternId);
+  const selectedPatternStats =
+    selectedPattern === undefined ? undefined : patternStats(selectedPattern);
   const patternFamilies = useMemo(() => groupPatternsByName(patterns), [patterns]);
   const selectedPatternFamily = patternFamilies.find(({ name }) => name === selectedPattern?.name);
 
@@ -148,6 +151,25 @@ export function App({ client: providedClient }: AppProps = {}) {
           ? selectedRhymes[labels[0]!.id]
           : selectedRhymes;
     const additionalRequirements = splitRequirements(requirements);
+    const historySettings = {
+      maxRounds: rounds,
+      additionalRequirements,
+      rhymeSettings: labels.map((label, index) => {
+        const groupId = rhymeAssignments[label.id];
+        const group = rhymeGroups.find(({ id }) => id === groupId);
+        return {
+          label: displayRhymeLabel(label, index),
+          tone: label.tone,
+          ...(groupId === undefined ? {} : { groupId }),
+          ...(group === undefined
+            ? {}
+            : {
+                groupName: group.name,
+                sections: group.sections.map(({ name }) => name),
+              }),
+        };
+      }),
+    };
 
     try {
       const session = await client.createGenerationSession({
@@ -206,6 +228,7 @@ export function App({ client: providedClient }: AppProps = {}) {
           id: completed.id,
           createdAt: new Date().toISOString(),
           theme: theme.trim(),
+          settings: historySettings,
           pattern: selectedPattern,
           result: completed.result,
         };
@@ -335,70 +358,79 @@ export function App({ client: providedClient }: AppProps = {}) {
           ) : (
             <>
               <section className="selected-pattern-bar" aria-label="当前创作词谱">
-                <label>
-                  <span>词牌</span>
-                  <select
-                    aria-label="创作词牌"
-                    value={selectedPattern.name}
-                    onChange={(event) => {
-                      const family = patternFamilies.find(
-                        ({ name }) => name === event.target.value,
-                      );
-                      const standard =
-                        family?.patterns.find(({ variant }) => variant === '正体') ??
-                        family?.patterns[0];
-                      if (standard !== undefined) selectPattern(standard.id);
-                    }}
-                  >
-                    {patternFamilies.map((family) => (
-                      <option key={family.name} value={family.name}>
-                        {family.name} · {family.patterns.length}体
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  <span>体式</span>
-                  <select
-                    aria-label="创作体式"
-                    value={selectedPattern.id}
-                    onChange={(event) => selectPattern(event.target.value)}
-                  >
-                    {selectedPatternFamily?.patterns.map((pattern) => {
-                      const stats = patternStats(pattern);
-                      return (
-                        <option key={pattern.id} value={pattern.id}>
-                          {pattern.variant} · {stats.characters}字/{stats.lines}句
+                <header className="selected-pattern-heading">
+                  <div>
+                    <p className="section-kicker">创作词谱</p>
+                    <strong>
+                      《{selectedPattern.name}》{selectedPattern.variant}
+                    </strong>
+                  </div>
+                  <div className="selected-pattern-stats" aria-label="当前词谱统计">
+                    <span>
+                      <strong>{selectedPatternStats?.characters ?? 0}</strong> 字
+                    </span>
+                    <span>
+                      <strong>{selectedPatternStats?.lines ?? 0}</strong> 句
+                    </span>
+                    <span>
+                      <strong>{selectedPatternStats?.sections ?? 0}</strong> 阕
+                    </span>
+                  </div>
+                </header>
+
+                <div className="selected-pattern-controls">
+                  <label>
+                    <span>选择词牌</span>
+                    <select
+                      aria-label="创作词牌"
+                      value={selectedPattern.name}
+                      onChange={(event) => {
+                        const family = patternFamilies.find(
+                          ({ name }) => name === event.target.value,
+                        );
+                        const standard =
+                          family?.patterns.find(({ variant }) => variant === '正体') ??
+                          family?.patterns[0];
+                        if (standard !== undefined) selectPattern(standard.id);
+                      }}
+                    >
+                      {patternFamilies.map((family) => (
+                        <option key={family.name} value={family.name}>
+                          {family.name} · {family.patterns.length}体
                         </option>
-                      );
-                    })}
-                  </select>
-                </label>
-                <div className="selected-pattern-summary">
-                  <span>当前</span>
-                  <strong>
-                    《{selectedPattern.name}》{selectedPattern.variant}
-                  </strong>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>选择体式</span>
+                    <select
+                      aria-label="创作体式"
+                      value={selectedPattern.id}
+                      onChange={(event) => selectPattern(event.target.value)}
+                    >
+                      {selectedPatternFamily?.patterns.map((pattern) => {
+                        const stats = patternStats(pattern);
+                        return (
+                          <option key={pattern.id} value={pattern.id}>
+                            {pattern.variant} · {stats.characters}字/{stats.lines}句
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </label>
                 </div>
               </section>
 
               <form className="creation-form" onSubmit={(event) => void submit(event)}>
                 <div className="composition-column">
-                  <PatternPreview pattern={selectedPattern} onInspectCharacter={inspectCharacter} />
-
-                  {submissionStatus.result !== undefined && (
-                    <GenerationResultPanel
-                      result={submissionStatus.result}
-                      pattern={selectedPattern}
-                      onInspectCharacter={inspectCharacter}
-                    />
-                  )}
-
                   <section className="theme-editor" aria-labelledby="theme-title">
                     <div className="theme-heading">
-                      <div>
-                        <p className="section-kicker">立意</p>
-                        <h2 id="theme-title">写下想表达的内容</h2>
+                      <div className="creation-section-title">
+                        <span className="creation-step">01</span>
+                        <div>
+                          <p className="section-kicker">创作主题</p>
+                          <h2 id="theme-title">写下想表达的内容</h2>
+                        </div>
                       </div>
                       <span>{theme.length}/2000</span>
                     </div>
@@ -414,6 +446,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                       />
                     </label>
                     <div className="theme-prompts" aria-label="主题示例">
+                      <span>灵感示例</span>
                       {['暮春归舟', '雪夜怀人', '故园新雨'].map((prompt) => (
                         <button key={prompt} type="button" onClick={() => setTheme(prompt)}>
                           {prompt}
@@ -421,6 +454,16 @@ export function App({ client: providedClient }: AppProps = {}) {
                       ))}
                     </div>
                   </section>
+
+                  {submissionStatus.result !== undefined && (
+                    <GenerationResultPanel
+                      result={submissionStatus.result}
+                      pattern={selectedPattern}
+                      onInspectCharacter={inspectCharacter}
+                    />
+                  )}
+
+                  <PatternPreview pattern={selectedPattern} onInspectCharacter={inspectCharacter} />
                 </div>
 
                 <GenerationSettings

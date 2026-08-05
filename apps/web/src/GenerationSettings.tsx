@@ -40,11 +40,14 @@ export function GenerationSettings({
   return (
     <aside className="generation-settings" aria-labelledby="settings-title">
       <div className="settings-heading">
-        <p className="section-kicker">生成设置</p>
-        <h2 id="settings-title">约束与优化</h2>
+        <span className="creation-step">02</span>
+        <div>
+          <p className="section-kicker">生成设置</p>
+          <h2 id="settings-title">约束与优化</h2>
+        </div>
       </div>
 
-      <div className="setting-block">
+      <div className="setting-block setting-rhymes">
         <div className="setting-label">
           <span>韵部</span>
           <small>不指定时由工作流择韵</small>
@@ -69,7 +72,7 @@ export function GenerationSettings({
         </div>
       </div>
 
-      <div className="setting-block">
+      <div className="setting-block setting-rounds">
         <label className="setting-label" htmlFor="rounds">
           <span>
             优化轮数 <strong>{rounds}</strong>
@@ -91,7 +94,7 @@ export function GenerationSettings({
         </div>
       </div>
 
-      <div className="setting-block">
+      <div className="setting-block setting-requirements">
         <label className="setting-label" htmlFor="requirements">
           <span>附加要求</span>
           <small>每行一条，最多 20 条</small>
@@ -105,18 +108,20 @@ export function GenerationSettings({
         />
       </div>
 
-      <button
-        className="primary-action"
-        type="submit"
-        disabled={!canSubmit || status.kind === 'loading' || status.kind === 'running'}
-      >
-        <span>
-          {status.kind === 'loading' || status.kind === 'running' ? '正在生成' : '开始生成'}
-        </span>
-        <span aria-hidden="true">→</span>
-      </button>
+      <div className="settings-action">
+        <button
+          className="primary-action"
+          type="submit"
+          disabled={!canSubmit || status.kind === 'loading' || status.kind === 'running'}
+        >
+          <span>
+            {status.kind === 'loading' || status.kind === 'running' ? '正在生成' : '开始生成'}
+          </span>
+          <span aria-hidden="true">→</span>
+        </button>
 
-      <SubmissionNotice status={status} />
+        <SubmissionNotice status={status} />
+      </div>
     </aside>
   );
 }

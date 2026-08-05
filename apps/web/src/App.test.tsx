@@ -223,13 +223,26 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: /历史记录/ }));
     expect(await screen.findByRole('heading', { name: '生成历史' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
+    const historySettings = screen.getByLabelText('历史生成设置');
+    expect(within(historySettings).getByText('优化轮数')).toBeTruthy();
+    expect(within(historySettings).getByText('8')).toBeTruthy();
+    expect(within(historySettings).getByText('轮上限')).toBeTruthy();
+    expect(within(historySettings).getByText('第 1 组仄声韵')).toBeTruthy();
+    expect(within(historySettings).getByText('第十七部 · 四质')).toBeTruthy();
+    expect(
+      within(screen.getByLabelText('历史记录信息')).getByText('含蓄抒情；避免重字'),
+    ).toBeTruthy();
 
     const historySearch = screen.getByRole('searchbox', { name: '搜索历史结果' });
     await user.type(historySearch, '不存在的主题');
     expect(screen.getByText('没有匹配的历史记录。')).toBeTruthy();
     await user.clear(historySearch);
     await user.type(historySearch, '暮春江上');
-    expect(screen.getByRole('button', { name: /春归.*测试令.*暮春江上/ })).toBeTruthy();
+    expect(
+      within(screen.getByLabelText('生成历史列表')).getByRole('button', {
+        name: /测试令·春归.*暮春江上/,
+      }),
+    ).toBeTruthy();
   });
 
   it('marks stanzas in the annotated result view for double-stanza patterns', async () => {
