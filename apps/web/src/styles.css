@@ -778,9 +778,10 @@ button:disabled {
 
 .generation-result h2 {
   margin: 0;
-  font-size: 1.55rem;
+  font-size: clamp(1.65rem, 2.8vw, 1.85rem);
   font-weight: 500;
   letter-spacing: 0.08em;
+  line-height: 1.35;
   text-align: center;
 }
 
@@ -828,9 +829,9 @@ button:disabled {
 
 .result-content {
   display: grid;
-  gap: 20px;
+  gap: 28px;
   justify-items: center;
-  padding: 28px 0 30px;
+  padding: 32px 0 34px;
 }
 
 .generated-poem {
