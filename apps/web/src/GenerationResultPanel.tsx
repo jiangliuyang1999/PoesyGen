@@ -8,10 +8,7 @@ interface GenerationResultPanelProps {
   readonly result: GenerationResult;
   readonly pattern: CiPattern;
   readonly onInspectCharacter: (character: string) => void;
-  readonly onRefine?: (
-    selection: Omit<TextSelection, 'instruction'>,
-    instruction: string,
-  ) => Promise<void>;
+  readonly onRefine?: (selections: ReadonlyArray<TextSelection>) => Promise<void>;
   readonly versions?: ReadonlyArray<GenerationResult>;
   readonly onSelectVersion?: (result: GenerationResult) => void;
 }
@@ -22,6 +19,10 @@ type RefinementStatus = 'idle' | 'submitting' | 'error';
 interface ActiveSelection extends Omit<TextSelection, 'instruction'> {
   readonly text: string;
   readonly lineIndex: number;
+}
+
+interface RefinementItem extends ActiveSelection {
+  readonly instruction: string;
 }
 
 const toneLabels = {
@@ -42,6 +43,7 @@ export function GenerationResultPanel({
   const [refinementMode, setRefinementMode] = useState(false);
   const [selection, setSelection] = useState<ActiveSelection>();
   const [instruction, setInstruction] = useState('');
+  const [refinementItems, setRefinementItems] = useState<ReadonlyArray<RefinementItem>>([]);
   const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>('idle');
   const [refinementError, setRefinementError] = useState('');
   const availableVersions = versions === undefined || versions.length === 0 ? [result] : versions;
@@ -77,6 +79,7 @@ export function GenerationResultPanel({
     setRefinementMode(false);
     setSelection(undefined);
     setInstruction('');
+    setRefinementItems([]);
     setRefinementStatus('idle');
     setRefinementError('');
   }, [result.draft.id]);
@@ -160,18 +163,57 @@ export function GenerationResultPanel({
     setRefinementError('');
   };
 
+  const addRefinementItem = (): void => {
+    if (selection === undefined || instruction.trim() === '') return;
+    const item: RefinementItem = {
+      ...selection,
+      instruction: instruction.trim(),
+    };
+    setRefinementItems((current) => [
+      ...current.filter(
+        ({ lineId, start, end }) =>
+          lineId !== item.lineId || start !== item.start || end !== item.end,
+      ),
+      item,
+    ]);
+    setSelection(undefined);
+    setInstruction('');
+    setRefinementStatus('idle');
+    setRefinementError('');
+  };
+
+  const updateRefinementInstruction = (itemIndex: number, value: string): void => {
+    setRefinementItems((current) =>
+      current.map((item, index) => (index === itemIndex ? { ...item, instruction: value } : item)),
+    );
+    setRefinementStatus('idle');
+    setRefinementError('');
+  };
+
+  const removeRefinementItem = (itemIndex: number): void => {
+    setRefinementItems((current) => current.filter((_, index) => index !== itemIndex));
+    setRefinementStatus('idle');
+    setRefinementError('');
+  };
+
   const submitRefinement = async (): Promise<void> => {
-    if (onRefine === undefined || selection === undefined || instruction.trim() === '') return;
+    if (
+      onRefine === undefined ||
+      refinementItems.length === 0 ||
+      refinementItems.some((item) => item.instruction.trim() === '')
+    ) {
+      return;
+    }
     setRefinementStatus('submitting');
     setRefinementError('');
     try {
       await onRefine(
-        {
-          lineId: selection.lineId,
-          start: selection.start,
-          end: selection.end,
-        },
-        instruction.trim(),
+        refinementItems.map(({ lineId, start, end, instruction: itemInstruction }) => ({
+          lineId,
+          start,
+          end,
+          instruction: itemInstruction.trim(),
+        })),
       );
     } catch (error) {
       setRefinementStatus('error');
@@ -188,9 +230,15 @@ export function GenerationResultPanel({
             selection?.lineId === line.id &&
             index >= selection.start &&
             index < selection.end;
+          const queued =
+            refinementMode &&
+            refinementItems.some(
+              (item) => item.lineId === line.id && index >= item.start && index < item.end,
+            );
           return (
             <button
               data-refinement-selected={selected}
+              data-refinement-queued={queued}
               key={`${line.id}-${index}`}
               type="button"
               onClick={() =>
@@ -239,6 +287,7 @@ export function GenerationResultPanel({
               setView('poem');
               setSelection(undefined);
               setInstruction('');
+              setRefinementItems([]);
               setRefinementStatus('idle');
               setRefinementError('');
             }}
@@ -281,6 +330,11 @@ export function GenerationResultPanel({
             onClick={() => {
               setView('prosody');
               setRefinementMode(false);
+              setSelection(undefined);
+              setInstruction('');
+              setRefinementItems([]);
+              setRefinementStatus('idle');
+              setRefinementError('');
             }}
           >
             格律标注
@@ -369,33 +423,89 @@ export function GenerationResultPanel({
               <p className="section-kicker">局部修改</p>
               <h3>{selection === undefined ? '请选择要修改的内容' : `已选“${selection.text}”`}</h3>
             </div>
-            {selection !== undefined && <span>第 {selection.lineIndex + 1} 句</span>}
+            <span>{refinementItems.length} 项修改</span>
           </header>
           <p className="refinement-guide">
-            点击一个字选择单字，再点同句另一字扩展为词或片段；也可以直接选择整句。
+            选择字、词、片段或整句，填写对应意见后加入清单；可重复添加多项，再统一生成。
           </p>
-          <label>
-            <span>修改意见</span>
-            <textarea
-              aria-label="修改意见"
-              value={instruction}
-              onChange={(event) => setInstruction(event.target.value)}
-              rows={3}
-              maxLength={1_000}
-              placeholder="例如：换成更含蓄的表达，保留暮春意象，并与下句衔接自然。"
-            />
-          </label>
+          <div className="refinement-draft">
+            <label>
+              <span>
+                {selection === undefined
+                  ? '请先在正文中选择内容'
+                  : `第 ${selection.lineIndex + 1} 句 · “${selection.text}”`}
+              </span>
+              <textarea
+                aria-label="当前修改意见"
+                value={instruction}
+                onChange={(event) => setInstruction(event.target.value)}
+                rows={3}
+                maxLength={1_000}
+                disabled={selection === undefined}
+                placeholder="例如：换成更含蓄的表达，并与上下文自然衔接。"
+              />
+            </label>
+            <button
+              className="refinement-add"
+              type="button"
+              disabled={
+                selection === undefined ||
+                instruction.trim() === '' ||
+                refinementStatus === 'submitting'
+              }
+              onClick={addRefinementItem}
+            >
+              加入修改清单
+            </button>
+          </div>
+
+          {refinementItems.length > 0 && (
+            <div className="refinement-list" aria-label="修改清单">
+              {refinementItems.map((item, index) => (
+                <article
+                  className="refinement-item"
+                  key={`${item.lineId}-${item.start}-${item.end}`}
+                >
+                  <header>
+                    <strong>
+                      第 {item.lineIndex + 1} 句 · “{item.text}”
+                    </strong>
+                    <button
+                      type="button"
+                      aria-label={`删除“${item.text}”修改项`}
+                      disabled={refinementStatus === 'submitting'}
+                      onClick={() => removeRefinementItem(index)}
+                    >
+                      删除
+                    </button>
+                  </header>
+                  <label>
+                    <span className="sr-only">第 {index + 1} 项修改意见</span>
+                    <textarea
+                      aria-label={`第 ${index + 1} 项修改意见`}
+                      value={item.instruction}
+                      onChange={(event) => updateRefinementInstruction(index, event.target.value)}
+                      rows={2}
+                      maxLength={1_000}
+                      disabled={refinementStatus === 'submitting'}
+                    />
+                  </label>
+                </article>
+              ))}
+            </div>
+          )}
+
           <button
             className="refinement-submit"
             type="button"
             disabled={
-              selection === undefined ||
-              instruction.trim() === '' ||
+              refinementItems.length === 0 ||
+              refinementItems.some((item) => item.instruction.trim() === '') ||
               refinementStatus === 'submitting'
             }
             onClick={() => void submitRefinement()}
           >
-            {refinementStatus === 'submitting' ? '正在重新生成…' : '根据意见重新生成'}
+            {refinementStatus === 'submitting' ? '正在重新生成…' : '根据全部意见重新生成'}
           </button>
           {refinementStatus === 'error' && (
             <p className="refinement-error" role="alert">

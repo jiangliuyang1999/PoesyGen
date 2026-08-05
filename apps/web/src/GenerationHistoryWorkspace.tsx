@@ -16,8 +16,7 @@ interface GenerationHistoryWorkspaceProps {
   readonly onRefine: (
     entry: GenerationHistoryEntry,
     result: GenerationResult,
-    selection: Omit<TextSelection, 'instruction'>,
-    instruction: string,
+    selections: ReadonlyArray<TextSelection>,
   ) => Promise<GenerationResult>;
 }
 
@@ -99,7 +98,6 @@ export function GenerationHistoryWorkspace({
               <span className="history-list-meta">
                 <span>{entry.pattern.variant}</span>
                 <span>{generationHistoryVersions(entry).length} 个版本</span>
-                <span>优化 {entry.result.rounds} 轮</span>
               </span>
               <small className="history-list-theme">{entry.theme}</small>
             </button>
@@ -217,13 +215,8 @@ export function GenerationHistoryWorkspace({
               result={selectedResult}
               pattern={selectedEntry.pattern}
               onInspectCharacter={onInspectCharacter}
-              onRefine={async (selection, instruction) => {
-                const result = await onRefine(
-                  selectedEntry,
-                  selectedResult,
-                  selection,
-                  instruction,
-                );
+              onRefine={async (selections) => {
+                const result = await onRefine(selectedEntry, selectedResult, selections);
                 setSelectedVersionId(result.draft.id);
               }}
               versions={versions}

@@ -373,10 +373,7 @@ export function App({ client: providedClient }: AppProps = {}) {
     };
   };
 
-  const refineCurrentResult = async (
-    selection: Omit<TextSelection, 'instruction'>,
-    instruction: string,
-  ): Promise<void> => {
+  const refineCurrentResult = async (selections: ReadonlyArray<TextSelection>): Promise<void> => {
     const sourceResult = submissionStatus.result;
     if (selectedPattern === undefined || sourceResult === undefined) {
       throw new Error('当前没有可修改的词稿');
@@ -420,8 +417,7 @@ export function App({ client: providedClient }: AppProps = {}) {
         createRefinementRequest({
           sourceResult,
           pattern: selectedPattern,
-          selection,
-          instruction,
+          selections,
           maxRounds: rounds,
           preferredRhymeGroup,
           additionalRequirements,
@@ -464,8 +460,7 @@ export function App({ client: providedClient }: AppProps = {}) {
   const refineHistoryResult = async (
     entry: GenerationHistoryEntry,
     sourceResult: GenerationResult,
-    selection: Omit<TextSelection, 'instruction'>,
-    instruction: string,
+    selections: ReadonlyArray<TextSelection>,
   ): Promise<GenerationResult> => {
     const labels = patternRhymeLabels(entry.pattern);
     const selectedRhymes = Object.fromEntries(
@@ -484,8 +479,7 @@ export function App({ client: providedClient }: AppProps = {}) {
       createRefinementRequest({
         sourceResult,
         pattern: entry.pattern,
-        selection,
-        instruction,
+        selections,
         maxRounds: entry.settings?.maxRounds ?? 8,
         preferredRhymeGroup,
         additionalRequirements,
@@ -778,8 +772,7 @@ export function App({ client: providedClient }: AppProps = {}) {
 interface CreateRefinementRequestInput {
   readonly sourceResult: GenerationResult;
   readonly pattern: CiPattern;
-  readonly selection: Omit<TextSelection, 'instruction'>;
-  readonly instruction: string;
+  readonly selections: ReadonlyArray<TextSelection>;
   readonly maxRounds: number;
   readonly preferredRhymeGroup: Parameters<
     AppClient['createRefinementSession']
@@ -790,8 +783,7 @@ interface CreateRefinementRequestInput {
 function createRefinementRequest({
   sourceResult,
   pattern,
-  selection,
-  instruction,
+  selections,
   maxRounds,
   preferredRhymeGroup,
   additionalRequirements,
@@ -810,7 +802,10 @@ function createRefinementRequest({
         ? {}
         : { requestedRhymeGroup: sourceResult.draft.requestedRhymeGroup }),
     },
-    selections: [{ ...selection, instruction: instruction.trim() }],
+    selections: selections.map((selection) => ({
+      ...selection,
+      instruction: selection.instruction.trim(),
+    })),
     maxRounds,
     ...(preferredRhymeGroup === undefined ? {} : { preferredRhymeGroup }),
     ...(additionalRequirements.length === 0

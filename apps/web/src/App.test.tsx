@@ -394,10 +394,18 @@ describe('web creation workspace', () => {
     expect(screen.getByRole('button', { name: '整句' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '选择第1句第1字“春”' }));
     expect(screen.getByRole('heading', { name: '已选“春”' })).toBeTruthy();
+    await user.type(screen.getByRole('textbox', { name: '当前修改意见' }), '改成秋日意象');
+    await user.click(screen.getByRole('button', { name: '加入修改清单' }));
+
     await user.click(screen.getByRole('button', { name: '选择第1句第2字“晚”' }));
-    expect(screen.getByRole('heading', { name: '已选“春晚”' })).toBeTruthy();
-    await user.type(screen.getByRole('textbox', { name: '修改意见' }), '改成更清冷的秋夜意象');
-    await user.click(screen.getByRole('button', { name: '根据意见重新生成' }));
+    expect(screen.getByRole('heading', { name: '已选“晚”' })).toBeTruthy();
+    await user.type(screen.getByRole('textbox', { name: '当前修改意见' }), '改成清冷暮色');
+    await user.click(screen.getByRole('button', { name: '加入修改清单' }));
+
+    const refinementList = screen.getByLabelText('修改清单');
+    expect(within(refinementList).getByRole('textbox', { name: '第 1 项修改意见' })).toBeTruthy();
+    expect(within(refinementList).getByRole('textbox', { name: '第 2 项修改意见' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '根据全部意见重新生成' }));
 
     await screen.findByText('新版本已按意见修改并通过格律校验。');
     expect(client.createRefinementSession).toHaveBeenCalledWith(
@@ -408,8 +416,14 @@ describe('web creation workspace', () => {
           {
             lineId: 'line-1',
             start: 0,
+            end: 1,
+            instruction: '改成秋日意象',
+          },
+          {
+            lineId: 'line-1',
+            start: 1,
             end: 2,
-            instruction: '改成更清冷的秋夜意象',
+            instruction: '改成清冷暮色',
           },
         ],
       }),
@@ -465,8 +479,9 @@ describe('web creation workspace', () => {
 
     await user.click(screen.getByRole('button', { name: '局部修改' }));
     await user.click(screen.getByRole('button', { name: '选择第1句第1字“秋”' }));
-    await user.type(screen.getByRole('textbox', { name: '修改意见' }), '改成雪夜独行的意象');
-    await user.click(screen.getByRole('button', { name: '根据意见重新生成' }));
+    await user.type(screen.getByRole('textbox', { name: '当前修改意见' }), '改成雪夜独行的意象');
+    await user.click(screen.getByRole('button', { name: '加入修改清单' }));
+    await user.click(screen.getByRole('button', { name: '根据全部意见重新生成' }));
 
     expect(await screen.findByText('版本 3/3')).toBeTruthy();
     expect(screen.getByTitle('查询“雪”')).toBeTruthy();
