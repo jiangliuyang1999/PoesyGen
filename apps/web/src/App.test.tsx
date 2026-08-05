@@ -138,6 +138,7 @@ const ideaSuggestions = [
 ] as const;
 
 beforeEach(() => {
+  delete document.documentElement.dataset['platform'];
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
     value: createTestStorage(),
@@ -147,6 +148,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  delete document.documentElement.dataset['platform'];
 });
 
 describe('web creation workspace', () => {
@@ -254,6 +256,50 @@ describe('web creation workspace', () => {
         .closest('main')
         ?.classList.contains('page-workspace'),
     ).toBe(true);
+  });
+
+  it('uses a dedicated bottom tab bar on the mobile platform', async () => {
+    document.documentElement.dataset['platform'] = 'mobile';
+    const client = createClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    expect(screen.queryByRole('navigation', { name: '主导航' })).toBeNull();
+    const navigation = screen.getByRole('navigation', { name: '手机端导航' });
+    expect(
+      within(navigation)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['创作', '历史', '词谱', '字典']);
+    expect(
+      within(navigation).getByRole('button', { name: '创作' }).getAttribute('aria-current'),
+    ).toBe('page');
+    expect(screen.getByText('服务就绪')).toBeTruthy();
+
+    await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上春归');
+    await user.click(screen.getByRole('button', { name: /开始生成/ }));
+    await screen.findByText('词作已完成');
+    await user.click(within(navigation).getByRole('button', { name: '历史' }));
+
+    expect(screen.getByRole('heading', { name: '历史记录', level: 1 })).toBeTruthy();
+    expect(
+      within(navigation).getByRole('button', { name: '历史' }).getAttribute('aria-current'),
+    ).toBe('page');
+    const historyList = screen.getByLabelText('生成历史列表');
+    expect(screen.queryByLabelText('历史记录信息')).toBeNull();
+
+    await user.click(
+      within(historyList).getByRole('button', {
+        name: /测试令·春归/,
+      }),
+    );
+
+    expect(screen.queryByLabelText('生成历史列表')).toBeNull();
+    expect(screen.getByLabelText('历史记录信息')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '全部生成记录' }));
+    expect(screen.getByLabelText('生成历史列表')).toBeTruthy();
+    expect(screen.queryByLabelText('历史记录信息')).toBeNull();
   });
 
   it('does not show the machine review badge for imported patterns', async () => {
@@ -365,7 +411,14 @@ describe('web creation workspace', () => {
 
     const poemView = screen.getByRole('button', { name: '正文' });
     const prosodyView = screen.getByRole('button', { name: '格律标注' });
+    const refinementView = screen.getByRole('button', { name: '局部修改' });
+    expect(
+      within(screen.getByRole('group', { name: '结果视图' }))
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['正文', '格律标注', '局部修改']);
     expect(poemView.getAttribute('aria-pressed')).toBe('true');
+    expect(refinementView.getAttribute('aria-pressed')).toBe('false');
 
     await user.click(prosodyView);
 
@@ -387,10 +440,12 @@ describe('web creation workspace', () => {
     const initialVersion = screen.getByRole('group', { name: '作品版本' });
     const initialViewSwitcher = screen.getByRole('group', { name: '结果视图' });
     expect(within(initialVersion).getByText('版本 1/1')).toBeTruthy();
-    expect(initialVersion.nextElementSibling).toBe(initialViewSwitcher);
-    expect(initialVersion.parentElement).toBe(initialViewSwitcher.parentElement);
+    expect(initialVersion.parentElement?.classList.contains('result-view-actions')).toBe(true);
+    expect(initialViewSwitcher.parentElement?.tagName).toBe('HEADER');
+    expect(initialVersion.parentElement).not.toBe(initialViewSwitcher.parentElement);
 
-    await user.click(screen.getByRole('button', { name: '局部修改' }));
+    await user.click(refinementView);
+    expect(refinementView.getAttribute('aria-pressed')).toBe('true');
     expect(screen.getByRole('button', { name: '整句' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '选择第1句第1字“春”' }));
     expect(screen.getByRole('heading', { name: '已选“春”' })).toBeTruthy();
@@ -432,12 +487,9 @@ describe('web creation workspace', () => {
     const currentVersion = screen.getByRole('group', { name: '作品版本' });
     expect(within(currentVersion).getByText('版本 2/2')).toBeTruthy();
     const currentViewSwitcher = screen.getByRole('group', { name: '结果视图' });
-    expect(
-      within(currentViewSwitcher.parentElement!).getByRole('group', {
-        name: '作品版本',
-      }),
-    ).toBe(currentVersion);
-    expect(currentVersion.nextElementSibling).toBe(currentViewSwitcher);
+    expect(currentVersion.parentElement?.classList.contains('result-view-actions')).toBe(true);
+    expect(currentViewSwitcher.parentElement?.tagName).toBe('HEADER');
+    expect(currentVersion.parentElement).not.toBe(currentViewSwitcher.parentElement);
     expect(currentVersion.closest('footer')).toBeNull();
 
     await user.click(screen.getByRole('button', { name: '格律标注' }));
@@ -455,7 +507,8 @@ describe('web creation workspace', () => {
 
     expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('session-1');
     await user.click(screen.getByRole('button', { name: /历史记录/ }));
-    expect(await screen.findByRole('heading', { name: '生成历史' })).toBeTruthy();
+    expect(await screen.findByLabelText('生成历史列表')).toBeTruthy();
+    expect(screen.getByLabelText('历史记录总数').textContent).toBe('共 1 条记录');
     expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
     const historyOverview = screen.getByLabelText('历史记录信息');
     const patternIdentity = within(historyOverview).getByLabelText('词牌信息');
@@ -524,6 +577,7 @@ describe('web creation workspace', () => {
   });
 
   it('marks stanzas in the annotated result view for double-stanza patterns', async () => {
+    document.documentElement.dataset['platform'] = 'mobile';
     const client = createClient([doubleStanzaPattern]);
     const user = userEvent.setup();
     render(<App client={client} />);
@@ -540,8 +594,12 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: '格律标注' }));
 
     const annotatedResult = screen.getByLabelText('平仄韵脚标注');
-    expect(within(annotatedResult).getByText('上阕')).toBeTruthy();
-    expect(within(annotatedResult).getByText('下阕')).toBeTruthy();
+    const upperStanza = within(annotatedResult).getByRole('region', { name: '上阕' });
+    const lowerStanza = within(annotatedResult).getByRole('region', { name: '下阕' });
+    expect(within(upperStanza).getByText('上阕')).toBeTruthy();
+    expect(within(lowerStanza).getByText('下阕')).toBeTruthy();
+    expect(upperStanza.querySelectorAll('.annotated-line')).toHaveLength(1);
+    expect(lowerStanza.querySelectorAll('.annotated-line')).toHaveLength(1);
   });
 
   it('opens the dictionary by selecting a character in the example poem', async () => {
@@ -553,7 +611,7 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('heading', { name: '测试令', level: 2 }).closest('summary')!);
     await user.click(screen.getByTitle('平声位'));
 
-    await screen.findByRole('heading', { name: '一字，见古今声韵' });
+    await screen.findByLabelText('单字查询');
     await waitFor(() => {
       expect(client.getCharacterPronunciations).toHaveBeenCalledWith('春');
     });

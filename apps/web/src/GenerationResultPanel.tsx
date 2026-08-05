@@ -13,7 +13,7 @@ interface GenerationResultPanelProps {
   readonly onSelectVersion?: (result: GenerationResult) => void;
 }
 
-type ResultView = 'poem' | 'prosody';
+type ResultView = 'poem' | 'prosody' | 'refinement';
 type RefinementStatus = 'idle' | 'submitting' | 'error';
 
 interface ActiveSelection extends Omit<TextSelection, 'instruction'> {
@@ -40,7 +40,7 @@ export function GenerationResultPanel({
   onSelectVersion,
 }: GenerationResultPanelProps) {
   const [view, setView] = useState<ResultView>('poem');
-  const [refinementMode, setRefinementMode] = useState(false);
+  const refinementMode = view === 'refinement';
   const [selection, setSelection] = useState<ActiveSelection>();
   const [instruction, setInstruction] = useState('');
   const [refinementItems, setRefinementItems] = useState<ReadonlyArray<RefinementItem>>([]);
@@ -76,13 +76,22 @@ export function GenerationResultPanel({
   }, [result.report.issues]);
 
   useEffect(() => {
-    setRefinementMode(false);
+    setView((current) => (current === 'refinement' ? 'poem' : current));
     setSelection(undefined);
     setInstruction('');
     setRefinementItems([]);
     setRefinementStatus('idle');
     setRefinementError('');
   }, [result.draft.id]);
+
+  const selectResultView = (nextView: ResultView): void => {
+    setView(nextView);
+    setSelection(undefined);
+    setInstruction('');
+    setRefinementItems([]);
+    setRefinementStatus('idle');
+    setRefinementError('');
+  };
 
   const renderAnnotatedLine = (
     line: GenerationResult['draft']['lines'][number],
@@ -274,27 +283,34 @@ export function GenerationResultPanel({
     <section className="generation-result" aria-labelledby="result-title">
       <header>
         <p className="section-kicker">生成结果</p>
+        <div className="result-view-switcher" role="group" aria-label="结果视图">
+          <button
+            type="button"
+            aria-pressed={view === 'poem'}
+            onClick={() => selectResultView('poem')}
+          >
+            正文
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === 'prosody'}
+            onClick={() => selectResultView('prosody')}
+          >
+            格律标注
+          </button>
+          {onRefine !== undefined && (
+            <button
+              type="button"
+              aria-pressed={view === 'refinement'}
+              onClick={() => selectResultView('refinement')}
+            >
+              局部修改
+            </button>
+          )}
+        </div>
       </header>
 
       <div className="result-view-actions">
-        {onRefine !== undefined && (
-          <button
-            className="refinement-toggle"
-            type="button"
-            aria-pressed={refinementMode}
-            onClick={() => {
-              setRefinementMode((current) => !current);
-              setView('poem');
-              setSelection(undefined);
-              setInstruction('');
-              setRefinementItems([]);
-              setRefinementStatus('idle');
-              setRefinementError('');
-            }}
-          >
-            {refinementMode ? '退出修改' : '局部修改'}
-          </button>
-        )}
         <div className="result-version-switcher" role="group" aria-label="作品版本">
           {availableVersions.length > 1 && onSelectVersion !== undefined && (
             <button
@@ -320,32 +336,12 @@ export function GenerationResultPanel({
             </button>
           )}
         </div>
-        <div className="result-view-switcher" role="group" aria-label="结果视图">
-          <button type="button" aria-pressed={view === 'poem'} onClick={() => setView('poem')}>
-            正文
-          </button>
-          <button
-            type="button"
-            aria-pressed={view === 'prosody'}
-            onClick={() => {
-              setView('prosody');
-              setRefinementMode(false);
-              setSelection(undefined);
-              setInstruction('');
-              setRefinementItems([]);
-              setRefinementStatus('idle');
-              setRefinementError('');
-            }}
-          >
-            格律标注
-          </button>
-        </div>
       </div>
 
       <div className="result-content" aria-label="词作内容">
         <h2 id="result-title">{formatGenerationTitle(pattern.name, result.draft.title)}</h2>
 
-        {view === 'poem' ? (
+        {view !== 'prosody' ? (
           <div className="generated-poem" aria-label="词作正文">
             {pattern.sections.length > 1 ? (
               <>
@@ -416,7 +412,7 @@ export function GenerationResultPanel({
         )}
       </div>
 
-      {refinementMode && (
+      {view === 'refinement' && (
         <section className="refinement-editor" aria-label="局部修改">
           <header>
             <div>
@@ -534,7 +530,7 @@ export function GenerationResultPanel({
       <footer>
         <div className="result-footer-meta">
           <span>优化 {result.rounds} 轮</span>
-          <span>版本 {result.draft.version}</span>
+          {/* <span>版本 {result.draft.version}</span> */}
           <span>{result.report.issues.length} 项提示</span>
         </div>
       </footer>

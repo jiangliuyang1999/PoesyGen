@@ -2,7 +2,8 @@
 
 Capacitor iOS / Android 应用壳。应用直接打包 `apps/web/dist`，因此创作、历史记录、
 词谱、字典和局部修改功能均与 Web 共用同一套 React 组件。移动端差异集中在
-`html[data-platform='mobile']` 对应的响应式样式。
+`html[data-platform='mobile']` 对应的响应式样式，并使用独立顶部状态栏与底部
+Tab 导航。
 
 ## 环境要求
 

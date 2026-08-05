@@ -31,25 +31,29 @@ export function PatternBrowser({
   return (
     <aside className="pattern-browser" aria-label="词牌列表">
       <div className="browser-heading">
-        <div>
-          <p className="section-kicker">词牌谱</p>
-          <h2>选择词牌</h2>
-        </div>
         <span
           className="count-badge"
+          aria-label={`${families.length} 个词牌，${patterns.length} 种体式`}
           title={`${families.length} 个词牌，${patterns.length} 种体式`}
         >
-          {families.length}牌 · {patterns.length}体
+          <span>共</span>
+          <span>
+            <strong>{families.length}</strong>牌
+          </span>
+          <i aria-hidden="true" />
+          <span>
+            <strong>{patterns.length}</strong>体
+          </span>
         </span>
       </div>
 
       <label className="search-field">
-        <span className="sr-only">搜索词牌</span>
+        <span className="sr-only">搜索词牌名</span>
         <input
           type="search"
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="搜索词牌…"
+          placeholder="搜索词牌名…"
         />
       </label>
 

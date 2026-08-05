@@ -18,6 +18,7 @@ import { DictionaryWorkspace } from './DictionaryWorkspace.js';
 import { GenerationHistoryWorkspace } from './GenerationHistoryWorkspace.js';
 import { GenerationResultPanel } from './GenerationResultPanel.js';
 import { GenerationSettings, type SubmissionStatus } from './GenerationSettings.js';
+import { MobileAppChrome, type ApplicationView } from './MobileAppChrome.js';
 import { PatternBrowser } from './PatternBrowser.js';
 import { PatternPreview, PatternPreviewTitle } from './PatternPreview.js';
 import { toUserMessage } from './errors.js';
@@ -59,7 +60,6 @@ interface AppProps {
   readonly client?: AppClient;
 }
 
-type View = 'create' | 'history' | 'patterns' | 'dictionary';
 type IdeaSuggestionsStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 interface IdeaSuggestionsState {
@@ -83,7 +83,7 @@ export function App({ client: providedClient }: AppProps = {}) {
     [],
   );
   const client = providedClient ?? defaultClient;
-  const [view, setView] = useState<View>('create');
+  const [view, setView] = useState<ApplicationView>('create');
   const [patterns, setPatterns] = useState<ReadonlyArray<CiPattern>>([]);
   const [rhymeGroups, setRhymeGroups] = useState<ReadonlyArray<RhymeGroupSummary>>([]);
   const [selectedPatternId, setSelectedPatternId] = useState('');
@@ -503,49 +503,68 @@ export function App({ client: providedClient }: AppProps = {}) {
     }));
   };
 
+  const selectMobileView = (nextView: ApplicationView): void => {
+    setView(nextView);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  };
+
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <button className="brand" type="button" onClick={() => setView('create')}>
-          <span className="brand-seal">词</span>
-          <span>
-            <strong>PoesyGen</strong>
-            <small>格律诗词</small>
-          </span>
-        </button>
+      {document.documentElement.dataset['platform'] === 'mobile' ? (
+        <MobileAppChrome
+          activeView={view}
+          generationAvailable={generationAvailable}
+          hasLoadedPatterns={patterns.length > 0}
+          onSelectView={selectMobileView}
+        />
+      ) : (
+        <header className="topbar">
+          <button className="brand" type="button" onClick={() => setView('create')}>
+            <span className="brand-seal">词</span>
+            <span>
+              <strong>PoesyGen</strong>
+              <small>格律诗词</small>
+            </span>
+          </button>
 
-        <nav aria-label="主导航">
-          <button type="button" data-active={view === 'create'} onClick={() => setView('create')}>
-            创作
-          </button>
-          <button type="button" data-active={view === 'history'} onClick={() => setView('history')}>
-            历史记录
-          </button>
-          <button
-            type="button"
-            data-active={view === 'patterns'}
-            onClick={() => setView('patterns')}
-          >
-            词谱
-          </button>
-          <button
-            type="button"
-            data-active={view === 'dictionary'}
-            onClick={() => setView('dictionary')}
-          >
-            字典
-          </button>
-        </nav>
+          <nav aria-label="主导航">
+            <button type="button" data-active={view === 'create'} onClick={() => setView('create')}>
+              创作
+            </button>
+            <button
+              type="button"
+              data-active={view === 'history'}
+              onClick={() => setView('history')}
+            >
+              历史记录
+            </button>
+            <button
+              type="button"
+              data-active={view === 'patterns'}
+              onClick={() => setView('patterns')}
+            >
+              词谱
+            </button>
+            <button
+              type="button"
+              data-active={view === 'dictionary'}
+              onClick={() => setView('dictionary')}
+            >
+              字典
+            </button>
+          </nav>
 
-        <div className="connection-status" title={connectionStatus}>
-          <span data-ready={generationAvailable} />
-          {generationAvailable
-            ? '生成服务就绪'
-            : patterns.length > 0
-              ? 'Worker 未连接'
-              : '正在连接'}
-        </div>
-      </header>
+          <div className="connection-status" title={connectionStatus}>
+            <span data-ready={generationAvailable} />
+            {generationAvailable
+              ? '生成服务就绪'
+              : patterns.length > 0
+                ? 'Worker 未连接'
+                : '正在连接'}
+          </div>
+        </header>
+      )}
 
       {view === 'dictionary' ? (
         <DictionaryWorkspace

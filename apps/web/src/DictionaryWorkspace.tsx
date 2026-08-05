@@ -103,10 +103,9 @@ export function DictionaryWorkspace({
       </header>
 
       <div className="workspace-grid dictionary-layout">
-        <section className="dictionary-lookup" aria-labelledby="dictionary-title">
+        <section className="dictionary-lookup" aria-label="单字查询">
           <header className="dictionary-panel-header">
             <p className="section-kicker">单字查询</p>
-            <h2 id="dictionary-title">一字，见古今声韵</h2>
             <p>普通话读音来自 Unihan；平仄与韵部以《词林正韵》为准。</p>
           </header>
 
