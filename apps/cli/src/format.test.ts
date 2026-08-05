@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CharacterPronunciationResponse, CiPattern } from '@poesygen/client-sdk';
+import type {
+  CharacterPronunciationResponse,
+  CiPattern,
+  GenerationSessionStatusResponse,
+} from '@poesygen/client-sdk';
+import { findPattern } from '@poesygen/patterns';
 
 import {
   formatCharacter,
+  formatGenerationSession,
   formatPattern,
   formatPatternSummary,
   patternRhymeLabels,
@@ -69,4 +75,69 @@ describe('CLI formatters', () => {
     expect(output).toContain('反切：於悉');
     expect(output).toContain('仄声 · cilin-17 · 四质');
   });
+
+  it('adds the tune name to generated titles without duplicating it', () => {
+    expect(formatGenerationSession(createCompletedSession('春归'))).toMatch(/^如梦令·春归\n/u);
+    expect(formatGenerationSession(createCompletedSession('如梦令·春归'))).toMatch(
+      /^如梦令·春归\n/u,
+    );
+    expect(formatGenerationSession(createCompletedSession('如梦令·如梦令·春归'))).toMatch(
+      /^如梦令·春归\n/u,
+    );
+  });
+
+  it('separates upper and lower stanzas in generated work and example patterns', () => {
+    const doublePattern = findPattern('lin-jiang-xian-standard');
+    expect(doublePattern).toBeDefined();
+    if (doublePattern === undefined) return;
+
+    const lineTexts = doublePattern.sections
+      .flatMap((section) => section.lines)
+      .map((_, index) => `第${index + 1}句`);
+    const upperLineCount = doublePattern.sections[0]?.lines.length ?? 0;
+    const output = formatGenerationSession(
+      createCompletedSession('春归', {
+        patternId: doublePattern.id,
+        lineTexts,
+      }),
+    );
+
+    expect(output).toContain(`第${upperLineCount}句\n\n第${upperLineCount + 1}句`);
+    expect(formatPattern(doublePattern)).toContain('\n\n[下阕]');
+  });
 });
+
+function createCompletedSession(
+  title: string,
+  options: {
+    readonly patternId?: string;
+    readonly lineTexts?: ReadonlyArray<string>;
+  } = {},
+): GenerationSessionStatusResponse {
+  return {
+    id: 'session-1',
+    jobId: 'job-1',
+    status: 'completed',
+    progress: 100,
+    result: {
+      sessionId: 'session-1',
+      status: 'completed',
+      rounds: 2,
+      draft: {
+        id: 'draft-1',
+        patternId: options.patternId ?? 'ru-meng-ling-standard',
+        theme: '暮春',
+        version: 2,
+        title,
+        lines: (options.lineTexts ?? ['春归']).map((text, index) => ({
+          id: `line-${index + 1}`,
+          text,
+        })),
+      },
+      report: {
+        passed: true,
+        issues: [],
+      },
+    },
+  };
+}

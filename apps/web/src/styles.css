@@ -614,6 +614,10 @@ button:disabled {
   padding: 28px 0 24px;
 }
 
+.stanza-list .stanza + .stanza {
+  margin-top: 14px;
+}
+
 .stanza {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
@@ -840,6 +844,15 @@ button:disabled {
   text-align: center;
 }
 
+.generated-stanza {
+  display: grid;
+  gap: 12px;
+}
+
+.generated-stanza + .generated-stanza {
+  margin-top: 24px;
+}
+
 .generated-poem button {
   padding: 3px 2px;
   border: 0;
@@ -868,6 +881,10 @@ button:disabled {
 
 .annotated-stanza-list .stanza {
   grid-template-columns: 56px minmax(0, 1fr) 56px;
+}
+
+.annotated-stanza-list .stanza + .stanza {
+  margin-top: 12px;
 }
 
 .annotated-stanza-list .stanza::after,

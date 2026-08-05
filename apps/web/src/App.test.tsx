@@ -285,6 +285,11 @@ describe('web creation workspace', () => {
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上春归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
     await screen.findByText('词作已完成');
+
+    const poemResult = screen.getByLabelText('词作正文');
+    expect(within(poemResult).getByRole('region', { name: '上阕' })).toBeTruthy();
+    expect(within(poemResult).getByRole('region', { name: '下阕' })).toBeTruthy();
+
     await user.click(screen.getByRole('button', { name: '格律标注' }));
 
     const annotatedResult = screen.getByLabelText('平仄韵脚标注');

@@ -5,6 +5,7 @@ import type {
   RhymeGroupDetail,
   RhymeGroupSummary,
 } from '@poesygen/client-sdk';
+import { findPattern } from '@poesygen/patterns';
 
 const toneLabels = {
   level: '平',
@@ -118,10 +119,11 @@ export function formatGenerationSession(session: GenerationSessionStatusResponse
   }
 
   const { draft, report, rounds, status } = session.result;
+  const pattern = findPattern(draft.patternId);
   return [
-    draft.title ?? '无题',
+    formatGenerationTitle(pattern?.name, draft.title),
     '',
-    ...draft.lines.map(({ text }) => text),
+    ...formatGenerationLines(draft.lines, pattern),
     '',
     status === 'completed'
       ? `格律校验通过 · ${rounds} 轮`
@@ -134,6 +136,45 @@ export function formatGenerationSession(session: GenerationSessionStatusResponse
         )),
     `会话：${session.id}`,
   ].join('\n');
+}
+
+function formatGenerationLines(
+  lines: ReadonlyArray<{ readonly text: string }>,
+  pattern: CiPattern | undefined,
+): ReadonlyArray<string> {
+  if (pattern === undefined || pattern.sections.length <= 1) {
+    return lines.map(({ text }) => text);
+  }
+
+  const output: string[] = [];
+  let lineIndex = 0;
+  for (const section of pattern.sections) {
+    const sectionLines = lines.slice(lineIndex, lineIndex + section.lines.length);
+    lineIndex += section.lines.length;
+    if (sectionLines.length === 0) continue;
+    if (output.length > 0) output.push('');
+    output.push(...sectionLines.map(({ text }) => text));
+  }
+  if (lineIndex < lines.length) {
+    if (output.length > 0) output.push('');
+    output.push(...lines.slice(lineIndex).map(({ text }) => text));
+  }
+  return output;
+}
+
+function formatGenerationTitle(patternName: string | undefined, title: string | undefined): string {
+  const normalizedTitle = title?.trim();
+  if (patternName === undefined)
+    return normalizedTitle === undefined || normalizedTitle === '' ? '无题' : normalizedTitle;
+  if (normalizedTitle === undefined || normalizedTitle === '') return `${patternName}·无题`;
+  if (!normalizedTitle.includes(patternName)) return `${patternName}·${normalizedTitle}`;
+  if (!normalizedTitle.startsWith(patternName)) return normalizedTitle;
+
+  let titleBody = normalizedTitle;
+  while (titleBody.startsWith(patternName)) {
+    titleBody = titleBody.slice(patternName.length).replace(/^[\s·・.。:：—-]+/u, '');
+  }
+  return titleBody === '' ? patternName : `${patternName}·${titleBody}`;
 }
 
 export function formatProgress(progress: unknown): string | undefined {

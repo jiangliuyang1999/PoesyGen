@@ -85,6 +85,21 @@ export function GenerationResultPanel({
     </div>
   );
 
+  const renderPoemLine = (line: GenerationResult['draft']['lines'][number]) => (
+    <p key={line.id}>
+      {Array.from(line.text).map((character, index) => (
+        <button
+          key={`${line.id}-${index}`}
+          type="button"
+          onClick={() => onInspectCharacter(character)}
+          title={`查询“${character}”`}
+        >
+          {character}
+        </button>
+      ))}
+    </p>
+  );
+
   return (
     <section className="generation-result" aria-labelledby="result-title">
       <header>
@@ -108,20 +123,31 @@ export function GenerationResultPanel({
 
         {view === 'poem' ? (
           <div className="generated-poem" aria-label="词作正文">
-            {result.draft.lines.map((line) => (
-              <p key={line.id}>
-                {Array.from(line.text).map((character, index) => (
-                  <button
-                    key={`${line.id}-${index}`}
-                    type="button"
-                    onClick={() => onInspectCharacter(character)}
-                    title={`查询“${character}”`}
-                  >
-                    {character}
-                  </button>
-                ))}
-              </p>
-            ))}
+            {pattern.sections.length > 1 ? (
+              <>
+                {pattern.sections.map((section, sectionIndex) => {
+                  const startIndex = sectionStartIndexes[sectionIndex] ?? 0;
+                  return (
+                    <section
+                      className="generated-stanza"
+                      key={section.id}
+                      aria-label={section.name}
+                    >
+                      {result.draft.lines
+                        .slice(startIndex, startIndex + section.lines.length)
+                        .map(renderPoemLine)}
+                    </section>
+                  );
+                })}
+                {result.draft.lines.length > patternLines.length && (
+                  <section className="generated-stanza" aria-label="词谱外正文">
+                    {result.draft.lines.slice(patternLines.length).map(renderPoemLine)}
+                  </section>
+                )}
+              </>
+            ) : (
+              result.draft.lines.map(renderPoemLine)
+            )}
           </div>
         ) : (
           <div className="annotated-poem" aria-label="平仄韵脚标注">
