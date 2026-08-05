@@ -40,6 +40,9 @@ importers:
       '@poesygen/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@poesygen/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@poesygen/patterns':
         specifier: workspace:*
         version: link:../../packages/patterns

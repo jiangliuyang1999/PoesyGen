@@ -130,6 +130,12 @@ const groupDetail: RhymeGroupDetail = {
   sections: [{ name: '一东', tone: 'level', characters: '东风' }],
 };
 
+const ideaSuggestions = [
+  '暮春江上归舟，远帆入暮云，忽忆故人旧约',
+  '雪夜独坐小楼，听梅枝落雪，思念远行未归的人',
+  '重回江南旧巷，在新雨与青苔间寻找少年往事',
+] as const;
+
 beforeEach(() => {
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
@@ -143,6 +149,26 @@ afterEach(() => {
 });
 
 describe('web creation workspace', () => {
+  it('loads LLM idea suggestions and fills the theme editor', async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+
+    const suggestion = await screen.findByRole('button', { name: ideaSuggestions[0] });
+    expect(client.suggestCreationIdeas).toHaveBeenCalledWith(pattern.id);
+    expect(Array.from(suggestion.textContent ?? '').length).toBeLessThanOrEqual(50);
+
+    await user.click(suggestion);
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '作品主题' }).value).toBe(
+      ideaSuggestions[0],
+    );
+
+    await user.click(screen.getByRole('button', { name: '换一组' }));
+    await waitFor(() => {
+      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it('switches between forms of the same tune and submits the selected pattern ID', async () => {
     const client = createClient([pattern, alternatePattern, otherPattern]);
     const user = userEvent.setup();
@@ -303,6 +329,7 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
       redis: 'ok' as const,
       workers: 1,
     })),
+    suggestCreationIdeas: vi.fn(async () => ({ suggestions: ideaSuggestions })),
     getCilinRhymeGroup: vi.fn(async () => groupDetail),
     getCharacterPronunciations,
     createGenerationSession: vi.fn(

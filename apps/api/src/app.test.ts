@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import type { LlmProvider, StructuredGenerationRequest } from '@poesygen/llm';
 import type { GenerationJobData, GenerationQueue } from '@poesygen/queue';
 
 import { buildApp } from './app.js';
@@ -44,6 +45,41 @@ describe('API', () => {
         }),
       ]),
     );
+  });
+
+  it('generates bounded creation idea suggestions with the configured LLM', async () => {
+    const ideaProvider: LlmProvider = {
+      name: 'test-provider',
+      async generateStructured<T>(request: StructuredGenerationRequest<T>) {
+        expect(request.operation).toBe('recommend');
+        expect(request.messages.at(-1)?.content).toContain('如梦令');
+        return {
+          value: request.parse({
+            suggestions: [
+              `1. ${'暮春江上归舟，远帆入暮云，忽忆故人旧约。'.repeat(3)}`,
+              '雪夜独坐小楼，听梅枝落雪，思念远行未归的人',
+              '重回江南旧巷，在新雨与青苔间寻找少年往事',
+            ],
+          }),
+          model: 'test-model',
+          usage: { inputTokens: 10, outputTokens: 20 },
+        };
+      },
+    };
+    const app = await buildApp({ ideaProvider });
+    apps.push(app);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/creation/idea-suggestions',
+      payload: { patternId: 'ru-meng-ling-standard' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<{ suggestions: string[] }>();
+    expect(body.suggestions).toHaveLength(3);
+    expect(body.suggestions.every((suggestion) => Array.from(suggestion).length <= 50)).toBe(true);
+    expect(body.suggestions[0]?.startsWith('1.')).toBe(false);
   });
 
   it('exposes rhyme groups and traditional pronunciation data', async () => {

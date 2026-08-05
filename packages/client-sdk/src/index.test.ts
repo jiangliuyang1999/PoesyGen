@@ -53,6 +53,26 @@ describe('PoesyGenClient', () => {
     });
   });
 
+  it('requests creation idea suggestions for a pattern', async () => {
+    const fetch = vi.fn(async () =>
+      Response.json({
+        suggestions: ['暮春归舟', '雪夜怀人', '故园新雨'],
+      }),
+    );
+    const client = new PoesyGenClient({ baseUrl: 'http://localhost:3000', fetch });
+
+    await expect(client.suggestCreationIdeas('ru-meng-ling-standard')).resolves.toEqual({
+      suggestions: ['暮春归舟', '雪夜怀人', '故园新雨'],
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:3000/v1/creation/idea-suggestions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ patternId: 'ru-meng-ling-standard' }),
+      }),
+    );
+  });
+
   it('preserves the HTTP status and structured error body', async () => {
     const fetch = vi.fn(async () =>
       Response.json(

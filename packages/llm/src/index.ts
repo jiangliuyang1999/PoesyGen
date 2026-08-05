@@ -4,7 +4,7 @@ export interface LlmMessage {
 }
 
 export interface StructuredGenerationRequest<T> {
-  readonly operation: 'plan' | 'draft' | 'repair' | 'evaluate' | 'refine';
+  readonly operation: 'plan' | 'draft' | 'repair' | 'evaluate' | 'refine' | 'recommend';
   readonly messages: ReadonlyArray<LlmMessage>;
   readonly parse: (value: unknown) => T;
   readonly temperature?: number;

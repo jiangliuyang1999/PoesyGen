@@ -1,10 +1,11 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   PoesyGenClient,
   type CharacterPronunciationResponse,
   type CiPattern,
   type GenerationHealthResponse,
+  type IdeaSuggestionsResponse,
   type GenerationSessionResponse,
   type GenerationSessionStatusResponse,
   type RhymeGroupDetail,
@@ -36,6 +37,7 @@ export interface AppClient {
   listPatterns(): Promise<ReadonlyArray<CiPattern>>;
   listCilinRhymeGroups(): Promise<ReadonlyArray<RhymeGroupSummary>>;
   getGenerationHealth(): Promise<GenerationHealthResponse>;
+  suggestCreationIdeas(patternId: string): Promise<IdeaSuggestionsResponse>;
   getCilinRhymeGroup(groupId: string): Promise<RhymeGroupDetail>;
   getCharacterPronunciations(character: string): Promise<CharacterPronunciationResponse>;
   createGenerationSession(
@@ -53,6 +55,12 @@ interface AppProps {
 
 type View = 'patterns' | 'create' | 'dictionary';
 type CreateView = 'compose' | 'history';
+type IdeaSuggestionsStatus = 'idle' | 'loading' | 'ready' | 'error';
+
+interface IdeaSuggestionsState {
+  readonly status: IdeaSuggestionsStatus;
+  readonly suggestions: ReadonlyArray<string>;
+}
 
 const idleStatus: SubmissionStatus = {
   kind: 'idle',
@@ -78,12 +86,18 @@ export function App({ client: providedClient }: AppProps = {}) {
   const [requirements, setRequirements] = useState('');
   const [rounds, setRounds] = useState(8);
   const [rhymeAssignments, setRhymeAssignments] = useState<Record<string, string>>({});
+  const [ideaSuggestions, setIdeaSuggestions] = useState<IdeaSuggestionsState>({
+    status: 'idle',
+    suggestions: [],
+  });
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>(idleStatus);
   const [connectionStatus, setConnectionStatus] = useState('正在载入词谱…');
   const [generationAvailable, setGenerationAvailable] = useState(false);
   const [dictionaryCharacter, setDictionaryCharacter] = useState<string>();
   const [generationHistory, setGenerationHistory] =
     useState<ReadonlyArray<GenerationHistoryEntry>>(loadGenerationHistory);
+  const ideaRequestSequence = useRef(0);
+  const ideaSuggestionCache = useRef(new Map<string, ReadonlyArray<string>>());
 
   useEffect(() => {
     let active = true;
@@ -113,6 +127,19 @@ export function App({ client: providedClient }: AppProps = {}) {
     };
   }, [client]);
 
+  useEffect(() => {
+    if (selectedPatternId === '' || view !== 'create' || createView !== 'compose') return;
+    const cached = ideaSuggestionCache.current.get(selectedPatternId);
+    if (cached !== undefined) {
+      setIdeaSuggestions({ status: 'ready', suggestions: cached });
+      return;
+    }
+    requestIdeaSuggestions(selectedPatternId);
+    return () => {
+      ideaRequestSequence.current += 1;
+    };
+  }, [client, createView, selectedPatternId, view]);
+
   const selectedPattern = patterns.find(({ id }) => id === selectedPatternId);
   const selectedPatternStats =
     selectedPattern === undefined ? undefined : patternStats(selectedPattern);
@@ -130,7 +157,36 @@ export function App({ client: providedClient }: AppProps = {}) {
     setView('dictionary');
   };
 
-  const submit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+  function requestIdeaSuggestions(patternId: string, preserveCurrent = false): void {
+    const requestSequence = ++ideaRequestSequence.current;
+    setIdeaSuggestions((current) => ({
+      status: 'loading',
+      suggestions: preserveCurrent ? current.suggestions : [],
+    }));
+    void client
+      .suggestCreationIdeas(patternId)
+      .then((response) => {
+        if (requestSequence !== ideaRequestSequence.current) return;
+        const suggestions = response.suggestions
+          .map((suggestion) => suggestion.trim())
+          .filter((suggestion) => suggestion !== '' && Array.from(suggestion).length <= 50)
+          .slice(0, 3);
+        if (suggestions.length !== 3) {
+          throw new Error('灵感推荐结果格式不正确');
+        }
+        ideaSuggestionCache.current.set(patternId, suggestions);
+        setIdeaSuggestions({ status: 'ready', suggestions });
+      })
+      .catch(() => {
+        if (requestSequence !== ideaRequestSequence.current) return;
+        setIdeaSuggestions((current) => ({
+          status: 'error',
+          suggestions: preserveCurrent ? current.suggestions : [],
+        }));
+      });
+  }
+
+  const submit = async (event: { preventDefault(): void }): Promise<void> => {
     event.preventDefault();
     if (selectedPattern === undefined || theme.trim() === '') return;
 
@@ -445,13 +501,38 @@ export function App({ client: providedClient }: AppProps = {}) {
                         required
                       />
                     </label>
-                    <div className="theme-prompts" aria-label="主题示例">
-                      <span>灵感示例</span>
-                      {['暮春归舟', '雪夜怀人', '故园新雨'].map((prompt) => (
-                        <button key={prompt} type="button" onClick={() => setTheme(prompt)}>
-                          {prompt}
+                    <div className="theme-ideas" aria-label="大模型灵感推荐" aria-live="polite">
+                      <div className="theme-ideas-header">
+                        <span>灵感推荐</span>
+                        <button
+                          type="button"
+                          disabled={ideaSuggestions.status === 'loading'}
+                          onClick={() => requestIdeaSuggestions(selectedPattern.id, true)}
+                        >
+                          {ideaSuggestions.status === 'loading'
+                            ? '构思中…'
+                            : ideaSuggestions.status === 'error'
+                              ? '重新获取'
+                              : '换一组'}
                         </button>
-                      ))}
+                      </div>
+                      <div className="theme-prompts">
+                        {ideaSuggestions.suggestions.map((prompt) => (
+                          <button key={prompt} type="button" onClick={() => setTheme(prompt)}>
+                            {prompt}
+                          </button>
+                        ))}
+                        {ideaSuggestions.status === 'loading' &&
+                          ideaSuggestions.suggestions.length === 0 && (
+                            <span className="theme-ideas-status">大模型正在整理创作主题…</span>
+                          )}
+                        {ideaSuggestions.status === 'error' &&
+                          ideaSuggestions.suggestions.length === 0 && (
+                            <span className="theme-ideas-status" data-error="true">
+                              暂时无法获取灵感，请稍后重试。
+                            </span>
+                          )}
+                      </div>
                     </div>
                   </section>
 

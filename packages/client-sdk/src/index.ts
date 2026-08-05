@@ -26,6 +26,10 @@ export interface GenerationHealthResponse {
   readonly workers: number;
 }
 
+export interface IdeaSuggestionsResponse {
+  readonly suggestions: ReadonlyArray<string>;
+}
+
 export interface GenerationSessionStatusResponse {
   readonly id: string;
   readonly jobId: string;
@@ -128,6 +132,13 @@ export class PoesyGenClient {
 
   public getCharacterPronunciations(character: string): Promise<CharacterPronunciationResponse> {
     return this.#request(`/v1/characters/${encodeURIComponent(character)}/pronunciations`);
+  }
+
+  public suggestCreationIdeas(patternId: string): Promise<IdeaSuggestionsResponse> {
+    return this.#request('/v1/creation/idea-suggestions', {
+      method: 'POST',
+      body: JSON.stringify({ patternId }),
+    });
   }
 
   public createGenerationSession(

@@ -15,6 +15,7 @@
     "@fastify/cors": "^11.3.0",
     "@poesygen/contracts": "workspace:*",
     "@poesygen/domain": "workspace:*",
+    "@poesygen/llm": "workspace:*",
     "@poesygen/patterns": "workspace:*",
     "@poesygen/prosody": "workspace:*",
     "@poesygen/queue": "workspace:*",

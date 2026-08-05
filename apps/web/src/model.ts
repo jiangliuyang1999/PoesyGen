@@ -80,7 +80,19 @@ export function splitRequirements(value: string): ReadonlyArray<string> {
 
 export function formatGenerationTitle(patternName: string, title: string | undefined): string {
   const normalizedTitle = title?.trim();
-  return `${patternName}·${normalizedTitle === undefined || normalizedTitle === '' ? '无题' : normalizedTitle}`;
+  if (normalizedTitle === undefined || normalizedTitle === '') {
+    return `${patternName}·无题`;
+  }
+  if (!normalizedTitle.includes(patternName)) {
+    return `${patternName}·${normalizedTitle}`;
+  }
+  if (!normalizedTitle.startsWith(patternName)) return normalizedTitle;
+
+  let titleBody = normalizedTitle;
+  while (titleBody.startsWith(patternName)) {
+    titleBody = titleBody.slice(patternName.length).replace(/^[\s·・.。:：—-]+/u, '');
+  }
+  return titleBody === '' ? patternName : `${patternName}·${titleBody}`;
 }
 
 export function displayRhymeLabel(label: PatternRhymeLabel, index: number): string {
