@@ -314,15 +314,15 @@ export function App({ client: providedClient }: AppProps = {}) {
         </button>
 
         <nav aria-label="主导航">
+          <button type="button" data-active={view === 'create'} onClick={() => setView('create')}>
+            创作
+          </button>
           <button
             type="button"
             data-active={view === 'patterns'}
             onClick={() => setView('patterns')}
           >
             词谱
-          </button>
-          <button type="button" data-active={view === 'create'} onClick={() => setView('create')}>
-            创作
           </button>
           <button
             type="button"
