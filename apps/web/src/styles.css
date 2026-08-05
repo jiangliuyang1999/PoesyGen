@@ -1735,13 +1735,19 @@ button:disabled {
 }
 
 .dictionary-layout {
-  grid-template-columns: 300px minmax(0, 1fr);
+  grid-template-columns: 360px minmax(0, 1fr);
 }
 
-.dictionary-lookup,
+.dictionary-lookup {
+  position: sticky;
+  top: 92px;
+  min-height: 0;
+  padding: 26px 24px;
+}
+
 .rhyme-browser {
-  min-height: 520px;
-  padding: clamp(22px, 3vw, 32px);
+  min-height: 620px;
+  padding: 28px 30px 32px;
 }
 
 .dictionary-panel-header h2 {
@@ -1765,7 +1771,7 @@ button:disabled {
   grid-template-columns: 1fr auto;
   gap: 8px;
   max-width: 360px;
-  margin-top: 32px;
+  margin-top: 24px;
 }
 
 .character-search input {
@@ -1792,17 +1798,17 @@ button:disabled {
 
 .character-card {
   display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
-  gap: 24px;
-  margin-top: 30px;
-  padding-top: 26px;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 24px;
+  padding-top: 22px;
   border-top: 1px solid var(--line);
 }
 
 .character-glyph {
   display: grid;
-  width: 118px;
-  height: 118px;
+  width: 92px;
+  height: 92px;
   border: 1px solid var(--line);
   background:
     linear-gradient(
@@ -1819,8 +1825,10 @@ button:disabled {
     ),
     #fffdf8;
   place-items: center;
-  font-size: 4.6rem;
+  overflow: hidden;
+  font-size: 3.6rem;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .reading-content {
@@ -1835,8 +1843,8 @@ button:disabled {
 
 .modern-readings > div {
   display: grid;
-  grid-template-columns: 60px 1fr;
-  gap: 10px;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 8px;
 }
 
 .modern-readings dt {
@@ -1848,7 +1856,7 @@ button:disabled {
   margin: 0;
   font-family: ui-monospace, monospace;
   font-size: 0.82rem;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .prosody-readings {
@@ -1894,12 +1902,14 @@ button:disabled {
 .prosody-reading p {
   display: grid;
   gap: 2px;
+  min-width: 0;
   margin: 0;
 }
 
 .prosody-reading strong {
   font-family: ui-monospace, monospace;
   font-size: 0.78rem;
+  overflow-wrap: anywhere;
 }
 
 .prosody-reading small {
@@ -1909,55 +1919,84 @@ button:disabled {
 
 .rhyme-browser-header {
   gap: 20px;
+  align-items: center;
   padding-bottom: 20px;
   border-bottom: 1px solid var(--line);
 }
 
 .rhyme-browser-header select {
   min-width: 140px;
-  padding: 7px 9px;
+  height: 40px;
+  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 6px;
+  outline: none;
   background: #fffdf8;
   color: var(--ink);
 }
 
+.rhyme-browser-header select:focus {
+  border-color: rgb(159 60 47 / 45%);
+  box-shadow: 0 0 0 3px rgb(159 60 47 / 8%);
+}
+
 .rhyme-sections {
   display: grid;
-  gap: 24px;
+  gap: 16px;
   padding-top: 24px;
+}
+
+.rhyme-sections > section {
+  padding: 17px 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgb(255 253 248 / 58%);
 }
 
 .rhyme-sections h3 {
   display: flex;
-  gap: 10px;
+  gap: 16px;
   align-items: baseline;
+  justify-content: space-between;
   margin: 0 0 10px;
   font-size: 0.92rem;
   font-weight: 600;
 }
 
-.rhyme-sections h3 span {
+.rhyme-sections h3 > span {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+}
+
+.rhyme-sections h3 small,
+.rhyme-sections h3 em {
   color: var(--muted);
   font-size: 0.66rem;
   font-weight: 400;
+  font-style: normal;
 }
 
 .rhyme-characters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 34px);
+  gap: 6px;
 }
 
 .rhyme-characters button {
   display: grid;
-  width: 31px;
-  height: 31px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 3px;
+  border-radius: 5px;
   background: var(--paper-deep);
   color: var(--ink);
+  font-size: 1rem;
+  line-height: 1;
+  white-space: nowrap;
+  word-break: keep-all;
   place-items: center;
 }
 
@@ -2017,7 +2056,7 @@ button:disabled {
   }
 
   .dictionary-layout {
-    grid-template-columns: 260px minmax(0, 1fr);
+    grid-template-columns: 330px minmax(0, 1fr);
   }
 
   .creation-form {
@@ -2103,6 +2142,10 @@ button:disabled {
   .dictionary-lookup,
   .rhyme-browser {
     min-height: 0;
+  }
+
+  .dictionary-lookup {
+    position: static;
   }
 }
 

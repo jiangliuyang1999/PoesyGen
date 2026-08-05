@@ -13,6 +13,7 @@ import type {
 } from '@poesygen/client-sdk';
 
 import { App, type AppClient } from './App.js';
+import { splitGraphemes } from './DictionaryWorkspace.js';
 import { generationHistoryStorageKey } from './generation-history.js';
 
 const pattern: CiPattern = {
@@ -149,6 +150,10 @@ afterEach(() => {
 });
 
 describe('web creation workspace', () => {
+  it('keeps variation sequences in a single dictionary glyph', () => {
+    expect(splitGraphemes(`东\uFE00风`)).toEqual([`东\uFE00`, '风']);
+  });
+
   it('loads LLM idea suggestions and fills the theme editor', async () => {
     const client = createClient();
     const user = userEvent.setup();

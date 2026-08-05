@@ -118,7 +118,7 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
       sections: group.sections.map((section) => ({
         name: section.name,
         tone: section.tone,
-        characterCount: Array.from(section.characters).length,
+        characterCount: countGraphemes(section.characters),
       })),
     })),
   );
@@ -135,7 +135,7 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
     '/v1/characters/:character/pronunciations',
     async (request, reply) => {
       const { character } = request.params;
-      if (Array.from(character).length !== 1) {
+      if (countGraphemes(character) !== 1) {
         return reply.code(400).send({ error: 'single_character_required' });
       }
 
@@ -241,4 +241,12 @@ function parseIdeaSuggestions(value: unknown): ReadonlyArray<string> {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+const graphemeSegmenter = new Intl.Segmenter('zh-CN', {
+  granularity: 'grapheme',
+});
+
+function countGraphemes(value: string): number {
+  return [...graphemeSegmenter.segment(value)].length;
 }

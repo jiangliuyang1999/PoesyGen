@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import type {
   CharacterPronunciationResponse,
@@ -35,7 +35,7 @@ export function DictionaryWorkspace({
   const lookup = useCallback(
     async (character: string): Promise<void> => {
       const normalized = character.trim();
-      if (Array.from(normalized).length !== 1) {
+      if (splitGraphemes(normalized).length !== 1) {
         setCharacterStatus('请输入一个汉字。');
         return;
       }
@@ -82,7 +82,7 @@ export function DictionaryWorkspace({
     onInitialCharacterHandled();
   }, [initialCharacter, lookup, onInitialCharacterHandled]);
 
-  const submitLookup = (event: FormEvent<HTMLFormElement>): void => {
+  const submitLookup = (event: { preventDefault(): void }): void => {
     event.preventDefault();
     void lookup(query);
   };
@@ -115,7 +115,7 @@ export function DictionaryWorkspace({
               <span className="sr-only">输入一个汉字</span>
               <input
                 value={query}
-                onChange={(event) => setQuery(Array.from(event.target.value).slice(0, 1).join(''))}
+                onChange={(event) => setQuery(splitGraphemes(event.target.value)[0] ?? '')}
                 placeholder="字"
                 aria-label="输入一个汉字"
               />
@@ -155,11 +155,14 @@ export function DictionaryWorkspace({
               {groupDetail.sections.map((section) => (
                 <section key={`${groupDetail.id}-${section.name}`}>
                   <h3>
-                    {section.name}
-                    <span>{section.tone === 'level' ? '平声' : '仄声'}</span>
+                    <span>
+                      {section.name}
+                      <small>{section.tone === 'level' ? '平声' : '仄声'}</small>
+                    </span>
+                    <em>{splitGraphemes(section.characters).length} 字</em>
                   </h3>
                   <div className="rhyme-characters">
-                    {Array.from(section.characters).map((character, index) => (
+                    {splitGraphemes(section.characters).map((character, index) => (
                       <button
                         key={`${character}-${index}`}
                         type="button"
@@ -178,6 +181,14 @@ export function DictionaryWorkspace({
       </div>
     </main>
   );
+}
+
+const graphemeSegmenter = new Intl.Segmenter('zh-CN', {
+  granularity: 'grapheme',
+});
+
+export function splitGraphemes(value: string): ReadonlyArray<string> {
+  return [...graphemeSegmenter.segment(value)].map(({ segment }) => segment);
 }
 
 function CharacterCard({ result }: { readonly result: CharacterPronunciationResponse }) {
