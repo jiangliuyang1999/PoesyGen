@@ -2,5 +2,24 @@
   "name": "@poesygen/mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Expo React Native client reserved for the shared API SDK"
+  "type": "module",
+  "description": "Capacitor mobile shell for the shared PoesyGen web client",
+  "scripts": {
+    "open:android": "cap open android",
+    "open:ios": "cap open ios",
+    "run:android": "pnpm run sync && cap run android",
+    "run:ios": "pnpm run sync && cap run ios",
+    "sync": "node scripts/require-api-url.mjs && pnpm --filter @poesygen/web build && cap sync",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.5.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@poesygen/web": "workspace:*",
+    "typescript": "^7.0.2"
+  }
 }

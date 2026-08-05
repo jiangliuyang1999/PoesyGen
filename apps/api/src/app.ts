@@ -15,6 +15,8 @@ import {
 } from '@poesygen/prosody';
 import type { GenerationQueue } from '@poesygen/queue';
 
+const mobileAppOrigins = ['capacitor://localhost', 'https://localhost'];
+
 export interface AppDependencies {
   readonly generationQueue?: GenerationQueue;
   readonly ideaProvider?: LlmProvider;
@@ -25,7 +27,7 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
   const app = Fastify({ logger: dependencies.logger ?? false });
 
   await app.register(cors, {
-    origin: false,
+    origin: mobileAppOrigins,
   });
 
   app.get('/health', async () => ({

@@ -13,7 +13,7 @@ apps/
   cli/          Commander CLI
   web/          React + Vite
   desktop/      Electron 桌面壳（复用 Web）
-  mobile/       Expo 客户端预留
+  mobile/       Capacitor iOS / Android 壳（复用 Web）
 packages/
   domain/       领域模型
   patterns/     《御定词谱》版本化词牌谱
@@ -57,11 +57,11 @@ pnpm --filter @poesygen/cli dev -- generate \
   --theme "暮春江上归舟，怀念故友"
 ```
 
-Web 工作台分为词谱、创作、字典三部分，支持词牌搜索、逐字格律预览、多韵组设置、
-最大优化轮数、附加要求，以及《词林正韵》十九部和 Unihan 单字读音查询。生成后可
-选择单字、词语、片段或整句，填写修改意见并生成经过格律复检的新版本。生成结果会连同
-当时使用的词谱快照保存在当前浏览器；同一作品的局部修改会归入一条历史记录，并可
-切换查看前后版本。创作页可按词牌、题目、主题或会话号查询历史。
+Web 工作台分为创作、历史记录、词谱、字典四部分，支持词牌搜索、逐字格律预览、
+多韵组设置、最大优化轮数、附加要求，以及《词林正韵》十九部和 Unihan 单字读音
+查询。生成后可选择多条单字、词语、片段或整句，分别填写修改意见并生成经过格律
+复检的新版本。生成结果会连同当时使用的词谱快照保存在当前浏览器；同一作品的局部
+修改会归入一条历史记录，并可切换查看前后版本。
 
 ## LLM 与 Worker
 
@@ -104,6 +104,23 @@ pnpm --filter @poesygen/cli dev -- session <session-id> --wait
 不调用外部模型的本地队列验证可以临时使用 `LLM_PROVIDER=mock`。该模式只返回词谱
 例词，不能用于实际创作。
 
+## 移动端
+
+移动端通过 Capacitor 将 `apps/web/dist` 打包进 iOS 和 Android 原生应用，业务组件
+与 Web 完全共用，仅通过移动端平台样式调整安全区、导航、卡片宽度和触控尺寸。
+
+```bash
+VITE_API_URL=https://api.example.com \
+  pnpm --filter @poesygen/mobile sync
+
+pnpm --filter @poesygen/mobile open:ios
+pnpm --filter @poesygen/mobile open:android
+```
+
+也可以使用 `run:ios` 或 `run:android` 直接选择模拟器运行。设备必须能访问
+`VITE_API_URL`；生产包应使用 HTTPS API。完整环境要求和调试方式见
+[`apps/mobile/README.md`](apps/mobile/README.md)。
+
 ## 质量检查
 
 ```bash
@@ -125,4 +142,5 @@ pnpm build
   多音字会返回全部候选，不自动猜测上下文读音。
 - LLM 层已支持 OpenAI 兼容供应商；真正生成需要在本地配置 API Key。未配置 Redis
   时生成 API 返回 `503`，Worker 未连接时健康检查会明确显示不可用。
-- 桌面端已通过 Electron 复用 Web 界面；移动端已明确共享边界，Expo 工具链仍待接入。
+- 桌面端通过 Electron、移动端通过 Capacitor 复用 Web 界面；移动端生成仍依赖可访问
+  的 API、Xcode 或 Android Studio 及对应平台签名。

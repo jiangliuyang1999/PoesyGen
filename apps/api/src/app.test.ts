@@ -25,6 +25,20 @@ describe('API', () => {
     });
   });
 
+  it('allows requests from the bundled mobile application', async () => {
+    const app = await buildApp();
+    apps.push(app);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/health',
+      headers: { origin: 'capacitor://localhost' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['access-control-allow-origin']).toBe('capacitor://localhost');
+  });
+
   it('lists versioned patterns', async () => {
     const app = await buildApp();
     apps.push(app);
