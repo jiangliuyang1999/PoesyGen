@@ -465,7 +465,7 @@ describe('web creation workspace', () => {
     expect(within(creativeBrief).getByText('暮春江上归舟，怀念故友')).toBeTruthy();
     expect(within(creativeBrief).getByText('含蓄抒情；避免重字')).toBeTruthy();
     const historySettings = screen.getByLabelText('历史生成设置');
-    expect(within(historySettings).getByText('优化轮数')).toBeTruthy();
+    expect(within(historySettings).getByText('最大优化轮数')).toBeTruthy();
     expect(within(historySettings).getByText('8')).toBeTruthy();
     expect(within(historySettings).getByText('轮')).toBeTruthy();
     expect(within(historySettings).getByText('第 1 组仄声韵')).toBeTruthy();

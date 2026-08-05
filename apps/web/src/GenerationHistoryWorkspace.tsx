@@ -161,7 +161,7 @@ export function GenerationHistoryWorkspace({
 
               <dl className="history-archive-meta" aria-label="历史生成设置">
                 <div>
-                  <dt>优化轮数</dt>
+                  <dt>最大优化轮数</dt>
                   <dd>
                     {selectedEntry.settings === undefined ? (
                       <span className="history-setting-empty">未记录</span>

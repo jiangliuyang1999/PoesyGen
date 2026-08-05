@@ -74,7 +74,7 @@ export function GenerationSettings({
       <div className="setting-block setting-rounds">
         <label className="setting-label" htmlFor="rounds">
           <span>
-            优化轮数 <strong>{rounds}</strong>
+            最大优化轮数 <strong>{rounds}</strong>
           </span>
           <small>达到格律要求后会提前结束</small>
         </label>
