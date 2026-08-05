@@ -1,6 +1,11 @@
 import type { CiPattern } from '@poesygen/client-sdk';
 
-import { filterPatterns, groupPatternsByName, patternStats } from './model.js';
+import {
+  filterPatterns,
+  formatPatternVariantSummary,
+  groupPatternsByName,
+  patternStats,
+} from './model.js';
 
 interface PatternBrowserProps {
   readonly patterns: ReadonlyArray<CiPattern>;
@@ -84,14 +89,11 @@ export function PatternBrowser({
                     value={activePattern.id}
                     onChange={(event) => onSelect(event.target.value)}
                   >
-                    {family.patterns.map((pattern) => {
-                      const variantStats = patternStats(pattern);
-                      return (
-                        <option key={pattern.id} value={pattern.id}>
-                          {pattern.variant} · {variantStats.characters}字/{variantStats.lines}句
-                        </option>
-                      );
-                    })}
+                    {family.patterns.map((pattern) => (
+                      <option key={pattern.id} value={pattern.id}>
+                        {formatPatternVariantSummary(pattern)}
+                      </option>
+                    ))}
                   </select>
                 </label>
               )}

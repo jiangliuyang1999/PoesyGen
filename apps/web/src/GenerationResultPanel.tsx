@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import type { CiPattern, GenerationResult } from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult, TextSelection } from '@poesygen/client-sdk';
 
 import { formatGenerationTitle } from './model.js';
 
@@ -8,9 +8,21 @@ interface GenerationResultPanelProps {
   readonly result: GenerationResult;
   readonly pattern: CiPattern;
   readonly onInspectCharacter: (character: string) => void;
+  readonly onRefine?: (
+    selection: Omit<TextSelection, 'instruction'>,
+    instruction: string,
+  ) => Promise<void>;
+  readonly versions?: ReadonlyArray<GenerationResult>;
+  readonly onSelectVersion?: (result: GenerationResult) => void;
 }
 
 type ResultView = 'poem' | 'prosody';
+type RefinementStatus = 'idle' | 'submitting' | 'error';
+
+interface ActiveSelection extends Omit<TextSelection, 'instruction'> {
+  readonly text: string;
+  readonly lineIndex: number;
+}
 
 const toneLabels = {
   level: '平',
@@ -22,8 +34,21 @@ export function GenerationResultPanel({
   result,
   pattern,
   onInspectCharacter,
+  onRefine,
+  versions,
+  onSelectVersion,
 }: GenerationResultPanelProps) {
   const [view, setView] = useState<ResultView>('poem');
+  const [refinementMode, setRefinementMode] = useState(false);
+  const [selection, setSelection] = useState<ActiveSelection>();
+  const [instruction, setInstruction] = useState('');
+  const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>('idle');
+  const [refinementError, setRefinementError] = useState('');
+  const availableVersions = versions === undefined || versions.length === 0 ? [result] : versions;
+  const activeVersionIndex = Math.max(
+    availableVersions.findIndex(({ draft }) => draft.id === result.draft.id),
+    0,
+  );
   const patternLines = pattern.sections.flatMap((section) => section.lines);
   const sectionStartIndexes = useMemo(() => {
     let lineCount = 0;
@@ -47,6 +72,14 @@ export function GenerationResultPanel({
     }
     return indexed;
   }, [result.report.issues]);
+
+  useEffect(() => {
+    setRefinementMode(false);
+    setSelection(undefined);
+    setInstruction('');
+    setRefinementStatus('idle');
+    setRefinementError('');
+  }, [result.draft.id]);
 
   const renderAnnotatedLine = (
     line: GenerationResult['draft']['lines'][number],
@@ -85,37 +118,174 @@ export function GenerationResultPanel({
     </div>
   );
 
-  const renderPoemLine = (line: GenerationResult['draft']['lines'][number]) => (
-    <p key={line.id}>
-      {Array.from(line.text).map((character, index) => (
+  const selectCharacter = (
+    line: GenerationResult['draft']['lines'][number],
+    lineIndex: number,
+    characterIndex: number,
+  ): void => {
+    const characters = Array.from(line.text);
+    setSelection((current) => {
+      const continuingSingleSelection =
+        current?.lineId === line.id && current.end - current.start === 1;
+      const start = continuingSingleSelection
+        ? Math.min(current.start, characterIndex)
+        : characterIndex;
+      const end = continuingSingleSelection
+        ? Math.max(current.end, characterIndex + 1)
+        : characterIndex + 1;
+      return {
+        lineId: line.id,
+        lineIndex,
+        start,
+        end,
+        text: characters.slice(start, end).join(''),
+      };
+    });
+    setRefinementStatus('idle');
+    setRefinementError('');
+  };
+
+  const selectLine = (
+    line: GenerationResult['draft']['lines'][number],
+    lineIndex: number,
+  ): void => {
+    setSelection({
+      lineId: line.id,
+      lineIndex,
+      start: 0,
+      end: Array.from(line.text).length,
+      text: line.text,
+    });
+    setRefinementStatus('idle');
+    setRefinementError('');
+  };
+
+  const submitRefinement = async (): Promise<void> => {
+    if (onRefine === undefined || selection === undefined || instruction.trim() === '') return;
+    setRefinementStatus('submitting');
+    setRefinementError('');
+    try {
+      await onRefine(
+        {
+          lineId: selection.lineId,
+          start: selection.start,
+          end: selection.end,
+        },
+        instruction.trim(),
+      );
+    } catch (error) {
+      setRefinementStatus('error');
+      setRefinementError(error instanceof Error ? error.message : '局部修改失败');
+    }
+  };
+
+  const renderPoemLine = (line: GenerationResult['draft']['lines'][number], lineIndex: number) => (
+    <div className="generated-line" key={line.id}>
+      <p>
+        {Array.from(line.text).map((character, index) => {
+          const selected =
+            refinementMode &&
+            selection?.lineId === line.id &&
+            index >= selection.start &&
+            index < selection.end;
+          return (
+            <button
+              data-refinement-selected={selected}
+              key={`${line.id}-${index}`}
+              type="button"
+              onClick={() =>
+                refinementMode
+                  ? selectCharacter(line, lineIndex, index)
+                  : onInspectCharacter(character)
+              }
+              aria-label={
+                refinementMode
+                  ? `选择第${lineIndex + 1}句第${index + 1}字“${character}”`
+                  : undefined
+              }
+              title={refinementMode ? `选择“${character}”` : `查询“${character}”`}
+            >
+              {character}
+            </button>
+          );
+        })}
+      </p>
+      {refinementMode && (
         <button
-          key={`${line.id}-${index}`}
+          className="select-whole-line"
           type="button"
-          onClick={() => onInspectCharacter(character)}
-          title={`查询“${character}”`}
+          onClick={() => selectLine(line, lineIndex)}
         >
-          {character}
+          整句
         </button>
-      ))}
-    </p>
+      )}
+    </div>
   );
 
   return (
     <section className="generation-result" aria-labelledby="result-title">
       <header>
         <p className="section-kicker">生成结果</p>
-        <span data-passed={result.report.passed}>
-          {result.report.passed ? '格律通过' : '达到轮次上限'}
-        </span>
       </header>
 
-      <div className="result-view-switcher" role="group" aria-label="结果视图">
-        <button type="button" aria-pressed={view === 'poem'} onClick={() => setView('poem')}>
-          正文
-        </button>
-        <button type="button" aria-pressed={view === 'prosody'} onClick={() => setView('prosody')}>
-          格律标注
-        </button>
+      <div className="result-view-actions">
+        {onRefine !== undefined && (
+          <button
+            className="refinement-toggle"
+            type="button"
+            aria-pressed={refinementMode}
+            onClick={() => {
+              setRefinementMode((current) => !current);
+              setView('poem');
+              setSelection(undefined);
+              setInstruction('');
+              setRefinementStatus('idle');
+              setRefinementError('');
+            }}
+          >
+            {refinementMode ? '退出修改' : '局部修改'}
+          </button>
+        )}
+        <div className="result-version-switcher" role="group" aria-label="作品版本">
+          {availableVersions.length > 1 && onSelectVersion !== undefined && (
+            <button
+              type="button"
+              aria-label="上一版本"
+              disabled={activeVersionIndex === 0}
+              onClick={() => onSelectVersion(availableVersions[activeVersionIndex - 1]!)}
+            >
+              ←
+            </button>
+          )}
+          <span className="result-version-label">
+            版本 {activeVersionIndex + 1}/{availableVersions.length}
+          </span>
+          {availableVersions.length > 1 && onSelectVersion !== undefined && (
+            <button
+              type="button"
+              aria-label="下一版本"
+              disabled={activeVersionIndex === availableVersions.length - 1}
+              onClick={() => onSelectVersion(availableVersions[activeVersionIndex + 1]!)}
+            >
+              →
+            </button>
+          )}
+        </div>
+        <div className="result-view-switcher" role="group" aria-label="结果视图">
+          <button type="button" aria-pressed={view === 'poem'} onClick={() => setView('poem')}>
+            正文
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === 'prosody'}
+            onClick={() => {
+              setView('prosody');
+              setRefinementMode(false);
+            }}
+          >
+            格律标注
+          </button>
+        </div>
       </div>
 
       <div className="result-content" aria-label="词作内容">
@@ -135,13 +305,17 @@ export function GenerationResultPanel({
                     >
                       {result.draft.lines
                         .slice(startIndex, startIndex + section.lines.length)
-                        .map(renderPoemLine)}
+                        .map((line, lineIndex) => renderPoemLine(line, startIndex + lineIndex))}
                     </section>
                   );
                 })}
                 {result.draft.lines.length > patternLines.length && (
                   <section className="generated-stanza" aria-label="词谱外正文">
-                    {result.draft.lines.slice(patternLines.length).map(renderPoemLine)}
+                    {result.draft.lines
+                      .slice(patternLines.length)
+                      .map((line, lineIndex) =>
+                        renderPoemLine(line, patternLines.length + lineIndex),
+                      )}
                   </section>
                 )}
               </>
@@ -188,11 +362,48 @@ export function GenerationResultPanel({
         )}
       </div>
 
-      <footer>
-        <span>优化 {result.rounds} 轮</span>
-        <span>版本 {result.draft.version}</span>
-        <span>{result.report.issues.length} 项提示</span>
-      </footer>
+      {refinementMode && (
+        <section className="refinement-editor" aria-label="局部修改">
+          <header>
+            <div>
+              <p className="section-kicker">局部修改</p>
+              <h3>{selection === undefined ? '请选择要修改的内容' : `已选“${selection.text}”`}</h3>
+            </div>
+            {selection !== undefined && <span>第 {selection.lineIndex + 1} 句</span>}
+          </header>
+          <p className="refinement-guide">
+            点击一个字选择单字，再点同句另一字扩展为词或片段；也可以直接选择整句。
+          </p>
+          <label>
+            <span>修改意见</span>
+            <textarea
+              aria-label="修改意见"
+              value={instruction}
+              onChange={(event) => setInstruction(event.target.value)}
+              rows={3}
+              maxLength={1_000}
+              placeholder="例如：换成更含蓄的表达，保留暮春意象，并与下句衔接自然。"
+            />
+          </label>
+          <button
+            className="refinement-submit"
+            type="button"
+            disabled={
+              selection === undefined ||
+              instruction.trim() === '' ||
+              refinementStatus === 'submitting'
+            }
+            onClick={() => void submitRefinement()}
+          >
+            {refinementStatus === 'submitting' ? '正在重新生成…' : '根据意见重新生成'}
+          </button>
+          {refinementStatus === 'error' && (
+            <p className="refinement-error" role="alert">
+              {refinementError}
+            </p>
+          )}
+        </section>
+      )}
 
       {result.report.issues.length > 0 && (
         <details>
@@ -209,6 +420,14 @@ export function GenerationResultPanel({
           </ul>
         </details>
       )}
+
+      <footer>
+        <div className="result-footer-meta">
+          <span>优化 {result.rounds} 轮</span>
+          <span>版本 {result.draft.version}</span>
+          <span>{result.report.issues.length} 项提示</span>
+        </div>
+      </footer>
     </section>
   );
 }

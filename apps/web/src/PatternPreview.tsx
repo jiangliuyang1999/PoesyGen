@@ -1,11 +1,18 @@
 import type { CiPattern } from '@poesygen/client-sdk';
 
-import { patternStats } from './model.js';
+import { formatPatternVariantSummary } from './model.js';
 
 interface PatternPreviewProps {
   readonly pattern: CiPattern;
   readonly onInspectCharacter: (character: string) => void;
   readonly onCreate?: () => void;
+  readonly showHeader?: boolean;
+}
+
+interface PatternPreviewTitleProps {
+  readonly pattern: CiPattern;
+  readonly level?: 1 | 2;
+  readonly id?: string;
 }
 
 const toneLabels = {
@@ -14,43 +21,45 @@ const toneLabels = {
   either: '中',
 } as const;
 
-export function PatternPreview({ pattern, onInspectCharacter, onCreate }: PatternPreviewProps) {
-  const stats = patternStats(pattern);
+export function PatternPreviewTitle({ pattern, level = 1, id }: PatternPreviewTitleProps) {
+  const Heading = level === 1 ? 'h1' : 'h2';
+
+  return (
+    <div>
+      <Heading {...(id === undefined ? {} : { id })}>{pattern.name}</Heading>
+      <p className="pattern-source" aria-label="词牌信息">
+        {formatPatternVariantSummary(pattern)}
+      </p>
+    </div>
+  );
+}
+
+export function PatternPreview({
+  pattern,
+  onInspectCharacter,
+  onCreate,
+  showHeader = true,
+}: PatternPreviewProps) {
   let exampleIndex = 0;
 
   return (
-    <section className="pattern-preview" aria-labelledby="pattern-title">
-      <header className="pattern-header">
-        <div>
-          <p className="section-kicker">格律预览</p>
-          <h1 id="pattern-title">{pattern.name}</h1>
-          <p className="pattern-source">
-            {pattern.variant} · {stats.characters} 字 · {stats.sections === 1 ? '单调' : '双调'}
-          </p>
-        </div>
-        <div className="pattern-header-actions">
-          <span className="review-badge" data-status={pattern.reviewStatus}>
-            {pattern.reviewStatus === 'verified' ? '已校勘' : '机器回查'}
-          </span>
-          {onCreate !== undefined && (
-            <button className="pattern-create-action" type="button" onClick={onCreate}>
-              用此体创作
-            </button>
-          )}
-        </div>
-      </header>
-
-      <div className="stat-row" aria-label="词牌统计">
-        <span>
-          <strong>{stats.lines}</strong> 句
-        </span>
-        <span>
-          <strong>{stats.rhymePositions}</strong> 韵位
-        </span>
-        <span>
-          <strong>{pattern.sections.length}</strong> 阕
-        </span>
-      </div>
+    <section
+      className="pattern-preview"
+      {...(showHeader ? { 'aria-labelledby': 'pattern-title' } : { 'aria-label': '格律内容' })}
+    >
+      {showHeader && (
+        <header className="pattern-header">
+          <PatternPreviewTitle pattern={pattern} id="pattern-title" />
+          <div className="pattern-header-actions">
+            {pattern.reviewStatus === 'verified' && <span className="review-badge">已校勘</span>}
+            {onCreate !== undefined && (
+              <button className="pattern-create-action" type="button" onClick={onCreate}>
+                用此体创作
+              </button>
+            )}
+          </div>
+        </header>
+      )}
 
       <div className="stanza-list">
         {pattern.sections.map((section) => (

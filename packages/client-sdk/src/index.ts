@@ -1,7 +1,7 @@
-import type { GenerationRequestDto } from '@poesygen/contracts';
+import type { GenerationRequestDto, RefinementRequestDto } from '@poesygen/contracts';
 import type { CiPattern, GenerationResult } from '@poesygen/domain';
 
-export type { CiPattern, GenerationResult } from '@poesygen/domain';
+export type { CiPattern, GenerationResult, TextSelection } from '@poesygen/domain';
 
 export interface ClientOptions {
   readonly baseUrl: string;
@@ -134,10 +134,10 @@ export class PoesyGenClient {
     return this.#request(`/v1/characters/${encodeURIComponent(character)}/pronunciations`);
   }
 
-  public suggestCreationIdeas(patternId: string): Promise<IdeaSuggestionsResponse> {
+  public suggestCreationIdeas(): Promise<IdeaSuggestionsResponse> {
     return this.#request('/v1/creation/idea-suggestions', {
       method: 'POST',
-      body: JSON.stringify({ patternId }),
+      body: JSON.stringify({}),
     });
   }
 
@@ -145,6 +145,15 @@ export class PoesyGenClient {
     request: GenerationRequestDto,
   ): Promise<GenerationSessionResponse> {
     return this.#request('/v1/generation-sessions', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  public createRefinementSession(
+    request: RefinementRequestDto,
+  ): Promise<GenerationSessionResponse> {
+    return this.#request('/v1/refinement-sessions', {
       method: 'POST',
       body: JSON.stringify(request),
     });

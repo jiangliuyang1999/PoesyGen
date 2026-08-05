@@ -109,4 +109,52 @@ describe('LlmDraftEngine', () => {
       }),
     );
   });
+
+  it('uses the refine operation with selected text and preserves the title', async () => {
+    const operations: string[] = [];
+    const prompts: string[] = [];
+    const provider: LlmProvider = {
+      name: 'test',
+      async generateStructured(generationRequest) {
+        operations.push(generationRequest.operation);
+        prompts.push(generationRequest.messages.at(-1)?.content ?? '');
+        return {
+          value: generationRequest.parse({ lines: ['晚'] }),
+          model: 'test-model',
+          usage: { inputTokens: 1, outputTokens: 1 },
+        };
+      },
+    };
+    const engine = new LlmDraftEngine(provider);
+    const sourceDraft: WorkDraft = {
+      ...draft('春', 2),
+      title: '春归',
+    };
+
+    const result = await engine.createDraft(
+      {
+        ...request,
+        sourceDraft,
+        selections: [
+          {
+            lineId: 'line-1',
+            start: 0,
+            end: 1,
+            instruction: '改为更清冷的意象',
+          },
+        ],
+      },
+      pattern,
+    );
+
+    expect(operations).toEqual(['refine']);
+    expect(prompts[0]).toContain('第1句“春”：改为更清冷的意象');
+    expect(result).toEqual(
+      expect.objectContaining({
+        title: '春归',
+        version: 3,
+        lines: [{ id: 'expected-line', text: '晚' }],
+      }),
+    );
+  });
 });

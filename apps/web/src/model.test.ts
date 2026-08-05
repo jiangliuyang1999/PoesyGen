@@ -6,6 +6,7 @@ import {
   compatibleRhymeGroups,
   filterPatterns,
   formatGenerationTitle,
+  formatPatternVariantSummary,
   groupPatternsByName,
   patternRhymeLabels,
   patternStats,
@@ -89,6 +90,7 @@ describe('web interaction model', () => {
       sections: 1,
       rhymePositions: 1,
     });
+    expect(formatPatternVariantSummary(testPattern)).toBe('正体 · 2字 · 单调 · 1句 · 1韵位');
     expect(patternRhymeLabels(testPattern)).toEqual([{ id: 'main', tone: 'oblique' }]);
     expect(compatibleRhymeGroups(groups, 'oblique').map(({ id }) => id)).toEqual(['cilin-17']);
   });

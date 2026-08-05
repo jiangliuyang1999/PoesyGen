@@ -41,10 +41,9 @@ export function GenerationSettings({
     <aside className="generation-settings" aria-labelledby="settings-title">
       <div className="settings-heading">
         <span className="creation-step">02</span>
-        <div>
-          <p className="section-kicker">生成设置</p>
-          <h2 id="settings-title">约束与优化</h2>
-        </div>
+        <h2 className="creation-panel-title" id="settings-title">
+          生成设置
+        </h2>
       </div>
 
       <div className="setting-block setting-rhymes">

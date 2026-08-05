@@ -4,7 +4,9 @@ import type { CiPattern, GenerationResult } from '@poesygen/client-sdk';
 
 import {
   addGenerationHistoryEntry,
+  addGenerationHistoryVersion,
   filterGenerationHistory,
+  generationHistoryVersions,
   generationHistoryStorageKey,
   loadGenerationHistory,
   saveGenerationHistory,
@@ -49,6 +51,26 @@ describe('local generation history', () => {
     expect(filterGenerationHistory(entries, '雪夜')).toEqual([updated]);
     expect(filterGenerationHistory(entries, '如梦令')).toHaveLength(2);
     expect(filterGenerationHistory(entries, 'session-2')).toEqual([entries[1]]);
+  });
+
+  it('keeps refinements as versions of one history entry', () => {
+    const original = createEntry(1);
+    const refined: GenerationResult = {
+      ...original.result,
+      draft: {
+        ...original.result.draft,
+        id: 'draft-refined',
+        version: 2,
+        lines: [{ id: 'line-1', text: '新雨' }],
+      },
+    };
+
+    const entries = addGenerationHistoryVersion([original], original.id, refined);
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.result.draft.id).toBe('draft-refined');
+    expect(generationHistoryVersions(entries[0]!)).toEqual([original.result, refined]);
+    expect(filterGenerationHistory(entries, '梦')).toEqual(entries);
   });
 
   it('ignores malformed or incompatible local data', () => {

@@ -154,13 +154,144 @@ describe('web creation workspace', () => {
     expect(splitGraphemes(`东\uFE00风`)).toEqual([`东\uFE00`, '风']);
   });
 
+  it('retries initial data loading while the API is starting', async () => {
+    const client = createClient();
+    vi.mocked(client.listPatterns).mockRejectedValueOnce(new TypeError('fetch failed'));
+
+    render(<App client={client} />);
+
+    expect(await screen.findByRole('heading', { name: '测试令', level: 2 })).toBeTruthy();
+    expect(client.listPatterns).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('生成服务就绪')).toBeTruthy();
+  });
+
+  it('groups creation inputs and toggles the embedded prosody preview', async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    const patternPanel = screen.getByLabelText('词谱选择与格律预览');
+    const tuneSelect = within(patternPanel).getByRole('combobox', { name: '创作词牌' });
+    const variantSelect = within(patternPanel).getByRole('combobox', { name: '创作体式' });
+    expect(tuneSelect).toBeTruthy();
+    expect(
+      within(variantSelect).getByRole('option', {
+        name: '正体 · 2字 · 单调 · 1句 · 1韵位',
+      }),
+    ).toBeTruthy();
+    const patternControls = tuneSelect.closest('.selected-pattern-controls');
+    const patternHeading = within(patternPanel).getByRole('heading', {
+      name: '测试令',
+      level: 2,
+    });
+    expect(patternHeading.textContent).toBe('测试令');
+    expect(within(patternPanel).getByLabelText('词牌信息').textContent).toBe(
+      '正体 · 2字 · 单调 · 1句 · 1韵位',
+    );
+    expect(within(patternPanel).queryByText('格律预览')).toBeNull();
+
+    const previewSummary = patternHeading.closest('summary');
+    const previewDetails = previewSummary?.closest('details');
+    expect(patternControls?.parentElement?.nextElementSibling).toBe(previewDetails);
+    expect(previewDetails?.open).toBe(false);
+    await user.click(previewSummary!);
+    expect(previewDetails?.open).toBe(true);
+    expect(within(previewDetails!).getByLabelText('格律内容')).toBeTruthy();
+    expect(within(previewDetails!).getByTitle('平声位')).toBeTruthy();
+    expect(within(previewDetails!).queryByRole('button', { name: '用此体创作' })).toBeNull();
+    await user.click(previewSummary!);
+    expect(previewDetails?.open).toBe(false);
+
+    const inputPanel = screen.getByLabelText('创作主题与生成设置');
+    expect(within(inputPanel).getByRole('textbox', { name: '作品主题' })).toBeTruthy();
+    expect(within(inputPanel).getByRole('heading', { name: '创作主题' })).toBeTruthy();
+    expect(within(inputPanel).getByRole('heading', { name: '生成设置' })).toBeTruthy();
+    expect(within(inputPanel).queryByText('写下想表达的内容')).toBeNull();
+    expect(within(inputPanel).queryByText('约束与优化')).toBeNull();
+  });
+
+  it('uses four top-level pages with a shared workspace container', async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    const navigation = screen.getByRole('navigation', { name: '主导航' });
+    expect(
+      within(navigation)
+        .getAllByRole('button')
+        .map((button) => button.textContent),
+    ).toEqual(['创作', '历史记录', '词谱', '字典']);
+    expect(screen.queryByRole('group', { name: '创作视图' })).toBeNull();
+    expect(
+      screen
+        .getByRole('heading', { name: '依谱填词', level: 1 })
+        .closest('main')
+        ?.classList.contains('page-workspace'),
+    ).toBe(true);
+
+    await user.click(within(navigation).getByRole('button', { name: '历史记录' }));
+    expect(
+      screen
+        .getByRole('heading', { name: '历史记录', level: 1 })
+        .closest('main')
+        ?.classList.contains('page-workspace'),
+    ).toBe(true);
+
+    await user.click(within(navigation).getByRole('button', { name: '词谱' }));
+    expect(
+      screen
+        .getByRole('heading', { name: '格律词谱', level: 1 })
+        .closest('main')
+        ?.classList.contains('page-workspace'),
+    ).toBe(true);
+
+    await user.click(within(navigation).getByRole('button', { name: '字典' }));
+    expect(
+      screen
+        .getByRole('heading', { name: '音韵字典', level: 1 })
+        .closest('main')
+        ?.classList.contains('page-workspace'),
+    ).toBe(true);
+  });
+
+  it('does not show the machine review badge for imported patterns', async () => {
+    const client = createClient([pattern, alternatePattern]);
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    await user.click(screen.getByRole('button', { name: '词谱' }));
+
+    expect(await screen.findByRole('heading', { name: '格律词谱' })).toBeTruthy();
+    const fullPreview = screen.getByRole('region', { name: '测试令' });
+    expect(within(fullPreview).getByLabelText('词牌信息').textContent).toBe(
+      '正体 · 2字 · 单调 · 1句 · 1韵位',
+    );
+    expect(within(fullPreview).getByRole('button', { name: '用此体创作' })).toBeTruthy();
+    expect(fullPreview.closest('details')).toBeNull();
+    const patternVariantSelect = screen.getByRole('combobox', { name: '测试令体式' });
+    expect(
+      within(patternVariantSelect).getByRole('option', {
+        name: '正体 · 2字 · 单调 · 1句 · 1韵位',
+      }),
+    ).toBeTruthy();
+    expect(
+      within(patternVariantSelect).getByRole('option', {
+        name: '格二 · 3字 · 单调 · 1句 · 1韵位',
+      }),
+    ).toBeTruthy();
+    expect(screen.queryByText('机器回查')).toBeNull();
+  });
+
   it('loads LLM idea suggestions and fills the theme editor', async () => {
     const client = createClient();
     const user = userEvent.setup();
     render(<App client={client} />);
 
     const suggestion = await screen.findByRole('button', { name: ideaSuggestions[0] });
-    expect(client.suggestCreationIdeas).toHaveBeenCalledWith(pattern.id);
+    expect(client.suggestCreationIdeas).toHaveBeenCalledWith();
     expect(Array.from(suggestion.textContent ?? '').length).toBeLessThanOrEqual(50);
 
     await user.click(suggestion);
@@ -178,10 +309,13 @@ describe('web creation workspace', () => {
     const client = createClient([pattern, alternatePattern, otherPattern]);
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole('heading', { name: '测试令' });
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+    await waitFor(() => {
+      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(1);
+    });
 
     await user.selectOptions(screen.getByRole('combobox', { name: '创作词牌' }), otherPattern.name);
-    expect(screen.getByRole('heading', { name: '另一令' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: '另一令', level: 2 })).toBeTruthy();
 
     await user.selectOptions(screen.getByRole('combobox', { name: '创作词牌' }), pattern.name);
     await user.selectOptions(
@@ -189,7 +323,8 @@ describe('web creation workspace', () => {
       alternatePattern.id,
     );
 
-    expect(screen.getByText('格二 · 3 字 · 单调')).toBeTruthy();
+    expect(screen.getByLabelText('词牌信息').textContent).toBe('格二 · 3字 · 单调 · 1句 · 1韵位');
+    expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(1);
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上晚归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
     await screen.findByText('词作已完成');
@@ -204,7 +339,7 @@ describe('web creation workspace', () => {
     const client = createClient();
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole('heading', { name: '测试令' });
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
 
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '暮春江上归舟，怀念故友');
     await user.selectOptions(screen.getByLabelText('第 1 组仄声韵'), 'cilin-17');
@@ -249,20 +384,117 @@ describe('web creation workspace', () => {
     await user.click(poemView);
     expect(poemView.getAttribute('aria-pressed')).toBe('true');
     expect(screen.queryByLabelText('平仄韵脚标注')).toBeNull();
+    const initialVersion = screen.getByRole('group', { name: '作品版本' });
+    const initialViewSwitcher = screen.getByRole('group', { name: '结果视图' });
+    expect(within(initialVersion).getByText('版本 1/1')).toBeTruthy();
+    expect(initialVersion.nextElementSibling).toBe(initialViewSwitcher);
+    expect(initialVersion.parentElement).toBe(initialViewSwitcher.parentElement);
+
+    await user.click(screen.getByRole('button', { name: '局部修改' }));
+    expect(screen.getByRole('button', { name: '整句' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '选择第1句第1字“春”' }));
+    expect(screen.getByRole('heading', { name: '已选“春”' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '选择第1句第2字“晚”' }));
+    expect(screen.getByRole('heading', { name: '已选“春晚”' })).toBeTruthy();
+    await user.type(screen.getByRole('textbox', { name: '修改意见' }), '改成更清冷的秋夜意象');
+    await user.click(screen.getByRole('button', { name: '根据意见重新生成' }));
+
+    await screen.findByText('新版本已按意见修改并通过格律校验。');
+    expect(client.createRefinementSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        patternId: pattern.id,
+        draft: expect.objectContaining({ id: 'draft-1', version: 2 }),
+        selections: [
+          {
+            lineId: 'line-1',
+            start: 0,
+            end: 2,
+            instruction: '改成更清冷的秋夜意象',
+          },
+        ],
+      }),
+    );
+    expect(screen.getByTitle('查询“秋”')).toBeTruthy();
+    const currentVersion = screen.getByRole('group', { name: '作品版本' });
+    expect(within(currentVersion).getByText('版本 2/2')).toBeTruthy();
+    const currentViewSwitcher = screen.getByRole('group', { name: '结果视图' });
+    expect(
+      within(currentViewSwitcher.parentElement!).getByRole('group', {
+        name: '作品版本',
+      }),
+    ).toBe(currentVersion);
+    expect(currentVersion.nextElementSibling).toBe(currentViewSwitcher);
+    expect(currentVersion.closest('footer')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: '格律标注' }));
+    await user.click(screen.getByRole('button', { name: '上一版本' }));
+    expect(screen.getByText('版本 1/2')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '格律标注' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    expect(screen.getByLabelText('平仄韵脚标注')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '下一版本' }));
+    expect(screen.getByText('版本 2/2')).toBeTruthy();
+    expect(screen.getByLabelText('平仄韵脚标注')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '正文' }));
+    expect(screen.getByTitle('查询“秋”')).toBeTruthy();
 
     expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('session-1');
     await user.click(screen.getByRole('button', { name: /历史记录/ }));
     expect(await screen.findByRole('heading', { name: '生成历史' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
+    const historyOverview = screen.getByLabelText('历史记录信息');
+    const patternIdentity = within(historyOverview).getByLabelText('词牌信息');
+    expect(within(patternIdentity).getByRole('heading', { name: '测试令' })).toBeTruthy();
+    expect(within(patternIdentity).getByText('正体 · 2 字 · 1 句 · 单调')).toBeTruthy();
+    const creativeBrief = within(historyOverview).getByLabelText('创作重点');
+    expect(within(creativeBrief).getByText('暮春江上归舟，怀念故友')).toBeTruthy();
+    expect(within(creativeBrief).getByText('含蓄抒情；避免重字')).toBeTruthy();
     const historySettings = screen.getByLabelText('历史生成设置');
     expect(within(historySettings).getByText('优化轮数')).toBeTruthy();
     expect(within(historySettings).getByText('8')).toBeTruthy();
-    expect(within(historySettings).getByText('轮上限')).toBeTruthy();
+    expect(within(historySettings).getByText('轮')).toBeTruthy();
     expect(within(historySettings).getByText('第 1 组仄声韵')).toBeTruthy();
     expect(within(historySettings).getByText('第十七部 · 四质')).toBeTruthy();
-    expect(
-      within(screen.getByLabelText('历史记录信息')).getByText('含蓄抒情；避免重字'),
-    ).toBeTruthy();
+    expect(within(historySettings).getByText('生成时间')).toBeTruthy();
+    expect(within(historySettings).getByText('会话 ID')).toBeTruthy();
+    expect(within(historySettings).getByText('session-1')).toBeTruthy();
+    const historyList = screen.getByLabelText('生成历史列表');
+    expect(within(historyList).getByText('2 个版本')).toBeTruthy();
+    expect(screen.getByText('版本 2/2')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: '局部修改' }));
+    await user.click(screen.getByRole('button', { name: '选择第1句第1字“秋”' }));
+    await user.type(screen.getByRole('textbox', { name: '修改意见' }), '改成雪夜独行的意象');
+    await user.click(screen.getByRole('button', { name: '根据意见重新生成' }));
+
+    expect(await screen.findByText('版本 3/3')).toBeTruthy();
+    expect(screen.getByTitle('查询“雪”')).toBeTruthy();
+    expect(client.createRefinementSession).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        patternId: pattern.id,
+        draft: expect.objectContaining({ id: 'draft-2', version: 3 }),
+        maxRounds: 8,
+        preferredRhymeGroup: 'cilin-17',
+        additionalRequirements: ['含蓄抒情', '避免重字'],
+        selections: [
+          {
+            lineId: 'line-1',
+            start: 0,
+            end: 1,
+            instruction: '改成雪夜独行的意象',
+          },
+        ],
+      }),
+    );
+    expect(within(historyList).getByText('3 个版本')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: '上一版本' }));
+    expect(screen.getByText('版本 2/3')).toBeTruthy();
+    expect(screen.getByTitle('查询“秋”')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '上一版本' }));
+    expect(screen.getByText('版本 1/3')).toBeTruthy();
+    expect(screen.getByTitle('查询“春”')).toBeTruthy();
 
     const historySearch = screen.getByRole('searchbox', { name: '搜索历史结果' });
     await user.type(historySearch, '不存在的主题');
@@ -270,17 +502,17 @@ describe('web creation workspace', () => {
     await user.clear(historySearch);
     await user.type(historySearch, '暮春江上');
     expect(
-      within(screen.getByLabelText('生成历史列表')).getByRole('button', {
+      within(screen.getByLabelText('生成历史列表')).getAllByRole('button', {
         name: /测试令·春归.*暮春江上/,
       }),
-    ).toBeTruthy();
+    ).toHaveLength(1);
   });
 
   it('marks stanzas in the annotated result view for double-stanza patterns', async () => {
     const client = createClient([doubleStanzaPattern]);
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole('heading', { name: '双调令' });
+    await screen.findByRole('heading', { name: '双调令', level: 2 });
 
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上春归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
@@ -301,8 +533,9 @@ describe('web creation workspace', () => {
     const client = createClient();
     const user = userEvent.setup();
     render(<App client={client} />);
-    await screen.findByRole('heading', { name: '测试令' });
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
 
+    await user.click(screen.getByRole('heading', { name: '测试令', level: 2 }).closest('summary')!);
     await user.click(screen.getByTitle('平声位'));
 
     await screen.findByRole('heading', { name: '一字，见古今声韵' });
@@ -315,6 +548,7 @@ describe('web creation workspace', () => {
 
 function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
   let requestedPatternId = patterns[0]?.id ?? pattern.id;
+  let refinementSequence = 0;
   const getCharacterPronunciations = vi.fn(
     async (character: string): Promise<CharacterPronunciationResponse> => ({
       character,
@@ -352,15 +586,31 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
         };
       },
     ),
+    createRefinementSession: vi.fn(
+      async (request: Parameters<AppClient['createRefinementSession']>[0]) => {
+        requestedPatternId = request.patternId;
+        refinementSequence += 1;
+        return {
+          id: `refinement-${refinementSequence}`,
+          jobId: `refinement-job-${refinementSequence}`,
+          status: 'queued' as const,
+        };
+      },
+    ),
     waitForGenerationSession: vi.fn(
-      async (_sessionId, options): Promise<GenerationSessionStatusResponse> => {
+      async (sessionId, options): Promise<GenerationSessionStatusResponse> => {
+        const refinementNumber = sessionId.startsWith('refinement-')
+          ? Number(sessionId.slice('refinement-'.length))
+          : undefined;
+        const refining = refinementNumber !== undefined;
+        const jobId = refining ? `refinement-job-${refinementNumber}` : 'job-1';
         options?.onUpdate?.({
-          id: 'session-1',
-          jobId: 'job-1',
+          id: sessionId,
+          jobId,
           status: 'running',
           progress: {
-            phase: 'generating',
-            message: '正在生成初稿',
+            phase: refining ? 'refining' : 'generating',
+            message: refining ? '正在按修改意见调整' : '正在生成初稿',
           },
         });
         const selectedPattern = patterns.find(({ id }) => id === requestedPatternId) ?? pattern;
@@ -368,11 +618,18 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
           .flatMap((section) => section.lines)
           .map((_, index) => ({
             id: `line-${index + 1}`,
-            text: index === 0 ? '春晚' : '江归',
+            text:
+              index === 0
+                ? refinementNumber === 1
+                  ? '秋晚'
+                  : refinementNumber === 2
+                    ? '雪晚'
+                    : '春晚'
+                : '江归',
           }));
         return {
-          id: 'session-1',
-          jobId: 'job-1',
+          id: sessionId,
+          jobId,
           status: 'completed',
           progress: 100,
           result: {
@@ -380,15 +637,15 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
             status: 'completed',
             rounds: 2,
             draft: {
-              id: 'draft-1',
+              id: refining ? `draft-${refinementNumber + 1}` : 'draft-1',
               patternId: requestedPatternId,
               theme: '暮春江上归舟，怀念故友',
-              version: 2,
+              version: refining ? refinementNumber + 2 : 2,
               title: '春归',
               lines: draftLines,
             },
             report: {
-              passed: true,
+              passed: refining,
               issues: [],
             },
           },

@@ -53,7 +53,47 @@ describe('PoesyGenClient', () => {
     });
   });
 
-  it('requests creation idea suggestions for a pattern', async () => {
+  it('submits a refinement session with the source draft and selections', async () => {
+    const fetch = vi.fn(async () =>
+      Response.json(
+        {
+          id: 'refinement-1',
+          jobId: 'refinement-job-1',
+          status: 'queued',
+        },
+        { status: 202 },
+      ),
+    );
+    const client = new PoesyGenClient({ baseUrl: 'http://localhost:3000', fetch });
+    const request = {
+      patternId: 'ru-meng-ling-standard',
+      theme: '暮春',
+      draft: {
+        id: 'draft-1',
+        patternId: 'ru-meng-ling-standard',
+        theme: '暮春',
+        version: 2,
+        lines: [{ id: 'line-1', text: '春晚' }],
+      },
+      selections: [{ lineId: 'line-1', start: 0, end: 1, instruction: '改写此字' }],
+      maxRounds: 8,
+    };
+
+    await expect(client.createRefinementSession(request)).resolves.toEqual({
+      id: 'refinement-1',
+      jobId: 'refinement-job-1',
+      status: 'queued',
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:3000/v1/refinement-sessions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify(request),
+      }),
+    );
+  });
+
+  it('requests creation idea suggestions without a pattern', async () => {
     const fetch = vi.fn(async () =>
       Response.json({
         suggestions: ['暮春归舟', '雪夜怀人', '故园新雨'],
@@ -61,14 +101,14 @@ describe('PoesyGenClient', () => {
     );
     const client = new PoesyGenClient({ baseUrl: 'http://localhost:3000', fetch });
 
-    await expect(client.suggestCreationIdeas('ru-meng-ling-standard')).resolves.toEqual({
+    await expect(client.suggestCreationIdeas()).resolves.toEqual({
       suggestions: ['暮春归舟', '雪夜怀人', '故园新雨'],
     });
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:3000/v1/creation/idea-suggestions',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ patternId: 'ru-meng-ling-standard' }),
+        body: JSON.stringify({}),
       }),
     );
   });

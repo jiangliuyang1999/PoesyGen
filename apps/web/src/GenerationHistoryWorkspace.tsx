@@ -1,12 +1,24 @@
 import { useState } from 'react';
 
+import type { GenerationResult, TextSelection } from '@poesygen/client-sdk';
+
 import { GenerationResultPanel } from './GenerationResultPanel.js';
-import { filterGenerationHistory, type GenerationHistoryEntry } from './generation-history.js';
+import {
+  filterGenerationHistory,
+  generationHistoryVersions,
+  type GenerationHistoryEntry,
+} from './generation-history.js';
 import { formatGenerationTitle, patternStats } from './model.js';
 
 interface GenerationHistoryWorkspaceProps {
   readonly entries: ReadonlyArray<GenerationHistoryEntry>;
   readonly onInspectCharacter: (character: string) => void;
+  readonly onRefine: (
+    entry: GenerationHistoryEntry,
+    result: GenerationResult,
+    selection: Omit<TextSelection, 'instruction'>,
+    instruction: string,
+  ) => Promise<GenerationResult>;
 }
 
 const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
@@ -29,12 +41,17 @@ const detailDateFormatter = new Intl.DateTimeFormat('zh-CN', {
 export function GenerationHistoryWorkspace({
   entries,
   onInspectCharacter,
+  onRefine,
 }: GenerationHistoryWorkspaceProps) {
   const [query, setQuery] = useState('');
   const [selectedEntryId, setSelectedEntryId] = useState(entries[0]?.id);
+  const [selectedVersionId, setSelectedVersionId] = useState<string>();
   const visibleEntries = filterGenerationHistory(entries, query);
   const selectedEntry =
     visibleEntries.find(({ id }) => id === selectedEntryId) ?? visibleEntries[0];
+  const versions = selectedEntry === undefined ? [] : generationHistoryVersions(selectedEntry);
+  const selectedResult =
+    versions.find(({ draft }) => draft.id === selectedVersionId) ?? versions.at(-1);
   const selectedPatternStats =
     selectedEntry === undefined ? undefined : patternStats(selectedEntry.pattern);
 
@@ -68,7 +85,10 @@ export function GenerationHistoryWorkspace({
               key={entry.id}
               data-selected={entry.id === selectedEntry?.id}
               aria-pressed={entry.id === selectedEntry?.id}
-              onClick={() => setSelectedEntryId(entry.id)}
+              onClick={() => {
+                setSelectedEntryId(entry.id);
+                setSelectedVersionId(undefined);
+              }}
             >
               <span className="history-list-title">
                 <strong>
@@ -78,10 +98,8 @@ export function GenerationHistoryWorkspace({
               </span>
               <span className="history-list-meta">
                 <span>{entry.pattern.variant}</span>
+                <span>{generationHistoryVersions(entry).length} 个版本</span>
                 <span>优化 {entry.result.rounds} 轮</span>
-                <span data-passed={entry.result.report.passed}>
-                  {entry.result.report.passed ? '格律通过' : '未完全通过'}
-                </span>
               </span>
               <small className="history-list-theme">{entry.theme}</small>
             </button>
@@ -99,7 +117,7 @@ export function GenerationHistoryWorkspace({
       </aside>
 
       <div className="history-detail">
-        {selectedEntry === undefined ? (
+        {selectedEntry === undefined || selectedResult === undefined ? (
           <section className="history-empty" aria-label="历史结果">
             <p className="section-kicker">生成结果</p>
             <h2>{entries.length === 0 ? '尚无历史词作' : '没有匹配结果'}</h2>
@@ -110,35 +128,41 @@ export function GenerationHistoryWorkspace({
             <section className="history-overview" aria-label="历史记录信息">
               <header className="history-overview-header">
                 <div>
-                  <p className="section-kicker">当前记录</p>
+                  <p className="section-kicker">记录详情</p>
                   <h2>创作档案</h2>
                 </div>
-                <span data-passed={selectedEntry.result.report.passed}>
-                  {selectedEntry.result.report.passed ? '格律通过' : '达到轮次上限'}
-                </span>
               </header>
 
-              <div className="history-archive-summary">
-                <article className="history-pattern-card">
-                  <span>词牌体式</span>
-                  <strong>{selectedEntry.pattern.name}</strong>
-                  <small>
+              <div className="history-archive-focus">
+                <article className="history-pattern-identity" aria-label="词牌信息">
+                  <p>词牌</p>
+                  <h3>{selectedEntry.pattern.name}</h3>
+                  <span>
                     {selectedEntry.pattern.variant} · {selectedPatternStats?.characters ?? 0} 字 ·{' '}
                     {selectedPatternStats?.lines ?? 0} 句 ·{' '}
                     {selectedPatternStats?.sections === 1 ? '单调' : '双调'}
-                  </small>
+                  </span>
                 </article>
-                <article className="history-record-card">
-                  <span>生成时间</span>
-                  <time dateTime={selectedEntry.createdAt}>
-                    {formatDetailDate(selectedEntry.createdAt)}
-                  </time>
-                  <code>会话 {selectedEntry.id}</code>
-                </article>
+
+                <div className="history-creative-brief" aria-label="创作重点">
+                  <article className="history-brief-section" data-primary="true">
+                    <span>创作主题</span>
+                    <p>{selectedEntry.theme}</p>
+                  </article>
+                  <article className="history-brief-section">
+                    <span>附加要求</span>
+                    <p>
+                      {selectedEntry.settings === undefined ||
+                      selectedEntry.settings.additionalRequirements.length === 0
+                        ? '无附加要求'
+                        : selectedEntry.settings.additionalRequirements.join('；')}
+                    </p>
+                  </article>
+                </div>
               </div>
 
-              <dl className="history-settings" aria-label="历史生成设置">
-                <div className="history-rounds-card">
+              <dl className="history-archive-meta" aria-label="历史生成设置">
+                <div>
                   <dt>优化轮数</dt>
                   <dd>
                     {selectedEntry.settings === undefined ? (
@@ -146,12 +170,12 @@ export function GenerationHistoryWorkspace({
                     ) : (
                       <>
                         <strong>{selectedEntry.settings.maxRounds}</strong>
-                        <span>轮上限</span>
+                        <span>轮</span>
                       </>
                     )}
                   </dd>
                 </div>
-                <div className="history-rhyme-card">
+                <div className="history-archive-rhyme">
                   <dt>韵部设置</dt>
                   <dd>
                     {selectedEntry.settings === undefined ||
@@ -161,7 +185,7 @@ export function GenerationHistoryWorkspace({
                       <ul>
                         {selectedEntry.settings.rhymeSettings.map((setting) => (
                           <li key={setting.label}>
-                            <span>{setting.label}</span>
+                            <span>{setting.label}</span>：
                             <strong>
                               {setting.groupName === undefined
                                 ? '自动择韵'
@@ -173,27 +197,37 @@ export function GenerationHistoryWorkspace({
                     )}
                   </dd>
                 </div>
+                <div>
+                  <dt>生成时间</dt>
+                  <dd>
+                    <time dateTime={selectedEntry.createdAt}>
+                      {formatDetailDate(selectedEntry.createdAt)}
+                    </time>
+                  </dd>
+                </div>
+                <div className="history-archive-session">
+                  <dt>会话 ID</dt>
+                  <dd>
+                    <code title={selectedEntry.id}>{selectedEntry.id}</code>
+                  </dd>
+                </div>
               </dl>
-
-              <div className="history-theme-block">
-                <span>创作主题</span>
-                <p>{selectedEntry.theme}</p>
-              </div>
-
-              <div className="history-theme-block">
-                <span>附加要求</span>
-                <p>
-                  {selectedEntry.settings === undefined ||
-                  selectedEntry.settings.additionalRequirements.length === 0
-                    ? '无附加要求'
-                    : selectedEntry.settings.additionalRequirements.join('；')}
-                </p>
-              </div>
             </section>
             <GenerationResultPanel
-              result={selectedEntry.result}
+              result={selectedResult}
               pattern={selectedEntry.pattern}
               onInspectCharacter={onInspectCharacter}
+              onRefine={async (selection, instruction) => {
+                const result = await onRefine(
+                  selectedEntry,
+                  selectedResult,
+                  selection,
+                  instruction,
+                );
+                setSelectedVersionId(result.draft.id);
+              }}
+              versions={versions}
+              onSelectVersion={(result) => setSelectedVersionId(result.draft.id)}
             />
           </>
         )}

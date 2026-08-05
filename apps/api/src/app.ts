@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import cors from '@fastify/cors';
 import Fastify, { type FastifyInstance } from 'fastify';
 
-import { generationRequestSchema } from '@poesygen/contracts';
+import { generationRequestSchema, refinementRequestSchema } from '@poesygen/contracts';
 import type { GenerationRequest } from '@poesygen/domain';
 import type { LlmProvider } from '@poesygen/llm';
 import { findPattern, listPatterns } from '@poesygen/patterns';
@@ -50,19 +50,7 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
 
   app.get('/v1/patterns', async () => listPatterns());
 
-  app.post<{ Body: unknown }>('/v1/creation/idea-suggestions', async (request, reply) => {
-    const patternId =
-      isRecord(request.body) && typeof request.body['patternId'] === 'string'
-        ? request.body['patternId']
-        : undefined;
-    if (patternId === undefined || patternId.trim() === '') {
-      return reply.code(400).send({ error: 'pattern_id_required' });
-    }
-
-    const pattern = findPattern(patternId);
-    if (pattern === undefined) {
-      return reply.code(404).send({ error: 'pattern_not_found', patternId });
-    }
+  app.post('/v1/creation/idea-suggestions', async (request, reply) => {
     if (dependencies.ideaProvider === undefined) {
       return reply.code(503).send({
         error: 'idea_suggestions_unavailable',
@@ -70,15 +58,13 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
       });
     }
 
-    const lines = pattern.sections.flatMap((section) => section.lines);
-    const characters = lines.reduce((total, line) => total + line.positions.length, 0);
     try {
       const generated = await dependencies.ideaProvider.generateStructured({
         operation: 'recommend',
-        temperature: 0.85,
+        temperature: 1,
         metadata: {
           feature: 'creation-idea-suggestions',
-          patternId: pattern.id,
+          promptVersion: 'idea-suggestions-v2',
         },
         messages: [
           {
@@ -95,9 +81,9 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
           {
             role: 'user',
             content: [
-              `请为词牌《${pattern.name}》${pattern.variant}推荐创作主题。`,
-              `该体共 ${characters} 字、${lines.length} 句、${pattern.sections.length === 1 ? '单调' : '双调'}。`,
+              '请直接推荐三条适合宋词创作的主题，不绑定任何特定词牌或体式。',
               '三条主题在季节、场景和情绪上应有明显差异。',
+              '每次尽量探索不同的人物关系、叙事视角和意象组合，避免重复常见主题模板。',
             ].join('\n'),
           },
         ],
@@ -190,6 +176,81 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
     const jobId = await dependencies.generationQueue.enqueue({
       sessionId,
       request: generationRequest,
+    });
+
+    return reply.code(202).send({
+      id: sessionId,
+      jobId,
+      status: 'queued',
+    });
+  });
+
+  app.post('/v1/refinement-sessions', async (request, reply) => {
+    const parsed = refinementRequestSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'invalid_request',
+        details: parsed.error.issues,
+      });
+    }
+
+    const pattern = findPattern(parsed.data.patternId);
+    if (pattern === undefined) {
+      return reply.code(404).send({
+        error: 'pattern_not_found',
+        patternId: parsed.data.patternId,
+      });
+    }
+    if (parsed.data.draft.patternId !== pattern.id) {
+      return reply.code(400).send({ error: 'draft_pattern_mismatch' });
+    }
+
+    const sourceLines = new Map(parsed.data.draft.lines.map((line) => [line.id, line.text]));
+    const invalidSelection = parsed.data.selections.find((selection) => {
+      const line = sourceLines.get(selection.lineId);
+      return line === undefined || selection.end > Array.from(line).length;
+    });
+    if (invalidSelection !== undefined) {
+      return reply.code(400).send({
+        error: 'invalid_selection',
+        selection: invalidSelection,
+      });
+    }
+
+    if (dependencies.generationQueue === undefined) {
+      return reply.code(503).send({
+        error: 'generation_unavailable',
+        message: 'Generation queue is not configured',
+      });
+    }
+
+    const sessionId = randomUUID();
+    const refinementRequest: GenerationRequest = {
+      patternId: pattern.id,
+      theme: parsed.data.theme,
+      maxRounds: parsed.data.maxRounds,
+      sourceDraft: {
+        id: parsed.data.draft.id,
+        patternId: parsed.data.draft.patternId,
+        theme: parsed.data.draft.theme,
+        lines: parsed.data.draft.lines,
+        version: parsed.data.draft.version,
+        ...(parsed.data.draft.title === undefined ? {} : { title: parsed.data.draft.title }),
+        ...(parsed.data.draft.requestedRhymeGroup === undefined
+          ? {}
+          : { requestedRhymeGroup: parsed.data.draft.requestedRhymeGroup }),
+      },
+      selections: parsed.data.selections,
+      ...(parsed.data.preferredRhymeGroup === undefined
+        ? {}
+        : { preferredRhymeGroup: parsed.data.preferredRhymeGroup }),
+      ...(parsed.data.additionalRequirements === undefined
+        ? {}
+        : { additionalRequirements: parsed.data.additionalRequirements }),
+    };
+    const jobId = await dependencies.generationQueue.enqueue({
+      sessionId,
+      request: refinementRequest,
     });
 
     return reply.code(202).send({

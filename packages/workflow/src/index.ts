@@ -45,6 +45,13 @@ export class LlmDraftEngine implements DraftEngine {
     pattern: CiPattern,
     signal?: AbortSignal,
   ): Promise<WorkDraft> {
+    if (request.sourceDraft !== undefined || request.selections !== undefined) {
+      if (request.sourceDraft === undefined || request.selections === undefined) {
+        throw new Error('Refinement requires both sourceDraft and selections');
+      }
+      return this.#refineDraft(request, pattern, signal);
+    }
+
     const result = await this.#provider.generateStructured(
       {
         operation: 'draft',
@@ -74,6 +81,49 @@ export class LlmDraftEngine implements DraftEngine {
       signal,
     );
     return payloadToDraft(result.value, request, pattern, 1);
+  }
+
+  async #refineDraft(
+    request: GenerationRequest,
+    pattern: CiPattern,
+    signal?: AbortSignal,
+  ): Promise<WorkDraft> {
+    const sourceDraft = request.sourceDraft!;
+    const result = await this.#provider.generateStructured(
+      {
+        operation: 'refine',
+        messages: [
+          {
+            role: 'system',
+            content: [
+              '你是宋词局部修改编辑。',
+              '严格按照用户对选中字、词或句的意见修改，同时保持全词主题、意象和语气连贯。',
+              '只输出 JSON 对象：{"title":"可选题目","lines":["逐句文本"]}。',
+              'lines 必须包含修改后的完整词稿，不含序号、标点或解释。',
+              '未被选中的内容尽量保持不变；仅在语义衔接、平仄或押韵确有必要时做最小联动修改。',
+              '修改后仍须满足给定词牌的字数、平仄和押韵约束。',
+            ].join('\n'),
+          },
+          {
+            role: 'user',
+            content: createRefinementPrompt(request, pattern),
+          },
+        ],
+        parse: parseDraftPayload,
+        temperature: 0.45,
+        metadata: {
+          patternId: pattern.id,
+          promptVersion: 'refine-v1',
+          version: String(sourceDraft.version),
+        },
+      },
+      signal,
+    );
+    const payload =
+      result.value.title === undefined && sourceDraft.title !== undefined
+        ? { ...result.value, title: sourceDraft.title }
+        : result.value;
+    return payloadToDraft(payload, request, pattern, sourceDraft.version + 1);
   }
 
   public async repairDraft(input: RepairDraftInput, signal?: AbortSignal): Promise<WorkDraft> {
@@ -116,6 +166,13 @@ export class ExampleDraftEngine implements DraftEngine {
     pattern: CiPattern,
     _signal?: AbortSignal,
   ): Promise<WorkDraft> {
+    if (request.sourceDraft !== undefined && request.selections !== undefined) {
+      return Promise.resolve({
+        ...request.sourceDraft,
+        id: randomUUID(),
+        version: request.sourceDraft.version + 1,
+      });
+    }
     if (pattern.example === undefined) {
       return Promise.reject(new Error(`Pattern ${pattern.id} has no example draft`));
     }
@@ -304,7 +361,48 @@ function createRepairPrompt(input: RepairDraftInput): string {
           `${issue.actual === undefined ? '' : `；实际 ${issue.actual}`}`,
       )
       .join('\n')}`,
+    input.request.sourceDraft === undefined || input.request.selections === undefined
+      ? ''
+      : `用户局部修改要求：\n${formatSelections(
+          input.request.sourceDraft,
+          input.request.selections,
+        )}`,
   ].join('\n\n');
+}
+
+function createRefinementPrompt(request: GenerationRequest, pattern: CiPattern): string {
+  const sourceDraft = request.sourceDraft!;
+  const selections = request.selections!;
+  return [
+    `词牌：${pattern.name}·${pattern.variant}`,
+    `主题：${request.theme}`,
+    `格律模板：\n${formatPatternConstraints(pattern, request)}`,
+    `当前标题：${sourceDraft.title ?? '无题'}`,
+    `当前词稿：\n${sourceDraft.lines
+      .map((line, index) => `${index + 1}. ${line.text}`)
+      .join('\n')}`,
+    `用户局部修改要求：\n${formatSelections(sourceDraft, selections)}`,
+    request.additionalRequirements === undefined
+      ? ''
+      : `原附加要求：\n${request.additionalRequirements.map((value) => `- ${value}`).join('\n')}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function formatSelections(
+  draft: WorkDraft,
+  selections: NonNullable<GenerationRequest['selections']>,
+): string {
+  const lineNumbers = new Map(draft.lines.map((line, index) => [line.id, index + 1]));
+  const lines = new Map(draft.lines.map((line) => [line.id, line.text]));
+  return selections
+    .map((selection) => {
+      const line = lines.get(selection.lineId) ?? '';
+      const selectedText = Array.from(line).slice(selection.start, selection.end).join('');
+      return `- 第${lineNumbers.get(selection.lineId) ?? '?'}句“${selectedText}”：${selection.instruction}`;
+    })
+    .join('\n');
 }
 
 function formatPatternConstraints(pattern: CiPattern, request: GenerationRequest): string {

@@ -52,7 +52,9 @@ describe('API', () => {
       name: 'test-provider',
       async generateStructured<T>(request: StructuredGenerationRequest<T>) {
         expect(request.operation).toBe('recommend');
-        expect(request.messages.at(-1)?.content).toContain('如梦令');
+        expect(request.temperature).toBe(1);
+        expect(request.messages.at(-1)?.content).not.toContain('如梦令');
+        expect(request.messages.at(-1)?.content).toContain('不绑定任何特定词牌或体式');
         return {
           value: request.parse({
             suggestions: [
@@ -72,7 +74,7 @@ describe('API', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/v1/creation/idea-suggestions',
-      payload: { patternId: 'ru-meng-ling-standard' },
+      payload: {},
     });
 
     expect(response.statusCode).toBe(200);
@@ -164,6 +166,72 @@ describe('API', () => {
     );
     expect(jobs).toHaveLength(1);
     expect(jobs[0]?.request.maxRounds).toBe(8);
+  });
+
+  it('validates selections and queues a refinement request', async () => {
+    const jobs: GenerationJobData[] = [];
+    const queue: GenerationQueue = {
+      async enqueue(data) {
+        jobs.push(data);
+        return 'refinement-job-1';
+      },
+      async getSession() {
+        return undefined;
+      },
+      async getHealth() {
+        return { redis: 'ok', workers: 1 };
+      },
+      async close() {},
+    };
+    const app = await buildApp({ generationQueue: queue });
+    apps.push(app);
+    const payload = {
+      patternId: 'ru-meng-ling-standard',
+      theme: '暮春归舟',
+      draft: {
+        id: 'draft-1',
+        patternId: 'ru-meng-ling-standard',
+        theme: '暮春归舟',
+        version: 2,
+        title: '春归',
+        lines: [{ id: 'line-1', text: '春晚' }],
+      },
+      selections: [
+        {
+          lineId: 'line-1',
+          start: 0,
+          end: 1,
+          instruction: '改为更清冷的秋夜意象',
+        },
+      ],
+    };
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/refinement-sessions',
+      payload,
+    });
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/v1/refinement-sessions',
+      payload: {
+        ...payload,
+        selections: [{ ...payload.selections[0], end: 3 }],
+      },
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(response.json()).toEqual(
+      expect.objectContaining({ jobId: 'refinement-job-1', status: 'queued' }),
+    );
+    expect(jobs[0]?.request).toEqual(
+      expect.objectContaining({
+        sourceDraft: expect.objectContaining({ id: 'draft-1', version: 2 }),
+        selections: payload.selections,
+      }),
+    );
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json()).toEqual(expect.objectContaining({ error: 'invalid_selection' }));
   });
 
   it('returns generation progress and final results from the queue', async () => {

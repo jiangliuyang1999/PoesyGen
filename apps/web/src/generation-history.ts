@@ -22,6 +22,7 @@ export interface GenerationHistoryEntry {
   readonly settings?: GenerationHistorySettings;
   readonly pattern: CiPattern;
   readonly result: GenerationResult;
+  readonly versions?: ReadonlyArray<GenerationResult>;
 }
 
 export interface GenerationHistorySettings {
@@ -66,6 +67,33 @@ export function addGenerationHistoryEntry(
   return [entry, ...entries.filter(({ id }) => id !== entry.id)].slice(0, maxHistoryEntries);
 }
 
+export function generationHistoryVersions(
+  entry: GenerationHistoryEntry,
+): ReadonlyArray<GenerationResult> {
+  return entry.versions === undefined || entry.versions.length === 0
+    ? [entry.result]
+    : entry.versions;
+}
+
+export function addGenerationHistoryVersion(
+  entries: ReadonlyArray<GenerationHistoryEntry>,
+  entryId: string,
+  result: GenerationResult,
+): ReadonlyArray<GenerationHistoryEntry> {
+  const entry = entries.find(({ id }) => id === entryId);
+  if (entry === undefined) return entries;
+  const versions = [
+    ...generationHistoryVersions(entry).filter(({ draft }) => draft.id !== result.draft.id),
+    result,
+  ];
+  const updated: GenerationHistoryEntry = {
+    ...entry,
+    result,
+    versions,
+  };
+  return [updated, ...entries.filter(({ id }) => id !== entryId)].slice(0, maxHistoryEntries);
+}
+
 export function saveGenerationHistory(
   entries: ReadonlyArray<GenerationHistoryEntry>,
   storage: HistoryStorage | undefined = browserStorage(),
@@ -89,12 +117,12 @@ export function filterGenerationHistory(
 ): ReadonlyArray<GenerationHistoryEntry> {
   const normalized = query.trim().toLocaleLowerCase('zh-CN');
   if (normalized === '') return entries;
-  return entries.filter(({ id, pattern, result, settings, theme }) =>
-    [
+  return entries.filter((entry) => {
+    const { id, pattern, settings, theme } = entry;
+    return [
       id,
       pattern.name,
       pattern.variant,
-      result.draft.title ?? '',
       theme,
       ...(settings?.additionalRequirements ?? []),
       ...(settings?.rhymeSettings.flatMap((setting) => [
@@ -102,12 +130,15 @@ export function filterGenerationHistory(
         setting.groupName ?? '',
         ...(setting.sections ?? []),
       ]) ?? []),
-      ...result.draft.lines.map(({ text }) => text),
+      ...generationHistoryVersions(entry).flatMap((result) => [
+        result.draft.title ?? '',
+        ...result.draft.lines.map(({ text }) => text),
+      ]),
     ]
       .join(' ')
       .toLocaleLowerCase('zh-CN')
-      .includes(normalized),
-  );
+      .includes(normalized);
+  });
 }
 
 function browserStorage(): HistoryStorage | undefined {
@@ -124,6 +155,7 @@ function isGenerationHistoryEntry(value: unknown): value is GenerationHistoryEnt
   const pattern = value['pattern'];
   const result = value['result'];
   const settings = value['settings'];
+  const versions = value['versions'];
   if (
     typeof value['id'] !== 'string' ||
     typeof value['createdAt'] !== 'string' ||
@@ -132,21 +164,36 @@ function isGenerationHistoryEntry(value: unknown): value is GenerationHistoryEnt
     typeof pattern['id'] !== 'string' ||
     typeof pattern['name'] !== 'string' ||
     typeof pattern['variant'] !== 'string' ||
-    !Array.isArray(pattern['sections']) ||
-    !isRecord(result) ||
-    !isRecord(result['draft']) ||
-    result['draft']['patternId'] !== pattern['id'] ||
-    !Array.isArray(result['draft']['lines']) ||
-    !isRecord(result['report']) ||
-    !Array.isArray(result['report']['issues']) ||
-    typeof result['rounds'] !== 'number'
+    !Array.isArray(pattern['sections'])
   ) {
     return false;
   }
+  const patternId = pattern['id'];
+  if (!isGenerationResult(result, patternId)) return false;
   if (settings !== undefined && !isGenerationHistorySettings(settings)) {
     return false;
   }
+  if (
+    versions !== undefined &&
+    (!Array.isArray(versions) ||
+      versions.length === 0 ||
+      !versions.every((version) => isGenerationResult(version, patternId)))
+  ) {
+    return false;
+  }
   return true;
+}
+
+function isGenerationResult(value: unknown, patternId: string): value is GenerationResult {
+  return (
+    isRecord(value) &&
+    isRecord(value['draft']) &&
+    value['draft']['patternId'] === patternId &&
+    Array.isArray(value['draft']['lines']) &&
+    isRecord(value['report']) &&
+    Array.isArray(value['report']['issues']) &&
+    typeof value['rounds'] === 'number'
+  );
 }
 
 function isGenerationHistorySettings(value: unknown): value is GenerationHistorySettings {

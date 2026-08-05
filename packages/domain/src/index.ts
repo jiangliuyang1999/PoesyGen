@@ -90,6 +90,8 @@ export interface GenerationRequest {
   readonly preferredRhymeGroup?: string | Readonly<Record<string, string>>;
   readonly additionalRequirements?: ReadonlyArray<string>;
   readonly maxRounds?: number;
+  readonly sourceDraft?: WorkDraft;
+  readonly selections?: ReadonlyArray<TextSelection>;
 }
 
 export interface TextSelection {

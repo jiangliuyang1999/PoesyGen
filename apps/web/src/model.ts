@@ -37,6 +37,17 @@ export function patternStats(pattern: CiPattern): {
   };
 }
 
+export function formatPatternVariantSummary(pattern: CiPattern): string {
+  const stats = patternStats(pattern);
+  return [
+    pattern.variant,
+    `${stats.characters}字`,
+    stats.sections === 1 ? '单调' : '双调',
+    `${stats.lines}句`,
+    `${stats.rhymePositions}韵位`,
+  ].join(' · ');
+}
+
 export function patternRhymeLabels(pattern: CiPattern): ReadonlyArray<PatternRhymeLabel> {
   const labels = new Map<string, PatternRhymeLabel['tone']>();
   for (const position of pattern.sections.flatMap((section) =>

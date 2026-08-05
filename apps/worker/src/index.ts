@@ -16,9 +16,13 @@ export function startWorker(redisUrl: string, dependencies: WorkerDependencies):
         throw new Error(`Unknown pattern: ${job.data.request.patternId}`);
       }
 
+      const refining =
+        job.data.request.sourceDraft !== undefined && job.data.request.selections !== undefined;
       await job.updateProgress({
-        phase: 'generating',
-        message: `正在按《${pattern.name}》生成初稿`,
+        phase: refining ? 'refining' : 'generating',
+        message: refining
+          ? `正在按修改意见调整《${pattern.name}》`
+          : `正在按《${pattern.name}》生成初稿`,
       });
       const result = await dependencies.workflow.run(
         {
