@@ -12,7 +12,7 @@ apps/
   worker/       BullMQ 生成任务消费者
   cli/          Commander CLI
   web/          React + Vite
-  desktop/      Electron 客户端预留
+  desktop/      Electron 桌面壳（复用 Web）
   mobile/       Expo 客户端预留
 packages/
   domain/       领域模型
@@ -123,4 +123,4 @@ pnpm build
   多音字会返回全部候选，不自动猜测上下文读音。
 - LLM 层已支持 OpenAI 兼容供应商；真正生成需要在本地配置 API Key。未配置 Redis
   时生成 API 返回 `503`，Worker 未连接时健康检查会明确显示不可用。
-- 桌面端和移动端已明确共享边界，但构建工具链将在核心协议稳定后接入。
+- 桌面端已通过 Electron 复用 Web 界面；移动端已明确共享边界，Expo 工具链仍待接入。

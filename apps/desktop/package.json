@@ -2,5 +2,17 @@
   "name": "@poesygen/desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Electron desktop shell reserved for the shared web client"
+  "type": "module",
+  "description": "Electron desktop shell for the shared PoesyGen web client",
+  "main": "./dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist release",
+    "dev": "tsc -p tsconfig.json && electron dist/main.js",
+    "preview": "pnpm --filter @poesygen/web build && pnpm run build && electron dist/main.js --built",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "electron": "^37.2.6"
+  }
 }
