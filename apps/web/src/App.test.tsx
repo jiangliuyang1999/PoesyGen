@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import type {
@@ -72,6 +72,40 @@ const otherPattern: CiPattern = {
   ...pattern,
   id: 'other-standard',
   name: '另一令',
+};
+
+const doubleStanzaPattern: CiPattern = {
+  ...pattern,
+  id: 'double-standard',
+  name: '双调令',
+  example: {
+    author: '某氏',
+    lines: ['春晚', '江归'],
+  },
+  sections: [
+    {
+      id: 'upper',
+      name: '上阕',
+      lines: [
+        {
+          id: 'upper-line',
+          positions: [{ tone: 'level' }, { tone: 'oblique', rhyme: 'main', rhymeTone: 'oblique' }],
+          punctuation: '。',
+        },
+      ],
+    },
+    {
+      id: 'lower',
+      name: '下阕',
+      lines: [
+        {
+          id: 'lower-line',
+          positions: [{ tone: 'level' }, { tone: 'oblique', rhyme: 'main', rhymeTone: 'oblique' }],
+          punctuation: '。',
+        },
+      ],
+    },
+  ],
 };
 
 const rhymeGroups: ReadonlyArray<RhymeGroupSummary> = [
@@ -157,6 +191,11 @@ describe('web creation workspace', () => {
     expect(screen.getByText('会话 session-1')).toBeTruthy();
     expect(screen.getByText('任务 job-1')).toBeTruthy();
     expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
+    expect(
+      within(screen.getByLabelText('词作内容')).getByRole('heading', {
+        name: '测试令·春归',
+      }),
+    ).toBeTruthy();
 
     const poemView = screen.getByRole('button', { name: '正文' });
     const prosodyView = screen.getByRole('button', { name: '格律标注' });
@@ -191,6 +230,22 @@ describe('web creation workspace', () => {
     await user.clear(historySearch);
     await user.type(historySearch, '暮春江上');
     expect(screen.getByRole('button', { name: /春归.*测试令.*暮春江上/ })).toBeTruthy();
+  });
+
+  it('marks stanzas in the annotated result view for double-stanza patterns', async () => {
+    const client = createClient([doubleStanzaPattern]);
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '双调令' });
+
+    await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上春归');
+    await user.click(screen.getByRole('button', { name: /开始生成/ }));
+    await screen.findByText('词作已完成');
+    await user.click(screen.getByRole('button', { name: '格律标注' }));
+
+    const annotatedResult = screen.getByLabelText('平仄韵脚标注');
+    expect(within(annotatedResult).getByText('上阕')).toBeTruthy();
+    expect(within(annotatedResult).getByText('下阕')).toBeTruthy();
   });
 
   it('opens the dictionary by selecting a character in the example poem', async () => {
@@ -258,6 +313,13 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
             message: '正在生成初稿',
           },
         });
+        const selectedPattern = patterns.find(({ id }) => id === requestedPatternId) ?? pattern;
+        const draftLines = selectedPattern.sections
+          .flatMap((section) => section.lines)
+          .map((_, index) => ({
+            id: `line-${index + 1}`,
+            text: index === 0 ? '春晚' : '江归',
+          }));
         return {
           id: 'session-1',
           jobId: 'job-1',
@@ -273,7 +335,7 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
               theme: '暮春江上归舟，怀念故友',
               version: 2,
               title: '春归',
-              lines: [{ id: 'line-1', text: '春晚' }],
+              lines: draftLines,
             },
             report: {
               passed: true,

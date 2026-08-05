@@ -725,6 +725,7 @@ button:disabled {
   font-size: 1.55rem;
   font-weight: 500;
   letter-spacing: 0.08em;
+  text-align: center;
 }
 
 .generation-result > header > span {
@@ -769,11 +770,17 @@ button:disabled {
   box-shadow: 0 1px 4px rgb(61 49 36 / 12%);
 }
 
+.result-content {
+  display: grid;
+  gap: 20px;
+  justify-items: center;
+  padding: 28px 0 30px;
+}
+
 .generated-poem {
   display: grid;
   gap: 12px;
   justify-content: center;
-  padding: 32px 0;
 }
 
 .generated-poem p {
@@ -799,12 +806,32 @@ button:disabled {
 .annotated-poem {
   display: grid;
   gap: 15px;
-  padding: 28px 0 30px;
+  width: 100%;
+}
+
+.annotated-stanza-list {
+  display: grid;
+  gap: 24px;
+}
+
+.annotated-stanza-list .stanza {
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
+}
+
+.annotated-stanza-list .stanza::after,
+.annotated-line::after {
+  content: '';
+}
+
+.annotated-line-list {
+  display: grid;
+  gap: 15px;
+  min-width: 0;
 }
 
 .annotated-line {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr);
+  grid-template-columns: 22px minmax(0, 1fr) 22px;
   gap: 8px;
   align-items: center;
 }
