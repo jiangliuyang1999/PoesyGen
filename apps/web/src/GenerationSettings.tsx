@@ -49,7 +49,7 @@ export function GenerationSettings({
       <div className="setting-block setting-rhymes">
         <div className="setting-label">
           <span>韵部</span>
-          <small>不指定时由工作流择韵</small>
+          {/* <small>不指定时由工作流择韵</small> */}
         </div>
         <div className="rhyme-selects">
           {rhymeLabels.map((label, index) => (
@@ -76,7 +76,7 @@ export function GenerationSettings({
           <span>
             最大优化轮数 <strong>{rounds}</strong>
           </span>
-          <small>达到格律要求后会提前结束</small>
+          {/* <small>达到格律要求后会提前结束</small> */}
         </label>
         <input
           id="rounds"
@@ -96,7 +96,7 @@ export function GenerationSettings({
       <div className="setting-block setting-requirements">
         <label className="setting-label" htmlFor="requirements">
           <span>附加要求</span>
-          <small>每行一条，最多 20 条</small>
+          {/* <small>每行一条，最多 20 条</small> */}
         </label>
         <textarea
           id="requirements"

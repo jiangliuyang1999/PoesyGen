@@ -19,6 +19,7 @@ import { GenerationHistoryWorkspace } from './GenerationHistoryWorkspace.js';
 import { GenerationResultPanel } from './GenerationResultPanel.js';
 import { GenerationSettings, type SubmissionStatus } from './GenerationSettings.js';
 import { MobileAppChrome, type ApplicationView } from './MobileAppChrome.js';
+import { MobilePatternWorkspace } from './MobilePatternWorkspace.js';
 import { PatternBrowser } from './PatternBrowser.js';
 import { PatternPreview, PatternPreviewTitle } from './PatternPreview.js';
 import { toUserMessage } from './errors.js';
@@ -508,10 +509,11 @@ export function App({ client: providedClient }: AppProps = {}) {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   };
+  const mobilePlatform = document.documentElement.dataset['platform'] === 'mobile';
 
   return (
     <div className="app-shell">
-      {document.documentElement.dataset['platform'] === 'mobile' ? (
+      {mobilePlatform ? (
         <MobileAppChrome
           activeView={view}
           generationAvailable={generationAvailable}
@@ -576,7 +578,7 @@ export function App({ client: providedClient }: AppProps = {}) {
       ) : patterns.length === 0 || selectedPattern === undefined ? (
         <LoadingState message={connectionStatus} />
       ) : view === 'patterns' ? (
-        <main className="page-workspace">
+        <main className="page-workspace" key="patterns">
           <header className="workspace-header">
             <div>
               <p className="section-kicker">词谱</p>
@@ -584,25 +586,39 @@ export function App({ client: providedClient }: AppProps = {}) {
               <p>浏览词牌与体式，查看逐句字数、平仄和韵位。</p>
             </div>
           </header>
-          <div className="workspace-grid pattern-catalog-layout">
-            <PatternBrowser
+          {mobilePlatform ? (
+            <MobilePatternWorkspace
               patterns={patterns}
               query={patternQuery}
-              selectedPatternId={selectedPattern.id}
+              selectedPattern={selectedPattern}
               onQueryChange={setPatternQuery}
               onSelect={selectPattern}
-            />
-            <PatternPreview
-              pattern={selectedPattern}
               onInspectCharacter={inspectCharacter}
               onCreate={() => {
                 setView('create');
               }}
             />
-          </div>
+          ) : (
+            <div className="workspace-grid pattern-catalog-layout">
+              <PatternBrowser
+                patterns={patterns}
+                query={patternQuery}
+                selectedPatternId={selectedPattern.id}
+                onQueryChange={setPatternQuery}
+                onSelect={selectPattern}
+              />
+              <PatternPreview
+                pattern={selectedPattern}
+                onInspectCharacter={inspectCharacter}
+                onCreate={() => {
+                  setView('create');
+                }}
+              />
+            </div>
+          )}
         </main>
       ) : view === 'history' ? (
-        <main className="page-workspace">
+        <main className="page-workspace" key="history">
           <header className="workspace-header">
             <div>
               <p className="section-kicker">历史</p>
@@ -617,7 +633,7 @@ export function App({ client: providedClient }: AppProps = {}) {
           />
         </main>
       ) : (
-        <main className="page-workspace">
+        <main className="page-workspace" key="create">
           <header className="workspace-header">
             <div>
               <p className="section-kicker">创作</p>
@@ -671,26 +687,29 @@ export function App({ client: providedClient }: AppProps = {}) {
                 </div>
               </section>
 
-              <details className="creation-pattern-preview">
-                <summary className="pattern-header creation-pattern-summary">
-                  <PatternPreviewTitle
-                    pattern={selectedPattern}
-                    level={2}
-                    id="creation-pattern-title"
-                  />
-                  <span className="pattern-preview-disclosure" aria-hidden="true">
-                    <span>展开</span>
-                    <span>收起</span>
-                  </span>
-                </summary>
-                <div className="creation-pattern-preview-body">
-                  <PatternPreview
-                    pattern={selectedPattern}
-                    onInspectCharacter={inspectCharacter}
-                    showHeader={false}
-                  />
-                </div>
-              </details>
+              <div className="creation-pattern-preview-block">
+                <span className="creation-pattern-current-label">当前词牌</span>
+                <details className="creation-pattern-preview">
+                  <summary className="pattern-header creation-pattern-summary">
+                    <PatternPreviewTitle
+                      pattern={selectedPattern}
+                      level={2}
+                      id="creation-pattern-title"
+                    />
+                    <span className="pattern-preview-disclosure" aria-hidden="true">
+                      <span>展开</span>
+                      <span>收起</span>
+                    </span>
+                  </summary>
+                  <div className="creation-pattern-preview-body">
+                    <PatternPreview
+                      pattern={selectedPattern}
+                      onInspectCharacter={inspectCharacter}
+                      showHeader={false}
+                    />
+                  </div>
+                </details>
+              </div>
             </section>
 
             <section className="creation-input-panel" aria-label="创作主题与生成设置">

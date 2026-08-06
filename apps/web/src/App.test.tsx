@@ -195,7 +195,9 @@ describe('web creation workspace', () => {
 
     const previewSummary = patternHeading.closest('summary');
     const previewDetails = previewSummary?.closest('details');
-    expect(patternControls?.parentElement?.nextElementSibling).toBe(previewDetails);
+    const currentPatternLabel = within(patternPanel).getByText('当前词牌');
+    expect(patternControls?.parentElement?.nextElementSibling).toBe(previewDetails?.parentElement);
+    expect(currentPatternLabel.nextElementSibling).toBe(previewDetails);
     expect(previewDetails?.open).toBe(false);
     await user.click(previewSummary!);
     expect(previewDetails?.open).toBe(true);
@@ -260,7 +262,7 @@ describe('web creation workspace', () => {
 
   it('uses a dedicated bottom tab bar on the mobile platform', async () => {
     document.documentElement.dataset['platform'] = 'mobile';
-    const client = createClient();
+    const client = createClient([pattern, alternatePattern]);
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole('heading', { name: '测试令', level: 2 });
@@ -286,6 +288,7 @@ describe('web creation workspace', () => {
     expect(
       within(navigation).getByRole('button', { name: '历史' }).getAttribute('aria-current'),
     ).toBe('page');
+    const historyPage = screen.getByRole('heading', { name: '历史记录', level: 1 }).closest('main');
     const historyList = screen.getByLabelText('生成历史列表');
     expect(screen.queryByLabelText('历史记录信息')).toBeNull();
 
@@ -297,9 +300,36 @@ describe('web creation workspace', () => {
 
     expect(screen.queryByLabelText('生成历史列表')).toBeNull();
     expect(screen.getByLabelText('历史记录信息')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: '全部生成记录' }));
+
+    await user.click(within(navigation).getByRole('button', { name: '创作' }));
+
+    const createHeading = screen.getByRole('heading', { name: '依谱填词', level: 1 });
+    expect(createHeading).toBeTruthy();
+    expect(createHeading.closest('main')).not.toBe(historyPage);
+
+    await user.click(within(navigation).getByRole('button', { name: '历史' }));
     expect(screen.getByLabelText('生成历史列表')).toBeTruthy();
     expect(screen.queryByLabelText('历史记录信息')).toBeNull();
+
+    await user.click(within(navigation).getByRole('button', { name: '词谱' }));
+
+    const mobilePatternList = screen.getByLabelText('手机词牌列表');
+    expect(screen.queryByRole('region', { name: '测试令' })).toBeNull();
+    await user.click(within(mobilePatternList).getByRole('button', { name: /测试令/ }));
+
+    expect(screen.queryByLabelText('手机词牌列表')).toBeNull();
+    const mobilePatternPreview = screen.getByRole('region', { name: '测试令' });
+    expect(within(mobilePatternPreview).getByRole('button', { name: '用此体创作' })).toBeTruthy();
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '测试令手机体式' }),
+      alternatePattern.id,
+    );
+    expect(within(mobilePatternPreview).getByLabelText('词牌信息').textContent).toBe(
+      '格二 · 3字 · 单调 · 1句 · 1韵位',
+    );
+
+    await user.click(screen.getByRole('button', { name: '全部词牌' }));
+    expect(screen.getByLabelText('手机词牌列表')).toBeTruthy();
   });
 
   it('does not show the machine review badge for imported patterns', async () => {
