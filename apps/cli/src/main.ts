@@ -128,9 +128,14 @@ program
     [],
   )
   .action(async (options: GenerateOptions) => {
+    const interactive = isInteractiveTerminal();
+    if (interactive) {
+      await promptMissingLlmEnvironment();
+    }
+
     const patterns = await listLocalPatterns();
     const hasRequiredOptions = options.pattern !== undefined && options.theme !== undefined;
-    if (!hasRequiredOptions && !isInteractiveTerminal()) {
+    if (!hasRequiredOptions && !interactive) {
       throw new Error('非交互环境必须同时提供 --pattern 和 --theme');
     }
 
@@ -200,6 +205,7 @@ async function runInteractiveMenu(): Promise<void> {
       continue;
     }
 
+    await promptMissingLlmEnvironment();
     patterns ??= await listLocalPatterns();
     groups ??= await listLocalRhymeGroups();
     const request = await promptGenerationRequest(patterns, groups);
@@ -215,9 +221,6 @@ async function runInteractiveMenu(): Promise<void> {
 }
 
 async function generateAndPrint(request: GenerationRequest, pattern: CiPattern): Promise<void> {
-  if (isInteractiveTerminal()) {
-    await promptMissingLlmEnvironment();
-  }
   loadCliLlmConfig();
   const jsonOutput = program.opts<RootOptions>().json;
   if (!jsonOutput) process.stdout.write('[准备] 已加载词谱与格律数据\n');
