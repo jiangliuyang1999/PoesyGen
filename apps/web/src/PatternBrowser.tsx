@@ -1,11 +1,6 @@
 import type { CiPattern } from '@poesygen/client-sdk';
 
-import {
-  filterPatterns,
-  formatPatternVariantSummary,
-  groupPatternsByName,
-  patternStats,
-} from './model.js';
+import { filterPatterns, groupPatternsByName, patternStats } from './model.js';
 
 interface PatternBrowserProps {
   readonly patterns: ReadonlyArray<CiPattern>;
@@ -72,35 +67,24 @@ export function PatternBrowser({
                 onClick={() => onSelect(activePattern.id)}
                 aria-pressed={selected}
               >
-                <span>
+                <span className="pattern-card-title">
                   <strong>{family.name}</strong>
-                  <small>
-                    {family.patterns.length > 1
-                      ? `${family.patterns.length}体 · ${activePattern.variant}`
-                      : activePattern.variant}
-                  </small>
+                  <small>{family.patterns.length}体</small>
                 </span>
-                <span className="pattern-measure">
-                  {stats.characters}字 · {stats.lines}句
+                <span className="pattern-card-variant">{activePattern.variant}</span>
+                <span className="pattern-card-stats">
+                  <span>{stats.characters}字</span>
+                  <i aria-hidden="true" />
+                  <span>{stats.sections === 1 ? '单调' : '双调'}</span>
+                  <i aria-hidden="true" />
+                  <span>{stats.lines}句</span>
+                  <i aria-hidden="true" />
+                  <span>{stats.rhymePositions}韵位</span>
+                </span>
+                <span className="pattern-card-open" aria-hidden="true">
+                  {selected ? '当前词牌' : '查看格律'}
                 </span>
               </button>
-
-              {selected && family.patterns.length > 1 && (
-                <label className="pattern-variant-picker">
-                  <span>体式</span>
-                  <select
-                    aria-label={`${family.name}体式`}
-                    value={activePattern.id}
-                    onChange={(event) => onSelect(event.target.value)}
-                  >
-                    {family.patterns.map((pattern) => (
-                      <option key={pattern.id} value={pattern.id}>
-                        {formatPatternVariantSummary(pattern)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
             </div>
           );
         })}

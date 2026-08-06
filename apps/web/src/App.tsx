@@ -607,13 +607,32 @@ export function App({ client: providedClient }: AppProps = {}) {
                 onQueryChange={setPatternQuery}
                 onSelect={selectPattern}
               />
-              <PatternPreview
-                pattern={selectedPattern}
-                onInspectCharacter={inspectCharacter}
-                onCreate={() => {
-                  setView('create');
-                }}
-              />
+              <section className="pattern-detail-panel" aria-label="词牌格律详情">
+                {selectedPatternFamily !== undefined &&
+                  selectedPatternFamily.patterns.length > 1 && (
+                    <label className="pattern-detail-variant">
+                      <span>选择体式</span>
+                      <select
+                        aria-label={`${selectedPatternFamily.name}体式`}
+                        value={selectedPattern.id}
+                        onChange={(event) => selectPattern(event.target.value)}
+                      >
+                        {selectedPatternFamily.patterns.map((pattern) => (
+                          <option key={pattern.id} value={pattern.id}>
+                            {formatPatternVariantSummary(pattern)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                <PatternPreview
+                  pattern={selectedPattern}
+                  onInspectCharacter={inspectCharacter}
+                  onCreate={() => {
+                    setView('create');
+                  }}
+                />
+              </section>
             </div>
           )}
         </main>

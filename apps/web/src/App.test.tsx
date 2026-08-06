@@ -342,12 +342,16 @@ describe('web creation workspace', () => {
 
     expect(await screen.findByRole('heading', { name: '格律词谱' })).toBeTruthy();
     const fullPreview = screen.getByRole('region', { name: '测试令' });
+    const patternDetail = screen.getByLabelText('词牌格律详情');
     expect(within(fullPreview).getByLabelText('词牌信息').textContent).toBe(
       '正体 · 2字 · 单调 · 1句 · 1韵位',
     );
     expect(within(fullPreview).getByRole('button', { name: '用此体创作' })).toBeTruthy();
     expect(fullPreview.closest('details')).toBeNull();
-    const patternVariantSelect = screen.getByRole('combobox', { name: '测试令体式' });
+    const patternVariantSelect = within(patternDetail).getByRole('combobox', {
+      name: '测试令体式',
+    });
+    expect(screen.getByLabelText('词牌列表').contains(patternVariantSelect)).toBe(false);
     expect(
       within(patternVariantSelect).getByRole('option', {
         name: '正体 · 2字 · 单调 · 1句 · 1韵位',
