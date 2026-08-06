@@ -192,52 +192,54 @@ describe('web creation workspace', () => {
     expect(screen.getByText('LLM 已配置')).toBeTruthy();
   });
 
-  it('groups creation inputs and toggles the embedded prosody preview', async () => {
+  it('uses a left settings column, right pattern preview and shared page width', async () => {
     const client = createClient();
-    const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole('heading', { name: '测试令', level: 2 });
 
-    const patternPanel = screen.getByLabelText('词谱选择与格律预览');
-    const tuneSelect = within(patternPanel).getByRole('combobox', { name: '创作词牌' });
-    const variantSelect = within(patternPanel).getByRole('combobox', { name: '创作体式' });
+    const workspace = screen.getByLabelText('创作工作区');
+    const settings = within(workspace).getByLabelText('创作设置');
+    const preview = within(workspace).getByLabelText('当前词牌预览');
+    expect(workspace.firstElementChild).toBe(settings);
+    expect(workspace.lastElementChild).toBe(preview);
+
+    const tuneSelect = within(settings).getByRole('combobox', { name: '创作词牌' });
+    const variantSelect = within(settings).getByRole('combobox', { name: '创作体式' });
     expect(tuneSelect).toBeTruthy();
     expect(
       within(variantSelect).getByRole('option', {
         name: '正体 · 2字 · 单调 · 1句 · 1韵位',
       }),
     ).toBeTruthy();
-    const patternControls = tuneSelect.closest('.selected-pattern-controls');
-    const patternHeading = within(patternPanel).getByRole('heading', {
+    const patternSettings = within(settings)
+      .getByRole('heading', { name: '词牌设置', level: 2 })
+      .closest('section')!;
+    const rhymeSettings = within(settings).getByLabelText('韵部设置');
+    expect(patternSettings.contains(rhymeSettings)).toBe(true);
+    expect(within(settings).getByRole('heading', { name: '创作主题', level: 2 })).toBeTruthy();
+    const generationSettings = within(settings)
+      .getByRole('heading', { name: '生成设置', level: 2 })
+      .closest('aside')!;
+    expect(generationSettings.contains(rhymeSettings)).toBe(false);
+    expect(
+      within(settings).getByRole<HTMLTextAreaElement>('textbox', { name: '作品主题' }).rows,
+    ).toBe(3);
+    expect(within(settings).getByLabelText('大模型灵感推荐')).toBeTruthy();
+    expect(within(settings).getByLabelText('第 1 组仄声韵')).toBeTruthy();
+    expect(within(settings).getByRole('slider')).toBeTruthy();
+    expect(within(settings).getByLabelText<HTMLTextAreaElement>('附加要求').rows).toBe(2);
+
+    const patternHeading = within(preview).getByRole('heading', {
       name: '测试令',
       level: 2,
     });
     expect(patternHeading.textContent).toBe('测试令');
-    expect(within(patternPanel).getByLabelText('词牌信息').textContent).toBe(
+    expect(within(preview).getByLabelText('词牌信息').textContent).toBe(
       '正体 · 2字 · 单调 · 1句 · 1韵位',
     );
-    expect(within(patternPanel).queryByText('格律预览')).toBeNull();
-
-    const previewSummary = patternHeading.closest('summary');
-    const previewDetails = previewSummary?.closest('details');
-    const currentPatternLabel = within(patternPanel).getByText('当前词牌');
-    expect(patternControls?.parentElement?.nextElementSibling).toBe(previewDetails?.parentElement);
-    expect(currentPatternLabel.nextElementSibling).toBe(previewDetails);
-    expect(previewDetails?.open).toBe(false);
-    await user.click(previewSummary!);
-    expect(previewDetails?.open).toBe(true);
-    expect(within(previewDetails!).getByLabelText('格律内容')).toBeTruthy();
-    expect(within(previewDetails!).getByTitle('平声位')).toBeTruthy();
-    expect(within(previewDetails!).queryByRole('button', { name: '用此体创作' })).toBeNull();
-    await user.click(previewSummary!);
-    expect(previewDetails?.open).toBe(false);
-
-    const inputPanel = screen.getByLabelText('创作主题与生成设置');
-    expect(within(inputPanel).getByRole('textbox', { name: '作品主题' })).toBeTruthy();
-    expect(within(inputPanel).getByRole('heading', { name: '创作主题' })).toBeTruthy();
-    expect(within(inputPanel).getByRole('heading', { name: '生成设置' })).toBeTruthy();
-    expect(within(inputPanel).queryByText('写下想表达的内容')).toBeNull();
-    expect(within(inputPanel).queryByText('约束与优化')).toBeNull();
+    expect(within(preview).getByTitle('平声位')).toBeTruthy();
+    expect(within(preview).queryByRole('button', { name: '用此体创作' })).toBeNull();
+    expect(within(preview).queryByRole('combobox', { name: '创作词牌' })).toBeNull();
   });
 
   it('uses four top-level pages with a shared workspace container', async () => {
@@ -491,6 +493,11 @@ describe('web creation workspace', () => {
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上晚归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
     await screen.findByText('词作已完成');
+    const creationPreview = screen.getByLabelText('当前词牌预览');
+    const generatedResult = screen
+      .getByRole('heading', { name: '测试令·春归' })
+      .closest('.generation-result');
+    expect(creationPreview.lastElementChild).toBe(generatedResult);
     expect(runDirectGeneration).toHaveBeenCalledWith(
       expect.any(Object),
       expect.objectContaining({
@@ -511,7 +518,18 @@ describe('web creation workspace', () => {
       releaseGeneration = resolve;
     });
     directGeneration.mockImplementation(async (config, request, selectedPattern, options) => {
-      options?.onProgress?.({ phase: 'running', message: '正在生成初稿' });
+      options?.onProgress?.({
+        phase: 'loading',
+        stage: 'loading',
+        message: '正在加载本地格律校验数据。',
+      });
+      options?.onProgress?.({
+        phase: 'running',
+        stage: 'drafting',
+        message: '正在生成初稿',
+        round: 1,
+        maxRounds: request.maxRounds ?? 8,
+      });
       await generationGate;
       return completeGeneration(config, request, selectedPattern, options);
     });
@@ -526,6 +544,12 @@ describe('web creation workspace', () => {
     await user.type(theme, '江上晚归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
     await screen.findByText('正在优化');
+    const generationProgress = screen.getByLabelText('生成进度');
+    expect(within(generationProgress).getByText('准备')).toBeTruthy();
+    expect(within(generationProgress).getByText('加载')).toBeTruthy();
+    expect(within(generationProgress).getByText('创作')).toBeTruthy();
+    expect(within(generationProgress).getByText('1/8')).toBeTruthy();
+    expect(generationProgress.lastElementChild?.getAttribute('data-state')).toBe('active');
 
     const lockedControls = [
       screen.getByRole<HTMLSelectElement>('combobox', { name: '创作词牌' }),
@@ -554,6 +578,11 @@ describe('web creation workspace', () => {
 
     releaseGeneration();
     await screen.findByText('词作已完成');
+    expect(
+      [...generationProgress.querySelectorAll('li')].every(
+        (item) => item.getAttribute('data-state') === 'completed',
+      ),
+    ).toBe(true);
     expect(theme.closest('form')?.getAttribute('aria-busy')).toBe('false');
     lockedControls.forEach((control) => {
       expect(control.disabled).toBe(false);
@@ -647,8 +676,6 @@ describe('web creation workspace', () => {
       pattern,
       expect.any(Object),
     );
-    const sessionCode = screen.getByText(/^会话 direct-/);
-    const sessionId = sessionCode.textContent!.replace('会话 ', '');
     expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
     expect(
       within(screen.getByLabelText('词作内容')).getByRole('heading', {
@@ -693,10 +720,18 @@ describe('web creation workspace', () => {
 
     await user.click(refinementView);
     expect(refinementView.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.queryByText('请选择要修改的内容')).toBeNull();
+    expect(
+      screen.queryByText(
+        '选择字、词、片段或整句，填写对应意见后加入清单；可重复添加多项，再统一生成。',
+      ),
+    ).toBeNull();
     expect(screen.getByRole('button', { name: '整句' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '选择第1句第1字“春”' }));
     expect(screen.getByRole('heading', { name: '已选“春”' })).toBeTruthy();
-    await user.type(screen.getByRole('textbox', { name: '当前修改意见' }), '改成秋日意象');
+    const currentInstruction = screen.getByRole('textbox', { name: '当前修改意见' });
+    expect(currentInstruction.tagName).toBe('INPUT');
+    await user.type(currentInstruction, '改成秋日意象');
     await user.click(screen.getByRole('button', { name: '加入修改清单' }));
 
     await user.click(screen.getByRole('button', { name: '选择第1句第2字“晚”' }));
@@ -705,11 +740,15 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: '加入修改清单' }));
 
     const refinementList = screen.getByLabelText('修改清单');
-    expect(within(refinementList).getByRole('textbox', { name: '第 1 项修改意见' })).toBeTruthy();
-    expect(within(refinementList).getByRole('textbox', { name: '第 2 项修改意见' })).toBeTruthy();
+    expect(within(refinementList).getByRole('textbox', { name: '第 1 项修改意见' }).tagName).toBe(
+      'INPUT',
+    );
+    expect(within(refinementList).getByRole('textbox', { name: '第 2 项修改意见' }).tagName).toBe(
+      'INPUT',
+    );
     await user.click(screen.getByRole('button', { name: '根据全部意见重新生成' }));
 
-    await screen.findByText('新版本已按意见修改并通过格律校验。');
+    await screen.findByText('版本 2/2');
     expect(runDirectGeneration).toHaveBeenNthCalledWith(
       2,
       expect.any(Object),
@@ -734,16 +773,11 @@ describe('web creation workspace', () => {
       pattern,
       expect.any(Object),
     );
-    expect(refinementView.getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '当前修改意见' }).value).toBe(
-      '',
-    );
+    expect(poemView.getAttribute('aria-pressed')).toBe('true');
+    expect(refinementView.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByRole('textbox', { name: '当前修改意见' })).toBeNull();
     expect(screen.queryByLabelText('修改清单')).toBeNull();
-    expect(
-      screen.getByRole('button', {
-        name: '选择第1句第1字“秋”',
-      }),
-    ).toBeTruthy();
+    expect(screen.getByTitle('查询“秋”')).toBeTruthy();
     const currentVersion = screen.getByRole('group', { name: '作品版本' });
     expect(within(currentVersion).getByText('版本 2/2')).toBeTruthy();
     const currentViewSwitcher = screen.getByRole('group', { name: '结果视图' });
@@ -765,7 +799,7 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: '正文' }));
     expect(screen.getByTitle('查询“秋”')).toBeTruthy();
 
-    expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain(sessionId);
+    expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('draft-2');
     await user.click(screen.getByRole('button', { name: /历史记录/ }));
     expect(await screen.findByLabelText('生成历史列表')).toBeTruthy();
     expect(screen.getByLabelText('历史记录总数').textContent).toBe('共 1 条记录');
@@ -784,8 +818,7 @@ describe('web creation workspace', () => {
     expect(within(historySettings).getByText('第 1 组仄声韵')).toBeTruthy();
     expect(within(historySettings).getByText('第十七部 · 四质')).toBeTruthy();
     expect(within(historySettings).getByText('生成时间')).toBeTruthy();
-    expect(within(historySettings).getByText('会话 ID')).toBeTruthy();
-    expect(within(historySettings).getByText(sessionId)).toBeTruthy();
+    expect(within(historySettings).queryByText('会话 ID')).toBeNull();
     const historyList = screen.getByLabelText('生成历史列表');
     expect(within(historyList).getByText('2 个版本')).toBeTruthy();
     expect(screen.getByText('版本 2/2')).toBeTruthy();
@@ -798,16 +831,11 @@ describe('web creation workspace', () => {
 
     expect(await screen.findByText('版本 3/3')).toBeTruthy();
     const historyRefinementView = screen.getByRole('button', { name: '局部修改' });
-    expect(historyRefinementView.getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '当前修改意见' }).value).toBe(
-      '',
-    );
+    expect(screen.getByRole('button', { name: '正文' }).getAttribute('aria-pressed')).toBe('true');
+    expect(historyRefinementView.getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByRole('textbox', { name: '当前修改意见' })).toBeNull();
     expect(screen.queryByLabelText('修改清单')).toBeNull();
-    expect(
-      screen.getByRole('button', {
-        name: '选择第1句第1字“雪”',
-      }),
-    ).toBeTruthy();
+    expect(screen.getByTitle('查询“雪”')).toBeTruthy();
     expect(runDirectGeneration).toHaveBeenLastCalledWith(
       expect.any(Object),
       expect.objectContaining({
@@ -830,6 +858,7 @@ describe('web creation workspace', () => {
     );
     expect(within(historyList).getByText('3 个版本')).toBeTruthy();
 
+    await user.click(historyRefinementView);
     await user.click(screen.getByRole('button', { name: '选择第1句第1字“雪”' }));
     await user.type(screen.getByRole('textbox', { name: '当前修改意见' }), '未提交的临时意见');
     await user.click(screen.getByRole('button', { name: '加入修改清单' }));
@@ -839,7 +868,7 @@ describe('web creation workspace', () => {
     expect(screen.getByText('版本 2/3')).toBeTruthy();
     expect(historyRefinementView.getAttribute('aria-pressed')).toBe('true');
     await waitFor(() => {
-      expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '当前修改意见' }).value).toBe(
+      expect(screen.getByRole<HTMLInputElement>('textbox', { name: '当前修改意见' }).value).toBe(
         '',
       );
       expect(screen.queryByLabelText('修改清单')).toBeNull();
@@ -921,7 +950,10 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
       if (refining) refinementSequence += 1;
       options?.onProgress?.({
         phase: 'running',
+        stage: 'drafting',
         message: refining ? '正在按修改意见调整' : '正在生成初稿',
+        round: 1,
+        maxRounds: request.maxRounds ?? 8,
       });
       const draftLines = selectedPattern.sections
         .flatMap((section) => section.lines)

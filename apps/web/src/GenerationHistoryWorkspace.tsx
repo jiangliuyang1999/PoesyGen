@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { GenerationResult, TextSelection } from '@poesygen/domain';
 
 import { GenerationResultPanel } from './GenerationResultPanel.js';
+import type { SubmissionStatus } from './GenerationSettings.js';
 import {
   filterGenerationHistory,
   generationHistoryVersions,
@@ -17,6 +18,7 @@ interface GenerationHistoryWorkspaceProps {
     entry: GenerationHistoryEntry,
     result: GenerationResult,
     selections: ReadonlyArray<TextSelection>,
+    onProgress?: (status: SubmissionStatus) => void,
   ) => Promise<GenerationResult>;
 }
 
@@ -205,7 +207,7 @@ export function GenerationHistoryWorkspace({
             <section className="history-empty" aria-label="历史结果">
               <p className="section-kicker">生成结果</p>
               <h2>{entries.length === 0 ? '尚无历史词作' : '没有匹配结果'}</h2>
-              <p>生成完成后，可在这里按词牌、题目、主题或会话号查询。</p>
+              <p>生成完成后，可在这里按词牌、题目或主题查询。</p>
             </section>
           ) : (
             <>
@@ -282,20 +284,19 @@ export function GenerationHistoryWorkspace({
                       </time>
                     </dd>
                   </div>
-                  <div className="history-archive-session">
-                    <dt>会话 ID</dt>
-                    <dd>
-                      <code title={selectedEntry.id}>{selectedEntry.id}</code>
-                    </dd>
-                  </div>
                 </dl>
               </section>
               <GenerationResultPanel
                 result={selectedResult}
                 pattern={selectedEntry.pattern}
                 onInspectCharacter={onInspectCharacter}
-                onRefine={async (selections) => {
-                  const result = await onRefine(selectedEntry, selectedResult, selections);
+                onRefine={async (selections, onProgress) => {
+                  const result = await onRefine(
+                    selectedEntry,
+                    selectedResult,
+                    selections,
+                    onProgress,
+                  );
                   setSelectedVersionId(result.draft.id);
                 }}
                 versions={versions}

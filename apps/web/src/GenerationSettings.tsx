@@ -1,13 +1,27 @@
+import { useEffect, useRef } from 'react';
+
 import type { CiPattern, GenerationResult } from '@poesygen/domain';
 
 import type { RhymeGroupSummary } from './catalog-types.js';
 import { compatibleRhymeGroups, displayRhymeLabel, patternRhymeLabels } from './model.js';
 
+export type SubmissionProgressStage =
+  'preparing' | 'loading' | 'drafting' | 'validating' | 'repairing' | 'completed' | 'error';
+
+export interface SubmissionProgressEntry {
+  readonly stage: SubmissionProgressStage;
+  readonly message: string;
+  readonly round?: number;
+  readonly maxRounds?: number;
+  readonly issueCount?: number;
+}
+
 export interface SubmissionStatus {
   readonly kind: 'idle' | 'loading' | 'running' | 'completed' | 'error';
   readonly message: string;
-  readonly sessionId?: string;
   readonly result?: GenerationResult;
+  readonly progress?: ReadonlyArray<SubmissionProgressEntry>;
+  readonly progressTarget?: 'settings' | 'refinement';
 }
 
 export function isSubmissionInProgress(status: SubmissionStatus): boolean {
@@ -15,66 +29,73 @@ export function isSubmissionInProgress(status: SubmissionStatus): boolean {
 }
 
 interface GenerationSettingsProps {
-  readonly pattern: CiPattern;
-  readonly rhymeGroups: ReadonlyArray<RhymeGroupSummary>;
-  readonly rhymeAssignments: Readonly<Record<string, string>>;
   readonly rounds: number;
   readonly requirements: string;
   readonly status: SubmissionStatus;
   readonly canSubmit: boolean;
-  readonly onRhymeChange: (label: string, groupId: string) => void;
   readonly onRoundsChange: (rounds: number) => void;
   readonly onRequirementsChange: (requirements: string) => void;
 }
 
-export function GenerationSettings({
+interface RhymeSettingsProps {
+  readonly pattern: CiPattern;
+  readonly rhymeGroups: ReadonlyArray<RhymeGroupSummary>;
+  readonly rhymeAssignments: Readonly<Record<string, string>>;
+  readonly disabled: boolean;
+  readonly onChange: (label: string, groupId: string) => void;
+}
+
+export function RhymeSettings({
   pattern,
   rhymeGroups,
   rhymeAssignments,
+  disabled,
+  onChange,
+}: RhymeSettingsProps) {
+  const rhymeLabels = patternRhymeLabels(pattern);
+
+  return (
+    <div className="creation-rhyme-settings" aria-label="韵部设置">
+      <div className="rhyme-selects">
+        {rhymeLabels.map((label, index) => (
+          <label key={label.id}>
+            <span>{displayRhymeLabel(label, index)}</span>
+            <select
+              value={rhymeAssignments[label.id] ?? ''}
+              disabled={disabled}
+              onChange={(event) => onChange(label.id, event.target.value)}
+            >
+              <option value="">自动择韵</option>
+              {compatibleRhymeGroups(rhymeGroups, label.tone).map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name} · {group.sections.map(({ name }) => name).join('、')}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function GenerationSettings({
   rounds,
   requirements,
   status,
   canSubmit,
-  onRhymeChange,
   onRoundsChange,
   onRequirementsChange,
 }: GenerationSettingsProps) {
-  const rhymeLabels = patternRhymeLabels(pattern);
   const disabled = isSubmissionInProgress(status);
 
   return (
     <aside className="generation-settings" aria-labelledby="settings-title">
       <div className="settings-heading">
-        <span className="creation-step">02</span>
+        <span className="creation-step">03</span>
         <h2 className="creation-panel-title" id="settings-title">
           生成设置
         </h2>
-      </div>
-
-      <div className="setting-block setting-rhymes">
-        <div className="setting-label">
-          <span>韵部</span>
-          {/* <small>不指定时由工作流择韵</small> */}
-        </div>
-        <div className="rhyme-selects">
-          {rhymeLabels.map((label, index) => (
-            <label key={label.id}>
-              <span>{displayRhymeLabel(label, index)}</span>
-              <select
-                value={rhymeAssignments[label.id] ?? ''}
-                disabled={disabled}
-                onChange={(event) => onRhymeChange(label.id, event.target.value)}
-              >
-                <option value="">自动择韵</option>
-                {compatibleRhymeGroups(rhymeGroups, label.tone).map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name} · {group.sections.map(({ name }) => name).join('、')}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-        </div>
       </div>
 
       <div className="setting-block setting-rounds">
@@ -110,7 +131,7 @@ export function GenerationSettings({
           value={requirements}
           disabled={disabled}
           onChange={(event) => onRequirementsChange(event.target.value)}
-          rows={4}
+          rows={2}
           placeholder={'避免直白抒情\n使用江南意象'}
         />
       </div>
@@ -121,15 +142,16 @@ export function GenerationSettings({
           <span aria-hidden="true">→</span>
         </button>
 
-        <SubmissionNotice status={status} />
+        {status.progressTarget !== 'refinement' && <SubmissionNotice status={status} />}
       </div>
     </aside>
   );
 }
 
 function SubmissionNotice({ status }: { readonly status: SubmissionStatus }) {
+  const progress = status.progress ?? [];
   if (status.kind === 'idle') {
-    return <p className="settings-note">配置 LLM 后，生成与格律校验会在当前设备完成。</p>;
+    return null;
   }
   return (
     <div className="submission-notice" data-kind={status.kind} role="status">
@@ -143,7 +165,68 @@ function SubmissionNotice({ status }: { readonly status: SubmissionStatus }) {
               : '正在准备生成'}
       </strong>
       <p>{status.message}</p>
-      {status.sessionId !== undefined && <code>会话 {status.sessionId}</code>}
+      {progress.length > 0 && (
+        <GenerationProgress entries={progress} statusKind={status.kind} ariaLabel="生成进度" />
+      )}
     </div>
   );
+}
+
+interface GenerationProgressProps {
+  readonly entries: ReadonlyArray<SubmissionProgressEntry>;
+  readonly statusKind: SubmissionStatus['kind'];
+  readonly ariaLabel: string;
+}
+
+export function GenerationProgress({ entries, statusKind, ariaLabel }: GenerationProgressProps) {
+  const latestProgressItem = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (statusKind !== 'loading' && statusKind !== 'running') return;
+    latestProgressItem.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [entries.length, statusKind]);
+
+  return (
+    <ol className="generation-progress" aria-label={ariaLabel}>
+      {entries.map((entry, index) => {
+        const last = index === entries.length - 1;
+        const state =
+          last && statusKind === 'error'
+            ? 'error'
+            : last && (statusKind === 'loading' || statusKind === 'running')
+              ? 'active'
+              : 'completed';
+        return (
+          <li
+            data-state={state}
+            key={`${entry.stage}-${entry.round ?? 0}-${index}`}
+            {...(last ? { ref: latestProgressItem } : {})}
+            {...(state === 'active' ? { 'aria-current': 'step' as const } : {})}
+          >
+            <i aria-hidden="true" />
+            <div>
+              <span>
+                <b>{progressStageLabel(entry.stage)}</b>
+                {entry.round !== undefined && entry.maxRounds !== undefined && (
+                  <small>
+                    {entry.round}/{entry.maxRounds}
+                  </small>
+                )}
+              </span>
+              <p>{entry.message}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function progressStageLabel(stage: SubmissionProgressStage): string {
+  if (stage === 'preparing') return '准备';
+  if (stage === 'loading') return '加载';
+  if (stage === 'drafting') return '创作';
+  if (stage === 'validating') return '校验';
+  if (stage === 'repairing') return '修订';
+  if (stage === 'completed') return '完成';
+  return '失败';
 }

@@ -7,6 +7,7 @@ interface PatternPreviewProps {
   readonly onInspectCharacter: (character: string) => void;
   readonly onCreate?: () => void;
   readonly showHeader?: boolean;
+  readonly titleLevel?: 1 | 2;
 }
 
 interface PatternPreviewTitleProps {
@@ -39,6 +40,7 @@ export function PatternPreview({
   onInspectCharacter,
   onCreate,
   showHeader = true,
+  titleLevel = 1,
 }: PatternPreviewProps) {
   let exampleIndex = 0;
 
@@ -49,7 +51,7 @@ export function PatternPreview({
     >
       {showHeader && (
         <header className="pattern-header">
-          <PatternPreviewTitle pattern={pattern} id="pattern-title" />
+          <PatternPreviewTitle pattern={pattern} level={titleLevel} id="pattern-title" />
           <div className="pattern-header-actions">
             {pattern.reviewStatus === 'verified' && <span className="review-badge">已校勘</span>}
             {onCreate !== undefined && (

@@ -118,7 +118,7 @@ function createEntry(index: number): GenerationHistoryEntry {
     },
   };
   return {
-    id: `session-${index}`,
+    id: `record-${index}`,
     createdAt: new Date(Date.UTC(2026, 7, 4, 8, index)).toISOString(),
     theme: result.draft.theme,
     pattern,

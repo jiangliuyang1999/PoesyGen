@@ -199,6 +199,17 @@ export class ExampleDraftEngine implements DraftEngine {
 export interface GenerationWorkflowDependencies {
   readonly draftEngine: DraftEngine;
   readonly lexicon: ProsodyLexicon;
+  readonly onProgress?: (progress: GenerationWorkflowProgress) => void;
+}
+
+export type GenerationWorkflowStage = 'drafting' | 'validating' | 'repairing' | 'completed';
+
+export interface GenerationWorkflowProgress {
+  readonly stage: GenerationWorkflowStage;
+  readonly message: string;
+  readonly round: number;
+  readonly maxRounds: number;
+  readonly issueCount?: number;
 }
 
 export interface GenerationWorkflowInput {
@@ -227,14 +238,23 @@ export function createGenerationWorkflow(
   dependencies: GenerationWorkflowDependencies,
 ): GenerationWorkflow {
   const graph = new StateGraph(WorkflowState)
-    .addNode('generate', async (state, config) => ({
-      draft: await dependencies.draftEngine.createDraft(
-        state.request,
-        state.pattern,
-        config.signal,
-      ),
-      round: 1,
-    }))
+    .addNode('generate', async (state, config) => {
+      dependencies.onProgress?.({
+        stage: 'drafting',
+        message:
+          state.request.sourceDraft === undefined ? '正在生成初稿' : '正在根据修改意见生成新版本',
+        round: 1,
+        maxRounds: state.maxRounds,
+      });
+      return {
+        draft: await dependencies.draftEngine.createDraft(
+          state.request,
+          state.pattern,
+          config.signal,
+        ),
+        round: 1,
+      };
+    })
     .addNode('validate', (state) => {
       if (state.draft === undefined) {
         throw new Error('Cannot validate before a draft has been generated');
@@ -248,10 +268,20 @@ export function createGenerationWorkflow(
           ? {}
           : { expectedRhymeGroup: state.request.preferredRhymeGroup },
       );
+      const issueCount = countErrors(report);
+      dependencies.onProgress?.({
+        stage: 'validating',
+        message: report.passed
+          ? `第 ${state.round} 轮格律校验通过`
+          : `第 ${state.round} 轮校验发现 ${issueCount} 项错误`,
+        round: state.round,
+        maxRounds: state.maxRounds,
+        issueCount,
+      });
       const shouldReplaceBest =
         state.bestReport === undefined ||
-        countErrors(report) < countErrors(state.bestReport) ||
-        (countErrors(report) === countErrors(state.bestReport) &&
+        issueCount < countErrors(state.bestReport) ||
+        (issueCount === countErrors(state.bestReport) &&
           report.issues.length < state.bestReport.issues.length);
 
       return {
@@ -264,6 +294,14 @@ export function createGenerationWorkflow(
         throw new Error('Cannot repair before validation');
       }
 
+      const nextRound = state.round + 1;
+      dependencies.onProgress?.({
+        stage: 'repairing',
+        message: `正在进行第 ${nextRound} 轮格律修订`,
+        round: nextRound,
+        maxRounds: state.maxRounds,
+        issueCount: countErrors(state.report),
+      });
       return {
         draft: await dependencies.draftEngine.repairDraft(
           {
@@ -274,7 +312,7 @@ export function createGenerationWorkflow(
           },
           config.signal,
         ),
-        round: state.round + 1,
+        round: nextRound,
       };
     })
     .addEdge(START, 'generate')
@@ -316,12 +354,22 @@ export function createGenerationWorkflow(
         throw new Error('Generation workflow completed without a validated draft');
       }
 
-      return {
+      const workflowResult: GenerationWorkflowResult = {
         status: report.passed ? 'completed' : 'round_limit_reached',
         draft,
         report,
         rounds: result.round,
       };
+      dependencies.onProgress?.({
+        stage: 'completed',
+        message: report.passed
+          ? `格律校验通过，共完成 ${result.round} 轮`
+          : `达到 ${result.round} 轮上限，已保留最佳版本`,
+        round: result.round,
+        maxRounds: input.request.maxRounds ?? 8,
+        issueCount: countErrors(report),
+      });
+      return workflowResult;
     },
   };
 }

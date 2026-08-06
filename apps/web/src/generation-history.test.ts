@@ -38,10 +38,10 @@ describe('local generation history', () => {
     const loaded = loadGenerationHistory(storage);
 
     expect(loaded).toHaveLength(40);
-    expect(loaded[0]?.id).toBe('session-0');
+    expect(loaded[0]?.id).toBe('record-0');
   });
 
-  it('deduplicates sessions and searches titles, themes and tune names', () => {
+  it('deduplicates records and searches titles, themes and tune names', () => {
     const original = createEntry(1);
     const updated = { ...original, theme: '雪夜怀人' };
     const entries = addGenerationHistoryEntry([original, createEntry(2)], updated);
@@ -50,7 +50,7 @@ describe('local generation history', () => {
     expect(entries[0]?.theme).toBe('雪夜怀人');
     expect(filterGenerationHistory(entries, '雪夜')).toEqual([updated]);
     expect(filterGenerationHistory(entries, '如梦令')).toHaveLength(2);
-    expect(filterGenerationHistory(entries, 'session-2')).toEqual([entries[1]]);
+    expect(filterGenerationHistory(entries, 'record-2')).toEqual([]);
   });
 
   it('keeps refinements as versions of one history entry', () => {
@@ -102,7 +102,7 @@ function createEntry(index: number): GenerationHistoryEntry {
     },
   };
   return {
-    id: `session-${index}`,
+    id: `record-${index}`,
     createdAt: new Date(Date.UTC(2026, 7, 4, 8, index)).toISOString(),
     theme: result.draft.theme,
     pattern,

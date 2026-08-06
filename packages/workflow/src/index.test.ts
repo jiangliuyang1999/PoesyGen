@@ -48,11 +48,12 @@ const lexicon: ProsodyLexicon = {
 
 describe('generation workflow', () => {
   it('repairs hard prosody failures until validation passes', async () => {
+    const onProgress = vi.fn();
     const engine: DraftEngine = {
       createDraft: vi.fn(async () => draft('晚', 1)),
       repairDraft: vi.fn(async () => draft('春', 2)),
     };
-    const workflow = createGenerationWorkflow({ draftEngine: engine, lexicon });
+    const workflow = createGenerationWorkflow({ draftEngine: engine, lexicon, onProgress });
 
     const result = await workflow.run({ request, pattern });
 
@@ -60,14 +61,28 @@ describe('generation workflow', () => {
     expect(result.rounds).toBe(2);
     expect(result.draft.lines[0]?.text).toBe('春');
     expect(engine.repairDraft).toHaveBeenCalledOnce();
+    expect(onProgress.mock.calls.map(([progress]) => progress.stage)).toEqual([
+      'drafting',
+      'validating',
+      'repairing',
+      'validating',
+      'completed',
+    ]);
+    expect(onProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        message: '格律校验通过，共完成 2 轮',
+        round: 2,
+      }),
+    );
   });
 
   it('stops at the configured round limit', async () => {
+    const onProgress = vi.fn();
     const engine: DraftEngine = {
       createDraft: vi.fn(async () => draft('晚', 1)),
       repairDraft: vi.fn(async ({ draft: currentDraft }) => draft('晚', currentDraft.version + 1)),
     };
-    const workflow = createGenerationWorkflow({ draftEngine: engine, lexicon });
+    const workflow = createGenerationWorkflow({ draftEngine: engine, lexicon, onProgress });
 
     const result = await workflow.run({
       request: { ...request, maxRounds: 2 },
@@ -77,6 +92,12 @@ describe('generation workflow', () => {
     expect(result.status).toBe('round_limit_reached');
     expect(result.rounds).toBe(2);
     expect(engine.repairDraft).toHaveBeenCalledOnce();
+    expect(onProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        message: '达到 2 轮上限，已保留最佳版本',
+        round: 2,
+      }),
+    );
   });
 });
 

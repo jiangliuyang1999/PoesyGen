@@ -2,12 +2,17 @@ import { Capacitor, CapacitorHttp, type HttpHeaders } from '@capacitor/core';
 
 import type { CiPattern, GenerationRequest, GenerationResult } from '@poesygen/domain';
 import { OpenAiCompatibleProvider } from '@poesygen/llm';
+import type { GenerationWorkflowProgress, GenerationWorkflowStage } from '@poesygen/workflow';
 
 import type { DirectLlmConfig } from './direct-llm-config.js';
 
 export interface DirectGenerationProgress {
   readonly phase: 'loading' | 'running';
+  readonly stage: 'loading' | GenerationWorkflowStage;
   readonly message: string;
+  readonly round?: number;
+  readonly maxRounds?: number;
+  readonly issueCount?: number;
 }
 
 export async function runDirectGeneration(
@@ -21,6 +26,7 @@ export async function runDirectGeneration(
 ): Promise<GenerationResult> {
   options.onProgress?.({
     phase: 'loading',
+    stage: 'loading',
     message: '正在加载本地格律校验数据。',
   });
 
@@ -40,11 +46,12 @@ export async function runDirectGeneration(
   const workflow = createGenerationWorkflow({
     draftEngine: new LlmDraftEngine(provider),
     lexicon: cilinZhengyunLexicon,
-  });
-
-  options.onProgress?.({
-    phase: 'running',
-    message: '页面正在直接调用 LLM，并在本地校验格律。',
+    onProgress(progress: GenerationWorkflowProgress) {
+      options.onProgress?.({
+        phase: 'running',
+        ...progress,
+      });
+    },
   });
 
   try {

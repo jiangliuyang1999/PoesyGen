@@ -3,6 +3,7 @@
 import { Command, Option } from 'commander';
 
 import type { CiPattern, GenerationRequest } from '@poesygen/domain';
+import type { GenerationWorkflowProgress } from '@poesygen/workflow';
 
 import { isSingleHanCharacter } from './character.js';
 import { loadLocalEnvironment } from './environment.js';
@@ -218,10 +219,13 @@ async function generateAndPrint(request: GenerationRequest, pattern: CiPattern):
     await promptMissingLlmEnvironment();
   }
   loadCliLlmConfig();
-  if (!program.opts<RootOptions>().json) {
-    process.stdout.write('正在直接调用 LLM，并在本地校验格律…\n');
-  }
-  const result = await runLocalGeneration(request, pattern);
+  const jsonOutput = program.opts<RootOptions>().json;
+  if (!jsonOutput) process.stdout.write('[准备] 已加载词谱与格律数据\n');
+  const result = await runLocalGeneration(request, pattern, {
+    onProgress(progress) {
+      if (!jsonOutput) process.stdout.write(`${formatGenerationProgress(progress)}\n`);
+    },
+  });
   print(result, formatGenerationResult(result, pattern));
 }
 
@@ -301,4 +305,15 @@ function formatError(error: unknown): string {
     return '无法连接 LLM API，请检查 LLM_BASE_URL、网络和供应商状态。';
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+function formatGenerationProgress(progress: GenerationWorkflowProgress): string {
+  const labels = {
+    drafting: '创作',
+    validating: '校验',
+    repairing: '修订',
+    completed: '完成',
+  } as const;
+  const round = progress.stage === 'completed' ? '' : ` ${progress.round}/${progress.maxRounds}`;
+  return `[${labels[progress.stage]}${round}] ${progress.message}`;
 }

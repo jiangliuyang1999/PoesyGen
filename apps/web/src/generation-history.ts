@@ -118,9 +118,8 @@ export function filterGenerationHistory(
   const normalized = query.trim().toLocaleLowerCase('zh-CN');
   if (normalized === '') return entries;
   return entries.filter((entry) => {
-    const { id, pattern, settings, theme } = entry;
+    const { pattern, settings, theme } = entry;
     return [
-      id,
       pattern.name,
       pattern.variant,
       theme,

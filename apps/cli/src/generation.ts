@@ -1,7 +1,11 @@
 import type { CiPattern, GenerationRequest, GenerationResult } from '@poesygen/domain';
 import { OpenAiCompatibleProvider, type OpenAiCompatibleProviderOptions } from '@poesygen/llm';
 import { cilinZhengyunLexicon } from '@poesygen/prosody';
-import { createGenerationWorkflow, LlmDraftEngine } from '@poesygen/workflow';
+import {
+  createGenerationWorkflow,
+  LlmDraftEngine,
+  type GenerationWorkflowProgress,
+} from '@poesygen/workflow';
 
 export interface Environment {
   [key: string]: string | undefined;
@@ -18,6 +22,11 @@ export interface CliLlmConfig {
   readonly maxTokens: number;
   readonly jsonMode: boolean;
   readonly headers: Readonly<Record<string, string>>;
+}
+
+export interface LocalGenerationOptions {
+  readonly environment?: Environment;
+  readonly onProgress?: (progress: GenerationWorkflowProgress) => void;
 }
 
 export function loadCliLlmConfig(environment: Environment = process.env): CliLlmConfig {
@@ -63,8 +72,9 @@ export function listMissingCliLlmFields(
 export async function runLocalGeneration(
   request: GenerationRequest,
   pattern: CiPattern,
-  environment: Environment = process.env,
+  options: LocalGenerationOptions = {},
 ): Promise<GenerationResult> {
+  const environment = options.environment ?? process.env;
   const config = loadCliLlmConfig(environment);
   const providerOptions: OpenAiCompatibleProviderOptions = {
     apiKey: config.apiKey,
@@ -79,6 +89,7 @@ export async function runLocalGeneration(
   const workflow = createGenerationWorkflow({
     draftEngine: new LlmDraftEngine(new OpenAiCompatibleProvider(providerOptions)),
     lexicon: cilinZhengyunLexicon,
+    ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
   });
   return workflow.run({ request, pattern });
 }

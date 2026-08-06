@@ -2,13 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 
 import type { CiPattern, GenerationResult, TextSelection } from '@poesygen/domain';
 
+import { GenerationProgress, type SubmissionStatus } from './GenerationSettings.js';
 import { formatGenerationTitle } from './model.js';
 
 interface GenerationResultPanelProps {
   readonly result: GenerationResult;
   readonly pattern: CiPattern;
   readonly onInspectCharacter: (character: string) => void;
-  readonly onRefine?: (selections: ReadonlyArray<TextSelection>) => Promise<void>;
+  readonly onRefine?: (
+    selections: ReadonlyArray<TextSelection>,
+    onProgress?: (status: SubmissionStatus) => void,
+  ) => Promise<void>;
   readonly versions?: ReadonlyArray<GenerationResult>;
   readonly onSelectVersion?: (result: GenerationResult) => void;
 }
@@ -46,6 +50,7 @@ export function GenerationResultPanel({
   const [refinementItems, setRefinementItems] = useState<ReadonlyArray<RefinementItem>>([]);
   const [refinementStatus, setRefinementStatus] = useState<RefinementStatus>('idle');
   const [refinementError, setRefinementError] = useState('');
+  const [refinementProgressStatus, setRefinementProgressStatus] = useState<SubmissionStatus>();
   const availableVersions = versions === undefined || versions.length === 0 ? [result] : versions;
   const activeVersionIndex = Math.max(
     availableVersions.findIndex(({ draft }) => draft.id === result.draft.id),
@@ -81,6 +86,7 @@ export function GenerationResultPanel({
     setRefinementItems([]);
     setRefinementStatus('idle');
     setRefinementError('');
+    setRefinementProgressStatus(undefined);
   }, [result.draft.id]);
 
   const selectResultView = (nextView: ResultView): void => {
@@ -90,6 +96,7 @@ export function GenerationResultPanel({
     setRefinementItems([]);
     setRefinementStatus('idle');
     setRefinementError('');
+    setRefinementProgressStatus(undefined);
   };
 
   const renderAnnotatedLine = (
@@ -214,6 +221,7 @@ export function GenerationResultPanel({
     }
     setRefinementStatus('submitting');
     setRefinementError('');
+    setRefinementProgressStatus(undefined);
     try {
       await onRefine(
         refinementItems.map(({ lineId, start, end, instruction: itemInstruction }) => ({
@@ -222,7 +230,15 @@ export function GenerationResultPanel({
           end,
           instruction: itemInstruction.trim(),
         })),
+        setRefinementProgressStatus,
       );
+      setView('poem');
+      setSelection(undefined);
+      setInstruction('');
+      setRefinementItems([]);
+      setRefinementStatus('idle');
+      setRefinementError('');
+      setRefinementProgressStatus(undefined);
     } catch (error) {
       setRefinementStatus('error');
       setRefinementError(error instanceof Error ? error.message : '局部修改失败');
@@ -416,28 +432,25 @@ export function GenerationResultPanel({
           <header>
             <div>
               <p className="section-kicker">局部修改</p>
-              <h3>{selection === undefined ? '请选择要修改的内容' : `已选“${selection.text}”`}</h3>
+              {selection !== undefined && <h3>已选“{selection.text}”</h3>}
             </div>
             <span>{refinementItems.length} 项修改</span>
           </header>
-          <p className="refinement-guide">
-            选择字、词、片段或整句，填写对应意见后加入清单；可重复添加多项，再统一生成。
-          </p>
           <div className="refinement-draft">
             <label>
               <span>
-                {selection === undefined
-                  ? '请先在正文中选择内容'
-                  : `第 ${selection.lineIndex + 1} 句 · “${selection.text}”`}
+                {selection === undefined ? '修改意见' : `第 ${selection.lineIndex + 1} 句`}
               </span>
-              <textarea
+              <input
+                type="text"
                 aria-label="当前修改意见"
                 value={instruction}
                 onChange={(event) => setInstruction(event.target.value)}
-                rows={3}
                 maxLength={1_000}
                 disabled={selection === undefined}
-                placeholder="例如：换成更含蓄的表达，并与上下文自然衔接。"
+                placeholder={
+                  selection === undefined ? '先选择需要修改的内容' : '填写这处内容的修改意见'
+                }
               />
             </label>
             <button
@@ -461,30 +474,28 @@ export function GenerationResultPanel({
                   className="refinement-item"
                   key={`${item.lineId}-${item.start}-${item.end}`}
                 >
-                  <header>
-                    <strong>
-                      第 {item.lineIndex + 1} 句 · “{item.text}”
-                    </strong>
-                    <button
-                      type="button"
-                      aria-label={`删除“${item.text}”修改项`}
-                      disabled={refinementStatus === 'submitting'}
-                      onClick={() => removeRefinementItem(index)}
-                    >
-                      删除
-                    </button>
-                  </header>
+                  <strong>
+                    第 {item.lineIndex + 1} 句 · “{item.text}”
+                  </strong>
                   <label>
                     <span className="sr-only">第 {index + 1} 项修改意见</span>
-                    <textarea
+                    <input
+                      type="text"
                       aria-label={`第 ${index + 1} 项修改意见`}
                       value={item.instruction}
                       onChange={(event) => updateRefinementInstruction(index, event.target.value)}
-                      rows={2}
                       maxLength={1_000}
                       disabled={refinementStatus === 'submitting'}
                     />
                   </label>
+                  <button
+                    type="button"
+                    aria-label={`删除“${item.text}”修改项`}
+                    disabled={refinementStatus === 'submitting'}
+                    onClick={() => removeRefinementItem(index)}
+                  >
+                    删除
+                  </button>
                 </article>
               ))}
             </div>
@@ -502,7 +513,18 @@ export function GenerationResultPanel({
           >
             {refinementStatus === 'submitting' ? '正在重新生成…' : '根据全部意见重新生成'}
           </button>
-          {refinementStatus === 'error' && (
+          {refinementProgressStatus?.progress !== undefined &&
+            refinementProgressStatus.progress.length > 0 && (
+              <div className="refinement-progress-panel" role="status">
+                <p>{refinementProgressStatus.message}</p>
+                <GenerationProgress
+                  entries={refinementProgressStatus.progress}
+                  statusKind={refinementProgressStatus.kind}
+                  ariaLabel="局部修改进度"
+                />
+              </div>
+            )}
+          {refinementStatus === 'error' && refinementProgressStatus?.kind !== 'error' && (
             <p className="refinement-error" role="alert">
               {refinementError}
             </p>
