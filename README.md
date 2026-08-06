@@ -78,6 +78,20 @@ LLM_MODEL=gpt-4.1-mini
 LLM_API_KEY=<your-api-key>
 ```
 
+灵感推荐默认复用上述模型，但只允许最多 256 个输出 token，并使用 20 秒超时。也可以
+单独指定响应更快的模型；API 启动后会预热一组结果，Web 展示当前结果时会继续预取
+下一组，因此后续“换一组”通常不需要现场等待模型：
+
+```dotenv
+IDEA_LLM_MODEL=<fast-model-or-endpoint-id>
+IDEA_LLM_TIMEOUT_MS=20000
+IDEA_LLM_MAX_TOKENS=256
+```
+
+如灵感模型使用不同服务或密钥，还可以设置 `IDEA_LLM_BASE_URL`、
+`IDEA_LLM_ENDPOINT`、`IDEA_LLM_API_KEY` 和 `IDEA_LLM_EXTRA_HEADERS`。未设置的连接
+参数会继续复用对应的 `LLM_*` 配置。
+
 火山方舟示例：
 
 ```dotenv

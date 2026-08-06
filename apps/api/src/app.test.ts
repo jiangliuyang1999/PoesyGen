@@ -62,9 +62,11 @@ describe('API', () => {
   });
 
   it('generates bounded creation idea suggestions with the configured LLM', async () => {
+    let generationSequence = 0;
     const ideaProvider: LlmProvider = {
       name: 'test-provider',
       async generateStructured<T>(request: StructuredGenerationRequest<T>) {
+        generationSequence += 1;
         expect(request.operation).toBe('recommend');
         expect(request.temperature).toBe(1);
         expect(request.messages.at(-1)?.content).not.toContain('如梦令');
@@ -72,7 +74,7 @@ describe('API', () => {
         return {
           value: request.parse({
             suggestions: [
-              `1. ${'暮春江上归舟，远帆入暮云，忽忆故人旧约。'.repeat(3)}`,
+              `1. 第${generationSequence}组：${'暮春江上归舟，远帆入暮云，忽忆故人旧约。'.repeat(3)}`,
               '雪夜独坐小楼，听梅枝落雪，思念远行未归的人',
               '重回江南旧巷，在新雨与青苔间寻找少年往事',
             ],
@@ -96,6 +98,15 @@ describe('API', () => {
     expect(body.suggestions).toHaveLength(3);
     expect(body.suggestions.every((suggestion) => Array.from(suggestion).length <= 50)).toBe(true);
     expect(body.suggestions[0]?.startsWith('1.')).toBe(false);
+    expect(body.suggestions[0]).toContain('第1组');
+
+    const nextResponse = await app.inject({
+      method: 'POST',
+      url: '/v1/creation/idea-suggestions',
+      payload: {},
+    });
+    expect(nextResponse.statusCode).toBe(200);
+    expect(nextResponse.json<{ suggestions: string[] }>().suggestions[0]).toContain('第2组');
   });
 
   it('exposes rhyme groups and traditional pronunciation data', async () => {

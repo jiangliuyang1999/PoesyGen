@@ -260,6 +260,39 @@ describe('web creation workspace', () => {
     ).toBe(true);
   });
 
+  it('keeps catalog browsing separate from the creation pattern', async () => {
+    const client = createClient([pattern, alternatePattern, otherPattern]);
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    const navigation = screen.getByRole('navigation', { name: '主导航' });
+    await user.click(within(navigation).getByRole('button', { name: '词谱' }));
+    await user.click(
+      within(screen.getByLabelText('词牌列表')).getByRole('button', { name: /另一令/ }),
+    );
+    expect(screen.getByRole('region', { name: '另一令' })).toBeTruthy();
+
+    await user.click(within(navigation).getByRole('button', { name: '创作' }));
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: '创作词牌' }).value).toBe(
+      pattern.name,
+    );
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: '创作体式' }),
+      alternatePattern.id,
+    );
+
+    await user.click(within(navigation).getByRole('button', { name: '词谱' }));
+    const catalogPreview = screen.getByRole('region', { name: '另一令' });
+    expect(catalogPreview).toBeTruthy();
+    await user.click(within(catalogPreview).getByRole('button', { name: '用此体创作' }));
+
+    expect(screen.getByRole('heading', { name: '依谱填词', level: 1 })).toBeTruthy();
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: '创作词牌' }).value).toBe(
+      otherPattern.name,
+    );
+  });
+
   it('uses a dedicated bottom tab bar on the mobile platform', async () => {
     document.documentElement.dataset['platform'] = 'mobile';
     const client = createClient([pattern, alternatePattern]);
@@ -329,7 +362,16 @@ describe('web creation workspace', () => {
     );
 
     await user.click(screen.getByRole('button', { name: '全部词牌' }));
-    expect(screen.getByLabelText('手机词牌列表')).toBeTruthy();
+    const returnedPatternList = screen.getByLabelText('手机词牌列表');
+    await user.click(within(returnedPatternList).getByRole('button', { name: /测试令/ }));
+    await user.click(
+      within(screen.getByRole('region', { name: '测试令' })).getByRole('button', {
+        name: '用此体创作',
+      }),
+    );
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: '创作体式' }).value).toBe(
+      alternatePattern.id,
+    );
   });
 
   it('does not show the machine review badge for imported patterns', async () => {
@@ -367,11 +409,22 @@ describe('web creation workspace', () => {
 
   it('loads LLM idea suggestions and fills the theme editor', async () => {
     const client = createClient();
+    const nextIdeaSuggestions = [
+      '秋江送别后，独立长亭看暮云渐合',
+      '雪夜归家，推门见故人留下的一盏灯',
+      '雨后重游旧园，在落花间想起少年约定',
+    ];
+    vi.mocked(client.suggestCreationIdeas)
+      .mockResolvedValueOnce({ suggestions: ideaSuggestions })
+      .mockResolvedValueOnce({ suggestions: nextIdeaSuggestions })
+      .mockResolvedValue({ suggestions: ideaSuggestions });
     const user = userEvent.setup();
     render(<App client={client} />);
 
     const suggestion = await screen.findByRole('button', { name: ideaSuggestions[0] });
-    expect(client.suggestCreationIdeas).toHaveBeenCalledWith();
+    await waitFor(() => {
+      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(2);
+    });
     expect(Array.from(suggestion.textContent ?? '').length).toBeLessThanOrEqual(50);
 
     await user.click(suggestion);
@@ -380,8 +433,9 @@ describe('web creation workspace', () => {
     );
 
     await user.click(screen.getByRole('button', { name: '换一组' }));
+    expect(screen.getByRole('button', { name: nextIdeaSuggestions[0]! })).toBeTruthy();
     await waitFor(() => {
-      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(2);
+      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -391,7 +445,7 @@ describe('web creation workspace', () => {
     render(<App client={client} />);
     await screen.findByRole('heading', { name: '测试令', level: 2 });
     await waitFor(() => {
-      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(1);
+      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(2);
     });
 
     await user.selectOptions(screen.getByRole('combobox', { name: '创作词牌' }), otherPattern.name);
@@ -404,7 +458,7 @@ describe('web creation workspace', () => {
     );
 
     expect(screen.getByLabelText('词牌信息').textContent).toBe('格二 · 3字 · 单调 · 1句 · 1韵位');
-    expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(1);
+    expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(2);
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上晚归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
     await screen.findByText('词作已完成');
@@ -413,6 +467,55 @@ describe('web creation workspace', () => {
         patternId: alternatePattern.id,
       }),
     );
+  });
+
+  it('locks all creation inputs while a generation task is in progress', async () => {
+    const client = createClient([pattern, alternatePattern]);
+    const waitForGenerationSession = vi.mocked(client.waitForGenerationSession);
+    const completeGeneration = waitForGenerationSession.getMockImplementation();
+    if (completeGeneration === undefined) throw new Error('Missing generation test implementation');
+    let releaseGeneration = (): void => {};
+    const generationGate = new Promise<void>((resolve) => {
+      releaseGeneration = resolve;
+    });
+    waitForGenerationSession.mockImplementation(async (sessionId, options) => {
+      await generationGate;
+      return completeGeneration(sessionId, options);
+    });
+
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+    const idea = await screen.findByRole<HTMLButtonElement>('button', {
+      name: ideaSuggestions[0],
+    });
+    const theme = screen.getByRole<HTMLTextAreaElement>('textbox', { name: '作品主题' });
+    await user.type(theme, '江上晚归');
+    await user.click(screen.getByRole('button', { name: /开始生成/ }));
+    await screen.findByText('任务已排队');
+
+    const lockedControls = [
+      screen.getByRole<HTMLSelectElement>('combobox', { name: '创作词牌' }),
+      screen.getByRole<HTMLSelectElement>('combobox', { name: '创作体式' }),
+      theme,
+      screen.getByLabelText<HTMLSelectElement>('第 1 组仄声韵'),
+      screen.getByRole<HTMLInputElement>('slider'),
+      screen.getByLabelText<HTMLTextAreaElement>('附加要求'),
+      screen.getByRole<HTMLButtonElement>('button', { name: '换一组' }),
+      idea,
+      screen.getByRole<HTMLButtonElement>('button', { name: /正在生成/ }),
+    ];
+    expect(theme.closest('form')?.getAttribute('aria-busy')).toBe('true');
+    lockedControls.forEach((control) => {
+      expect(control.disabled).toBe(true);
+    });
+
+    releaseGeneration();
+    await screen.findByText('词作已完成');
+    expect(theme.closest('form')?.getAttribute('aria-busy')).toBe('false');
+    lockedControls.forEach((control) => {
+      expect(control.disabled).toBe(false);
+    });
   });
 
   it('submits theme, rhyme and optimization settings through the shared client', async () => {

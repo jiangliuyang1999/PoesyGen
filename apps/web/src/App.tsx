@@ -17,7 +17,11 @@ import {
 import { DictionaryWorkspace } from './DictionaryWorkspace.js';
 import { GenerationHistoryWorkspace } from './GenerationHistoryWorkspace.js';
 import { GenerationResultPanel } from './GenerationResultPanel.js';
-import { GenerationSettings, type SubmissionStatus } from './GenerationSettings.js';
+import {
+  GenerationSettings,
+  isSubmissionInProgress,
+  type SubmissionStatus,
+} from './GenerationSettings.js';
 import { MobileAppChrome, type ApplicationView } from './MobileAppChrome.js';
 import { MobilePatternWorkspace } from './MobilePatternWorkspace.js';
 import { PatternBrowser } from './PatternBrowser.js';
@@ -87,7 +91,8 @@ export function App({ client: providedClient }: AppProps = {}) {
   const [view, setView] = useState<ApplicationView>('create');
   const [patterns, setPatterns] = useState<ReadonlyArray<CiPattern>>([]);
   const [rhymeGroups, setRhymeGroups] = useState<ReadonlyArray<RhymeGroupSummary>>([]);
-  const [selectedPatternId, setSelectedPatternId] = useState('');
+  const [creationPatternId, setCreationPatternId] = useState('');
+  const [catalogPatternId, setCatalogPatternId] = useState('');
   const [patternQuery, setPatternQuery] = useState('');
   const [theme, setTheme] = useState('');
   const [requirements, setRequirements] = useState('');
@@ -106,6 +111,9 @@ export function App({ client: providedClient }: AppProps = {}) {
   const [generationHistory, setGenerationHistory] =
     useState<ReadonlyArray<GenerationHistoryEntry>>(loadGenerationHistory);
   const ideaRequestSequence = useRef(0);
+  const prefetchedIdeaSuggestions = useRef<ReadonlyArray<string> | undefined>(undefined);
+  const ideaPrefetchPromise = useRef<Promise<ReadonlyArray<string>> | undefined>(undefined);
+  const creationLocked = isSubmissionInProgress(submissionStatus);
 
   useEffect(() => {
     let active = true;
@@ -132,7 +140,9 @@ export function App({ client: providedClient }: AppProps = {}) {
           setPatterns(loadedPatterns);
           setRhymeGroups(loadedGroups);
           setGenerationAvailable(generation.available);
-          setSelectedPatternId(loadedPatterns[0]?.id ?? '');
+          const initialPatternId = loadedPatterns[0]?.id ?? '';
+          setCreationPatternId(initialPatternId);
+          setCatalogPatternId(initialPatternId);
           setConnectionStatus(
             generation.available
               ? `已载入 ${tuneCount} 个词牌、${loadedPatterns.length} 种体式，生成 Worker 已就绪`
@@ -160,16 +170,25 @@ export function App({ client: providedClient }: AppProps = {}) {
     requestIdeaSuggestions();
   }, [client, ideaSuggestions.status, view]);
 
-  const selectedPattern = patterns.find(({ id }) => id === selectedPatternId);
+  const creationPattern = patterns.find(({ id }) => id === creationPatternId);
+  const catalogPattern = patterns.find(({ id }) => id === catalogPatternId);
   const patternFamilies = useMemo(() => groupPatternsByName(patterns), [patterns]);
-  const selectedPatternFamily = patternFamilies.find(({ name }) => name === selectedPattern?.name);
+  const creationPatternFamily = patternFamilies.find(({ name }) => name === creationPattern?.name);
+  const catalogPatternFamily = patternFamilies.find(({ name }) => name === catalogPattern?.name);
 
-  const selectPattern = (patternId: string): void => {
-    setSelectedPatternId(patternId);
+  const selectCreationPattern = (patternId: string): void => {
+    if (creationLocked) return;
+    setCreationPatternId(patternId);
     setRhymeAssignments({});
     setSubmissionStatus(idleStatus);
     setResultVersions([]);
     setActiveHistoryEntryId(undefined);
+  };
+
+  const useCatalogPatternForCreation = (): void => {
+    if (catalogPattern === undefined) return;
+    if (!creationLocked) selectCreationPattern(catalogPattern.id);
+    setView('create');
   };
 
   const inspectCharacter = (character: string): void => {
@@ -177,24 +196,54 @@ export function App({ client: providedClient }: AppProps = {}) {
     setView('dictionary');
   };
 
+  function startIdeaSuggestionPrefetch(): Promise<ReadonlyArray<string>> {
+    if (prefetchedIdeaSuggestions.current !== undefined) {
+      return Promise.resolve(prefetchedIdeaSuggestions.current);
+    }
+    if (ideaPrefetchPromise.current !== undefined) {
+      return ideaPrefetchPromise.current;
+    }
+
+    const pending = client.suggestCreationIdeas().then(normalizeIdeaSuggestions);
+    ideaPrefetchPromise.current = pending;
+    void pending
+      .then((suggestions) => {
+        prefetchedIdeaSuggestions.current = suggestions;
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (ideaPrefetchPromise.current === pending) ideaPrefetchPromise.current = undefined;
+      });
+    return pending;
+  }
+
   function requestIdeaSuggestions(preserveCurrent = false): void {
+    if (preserveCurrent && prefetchedIdeaSuggestions.current !== undefined) {
+      ideaRequestSequence.current += 1;
+      const suggestions = prefetchedIdeaSuggestions.current;
+      prefetchedIdeaSuggestions.current = undefined;
+      setIdeaSuggestions({ status: 'ready', suggestions });
+      void startIdeaSuggestionPrefetch().catch(() => undefined);
+      return;
+    }
+
     const requestSequence = ++ideaRequestSequence.current;
     setIdeaSuggestions((current) => ({
       status: 'loading',
       suggestions: preserveCurrent ? current.suggestions : [],
     }));
-    void client
-      .suggestCreationIdeas()
-      .then((response) => {
+    const request =
+      preserveCurrent && ideaPrefetchPromise.current !== undefined
+        ? ideaPrefetchPromise.current
+        : client.suggestCreationIdeas().then(normalizeIdeaSuggestions);
+    void request
+      .then((suggestions) => {
         if (requestSequence !== ideaRequestSequence.current) return;
-        const suggestions = response.suggestions
-          .map((suggestion) => suggestion.trim())
-          .filter((suggestion) => suggestion !== '' && Array.from(suggestion).length <= 50)
-          .slice(0, 3);
-        if (suggestions.length !== 3) {
-          throw new Error('灵感推荐结果格式不正确');
+        if (prefetchedIdeaSuggestions.current === suggestions) {
+          prefetchedIdeaSuggestions.current = undefined;
         }
         setIdeaSuggestions({ status: 'ready', suggestions });
+        void startIdeaSuggestionPrefetch().catch(() => undefined);
       })
       .catch(() => {
         if (requestSequence !== ideaRequestSequence.current) return;
@@ -207,13 +256,13 @@ export function App({ client: providedClient }: AppProps = {}) {
 
   const submit = async (event: { preventDefault(): void }): Promise<void> => {
     event.preventDefault();
-    if (selectedPattern === undefined || theme.trim() === '') return;
+    if (creationLocked || creationPattern === undefined || theme.trim() === '') return;
 
     setSubmissionStatus({
       kind: 'loading',
       message: '正在创建会话并投递生成任务。',
     });
-    const labels = patternRhymeLabels(selectedPattern);
+    const labels = patternRhymeLabels(creationPattern);
     const selectedRhymes = Object.fromEntries(
       labels
         .map(({ id }) => [id, rhymeAssignments[id]] as const)
@@ -248,7 +297,7 @@ export function App({ client: providedClient }: AppProps = {}) {
 
     try {
       const session = await client.createGenerationSession({
-        patternId: selectedPattern.id,
+        patternId: creationPattern.id,
         theme: theme.trim(),
         maxRounds: rounds,
         ...(preferredRhymeGroup === undefined ? {} : { preferredRhymeGroup }),
@@ -258,7 +307,7 @@ export function App({ client: providedClient }: AppProps = {}) {
       });
       setSubmissionStatus({
         kind: 'queued',
-        message: `《${selectedPattern.name}》生成任务已进入队列。`,
+        message: `《${creationPattern.name}》生成任务已进入队列。`,
         sessionId: session.id,
         jobId: session.jobId,
       });
@@ -293,8 +342,8 @@ export function App({ client: providedClient }: AppProps = {}) {
         setSubmissionStatus({
           kind: 'completed',
           message: completed.result.report.passed
-            ? `《${selectedPattern.name}》已通过格律校验。`
-            : `《${selectedPattern.name}》已达到优化轮次上限。`,
+            ? `《${creationPattern.name}》已通过格律校验。`
+            : `《${creationPattern.name}》已达到优化轮次上限。`,
           sessionId: completed.id,
           jobId: completed.jobId,
           result: completed.result,
@@ -306,7 +355,7 @@ export function App({ client: providedClient }: AppProps = {}) {
           createdAt: new Date().toISOString(),
           theme: theme.trim(),
           settings: historySettings,
-          pattern: selectedPattern,
+          pattern: creationPattern,
           result: completed.result,
           versions: [completed.result],
         };
@@ -376,11 +425,11 @@ export function App({ client: providedClient }: AppProps = {}) {
 
   const refineCurrentResult = async (selections: ReadonlyArray<TextSelection>): Promise<void> => {
     const sourceResult = submissionStatus.result;
-    if (selectedPattern === undefined || sourceResult === undefined) {
+    if (creationPattern === undefined || sourceResult === undefined) {
       throw new Error('当前没有可修改的词稿');
     }
 
-    const labels = patternRhymeLabels(selectedPattern);
+    const labels = patternRhymeLabels(creationPattern);
     const selectedRhymes = Object.fromEntries(
       labels
         .map(({ id }) => [id, rhymeAssignments[id]] as const)
@@ -417,7 +466,7 @@ export function App({ client: providedClient }: AppProps = {}) {
       const { result, sessionId } = await runRefinementSession(
         createRefinementRequest({
           sourceResult,
-          pattern: selectedPattern,
+          pattern: creationPattern,
           selections,
           maxRounds: rounds,
           preferredRhymeGroup,
@@ -440,7 +489,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                 createdAt: new Date().toISOString(),
                 theme: sourceResult.draft.theme,
                 settings: historySettings,
-                pattern: selectedPattern,
+                pattern: creationPattern,
                 result,
                 versions: [sourceResult, result],
               })
@@ -575,7 +624,7 @@ export function App({ client: providedClient }: AppProps = {}) {
           {...(dictionaryCharacter === undefined ? {} : { initialCharacter: dictionaryCharacter })}
           onInitialCharacterHandled={() => setDictionaryCharacter(undefined)}
         />
-      ) : patterns.length === 0 || selectedPattern === undefined ? (
+      ) : patterns.length === 0 || creationPattern === undefined || catalogPattern === undefined ? (
         <LoadingState message={connectionStatus} />
       ) : view === 'patterns' ? (
         <main className="page-workspace" key="patterns">
@@ -590,47 +639,42 @@ export function App({ client: providedClient }: AppProps = {}) {
             <MobilePatternWorkspace
               patterns={patterns}
               query={patternQuery}
-              selectedPattern={selectedPattern}
+              selectedPattern={catalogPattern}
               onQueryChange={setPatternQuery}
-              onSelect={selectPattern}
+              onSelect={setCatalogPatternId}
               onInspectCharacter={inspectCharacter}
-              onCreate={() => {
-                setView('create');
-              }}
+              onCreate={useCatalogPatternForCreation}
             />
           ) : (
             <div className="workspace-grid pattern-catalog-layout">
               <PatternBrowser
                 patterns={patterns}
                 query={patternQuery}
-                selectedPatternId={selectedPattern.id}
+                selectedPatternId={catalogPattern.id}
                 onQueryChange={setPatternQuery}
-                onSelect={selectPattern}
+                onSelect={setCatalogPatternId}
               />
               <section className="pattern-detail-panel" aria-label="词牌格律详情">
-                {selectedPatternFamily !== undefined &&
-                  selectedPatternFamily.patterns.length > 1 && (
-                    <label className="pattern-detail-variant">
-                      <span>选择体式</span>
-                      <select
-                        aria-label={`${selectedPatternFamily.name}体式`}
-                        value={selectedPattern.id}
-                        onChange={(event) => selectPattern(event.target.value)}
-                      >
-                        {selectedPatternFamily.patterns.map((pattern) => (
-                          <option key={pattern.id} value={pattern.id}>
-                            {formatPatternVariantSummary(pattern)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
+                {catalogPatternFamily !== undefined && catalogPatternFamily.patterns.length > 1 && (
+                  <label className="pattern-detail-variant">
+                    <span>选择体式</span>
+                    <select
+                      aria-label={`${catalogPatternFamily.name}体式`}
+                      value={catalogPattern.id}
+                      onChange={(event) => setCatalogPatternId(event.target.value)}
+                    >
+                      {catalogPatternFamily.patterns.map((pattern) => (
+                        <option key={pattern.id} value={pattern.id}>
+                          {formatPatternVariantSummary(pattern)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <PatternPreview
-                  pattern={selectedPattern}
+                  pattern={catalogPattern}
                   onInspectCharacter={inspectCharacter}
-                  onCreate={() => {
-                    setView('create');
-                  }}
+                  onCreate={useCatalogPatternForCreation}
                 />
               </section>
             </div>
@@ -661,7 +705,11 @@ export function App({ client: providedClient }: AppProps = {}) {
             </div>
           </header>
 
-          <form className="creation-form" onSubmit={(event) => void submit(event)}>
+          <form
+            className="creation-form"
+            aria-busy={creationLocked}
+            onSubmit={(event) => void submit(event)}
+          >
             <section className="creation-pattern-panel" aria-label="词谱选择与格律预览">
               <section className="selected-pattern-bar" aria-label="当前创作词谱">
                 <div className="selected-pattern-controls">
@@ -669,7 +717,8 @@ export function App({ client: providedClient }: AppProps = {}) {
                     <span>选择词牌</span>
                     <select
                       aria-label="创作词牌"
-                      value={selectedPattern.name}
+                      value={creationPattern.name}
+                      disabled={creationLocked}
                       onChange={(event) => {
                         const family = patternFamilies.find(
                           ({ name }) => name === event.target.value,
@@ -677,7 +726,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                         const standard =
                           family?.patterns.find(({ variant }) => variant === '正体') ??
                           family?.patterns[0];
-                        if (standard !== undefined) selectPattern(standard.id);
+                        if (standard !== undefined) selectCreationPattern(standard.id);
                       }}
                     >
                       {patternFamilies.map((family) => (
@@ -691,10 +740,11 @@ export function App({ client: providedClient }: AppProps = {}) {
                     <span>选择体式</span>
                     <select
                       aria-label="创作体式"
-                      value={selectedPattern.id}
-                      onChange={(event) => selectPattern(event.target.value)}
+                      value={creationPattern.id}
+                      disabled={creationLocked}
+                      onChange={(event) => selectCreationPattern(event.target.value)}
                     >
-                      {selectedPatternFamily?.patterns.map((pattern) => {
+                      {creationPatternFamily?.patterns.map((pattern) => {
                         return (
                           <option key={pattern.id} value={pattern.id}>
                             {formatPatternVariantSummary(pattern)}
@@ -711,7 +761,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                 <details className="creation-pattern-preview">
                   <summary className="pattern-header creation-pattern-summary">
                     <PatternPreviewTitle
-                      pattern={selectedPattern}
+                      pattern={creationPattern}
                       level={2}
                       id="creation-pattern-title"
                     />
@@ -722,7 +772,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                   </summary>
                   <div className="creation-pattern-preview-body">
                     <PatternPreview
-                      pattern={selectedPattern}
+                      pattern={creationPattern}
                       onInspectCharacter={inspectCharacter}
                       showHeader={false}
                     />
@@ -746,6 +796,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                   <span className="sr-only">作品主题</span>
                   <textarea
                     value={theme}
+                    disabled={creationLocked}
                     onChange={(event) => setTheme(event.target.value)}
                     placeholder="暮春江上归舟，忽忆多年未见的故友。希望词意含蓄，以江风、残照和远帆寄托惆怅。"
                     rows={6}
@@ -758,7 +809,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                     <span>灵感推荐</span>
                     <button
                       type="button"
-                      disabled={ideaSuggestions.status === 'loading'}
+                      disabled={creationLocked || ideaSuggestions.status === 'loading'}
                       onClick={() => requestIdeaSuggestions(true)}
                     >
                       {ideaSuggestions.status === 'loading'
@@ -770,7 +821,12 @@ export function App({ client: providedClient }: AppProps = {}) {
                   </div>
                   <div className="theme-prompts">
                     {ideaSuggestions.suggestions.map((prompt) => (
-                      <button key={prompt} type="button" onClick={() => setTheme(prompt)}>
+                      <button
+                        key={prompt}
+                        type="button"
+                        disabled={creationLocked}
+                        onClick={() => setTheme(prompt)}
+                      >
                         {prompt}
                       </button>
                     ))}
@@ -789,7 +845,7 @@ export function App({ client: providedClient }: AppProps = {}) {
               </section>
 
               <GenerationSettings
-                pattern={selectedPattern}
+                pattern={creationPattern}
                 rhymeGroups={rhymeGroups}
                 rhymeAssignments={rhymeAssignments}
                 rounds={rounds}
@@ -812,7 +868,7 @@ export function App({ client: providedClient }: AppProps = {}) {
             {submissionStatus.result !== undefined && (
               <GenerationResultPanel
                 result={submissionStatus.result}
-                pattern={selectedPattern}
+                pattern={creationPattern}
                 onInspectCharacter={inspectCharacter}
                 onRefine={refineCurrentResult}
                 versions={resultVersions}
@@ -824,6 +880,17 @@ export function App({ client: providedClient }: AppProps = {}) {
       )}
     </div>
   );
+}
+
+function normalizeIdeaSuggestions(response: IdeaSuggestionsResponse): ReadonlyArray<string> {
+  const suggestions = response.suggestions
+    .map((suggestion) => suggestion.trim())
+    .filter((suggestion) => suggestion !== '' && Array.from(suggestion).length <= 50)
+    .slice(0, 3);
+  if (suggestions.length !== 3) {
+    throw new Error('灵感推荐结果格式不正确');
+  }
+  return suggestions;
 }
 
 interface CreateRefinementRequestInput {

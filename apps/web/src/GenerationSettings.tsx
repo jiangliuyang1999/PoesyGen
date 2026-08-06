@@ -10,6 +10,10 @@ export interface SubmissionStatus {
   readonly result?: GenerationResult;
 }
 
+export function isSubmissionInProgress(status: SubmissionStatus): boolean {
+  return status.kind === 'loading' || status.kind === 'queued' || status.kind === 'running';
+}
+
 interface GenerationSettingsProps {
   readonly pattern: CiPattern;
   readonly rhymeGroups: ReadonlyArray<RhymeGroupSummary>;
@@ -36,6 +40,7 @@ export function GenerationSettings({
   onRequirementsChange,
 }: GenerationSettingsProps) {
   const rhymeLabels = patternRhymeLabels(pattern);
+  const disabled = isSubmissionInProgress(status);
 
   return (
     <aside className="generation-settings" aria-labelledby="settings-title">
@@ -57,6 +62,7 @@ export function GenerationSettings({
               <span>{displayRhymeLabel(label, index)}</span>
               <select
                 value={rhymeAssignments[label.id] ?? ''}
+                disabled={disabled}
                 onChange={(event) => onRhymeChange(label.id, event.target.value)}
               >
                 <option value="">自动择韵</option>
@@ -85,6 +91,7 @@ export function GenerationSettings({
           min="1"
           max="20"
           value={rounds}
+          disabled={disabled}
           onChange={(event) => onRoundsChange(Number(event.target.value))}
         />
         <div className="range-labels" aria-hidden="true">
@@ -101,6 +108,7 @@ export function GenerationSettings({
         <textarea
           id="requirements"
           value={requirements}
+          disabled={disabled}
           onChange={(event) => onRequirementsChange(event.target.value)}
           rows={4}
           placeholder={'避免直白抒情\n使用江南意象'}
@@ -108,14 +116,8 @@ export function GenerationSettings({
       </div>
 
       <div className="settings-action">
-        <button
-          className="primary-action"
-          type="submit"
-          disabled={!canSubmit || status.kind === 'loading' || status.kind === 'running'}
-        >
-          <span>
-            {status.kind === 'loading' || status.kind === 'running' ? '正在生成' : '开始生成'}
-          </span>
+        <button className="primary-action" type="submit" disabled={!canSubmit || disabled}>
+          <span>{disabled ? '正在生成' : '开始生成'}</span>
           <span aria-hidden="true">→</span>
         </button>
 

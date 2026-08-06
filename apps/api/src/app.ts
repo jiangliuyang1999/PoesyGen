@@ -15,6 +15,8 @@ import {
 } from '@poesygen/prosody';
 import type { GenerationQueue } from '@poesygen/queue';
 
+import { createIdeaSuggestionService } from './idea-suggestions.js';
+
 const mobileAppOrigins = ['capacitor://localhost', 'https://localhost'];
 
 export interface AppDependencies {
@@ -25,6 +27,11 @@ export interface AppDependencies {
 
 export async function buildApp(dependencies: AppDependencies = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: dependencies.logger ?? false });
+  const ideaSuggestions =
+    dependencies.ideaProvider === undefined
+      ? undefined
+      : createIdeaSuggestionService(dependencies.ideaProvider);
+  ideaSuggestions?.warm();
 
   await app.register(cors, {
     origin: mobileAppOrigins,
@@ -53,7 +60,7 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
   app.get('/v1/patterns', async () => listPatterns());
 
   app.post('/v1/creation/idea-suggestions', async (request, reply) => {
-    if (dependencies.ideaProvider === undefined) {
+    if (ideaSuggestions === undefined) {
       return reply.code(503).send({
         error: 'idea_suggestions_unavailable',
         message: 'LLM provider is not configured for the API',
@@ -61,37 +68,7 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
     }
 
     try {
-      const generated = await dependencies.ideaProvider.generateStructured({
-        operation: 'recommend',
-        temperature: 1,
-        metadata: {
-          feature: 'creation-idea-suggestions',
-          promptVersion: 'idea-suggestions-v2',
-        },
-        messages: [
-          {
-            role: 'system',
-            content: [
-              '你是宋词创作的主题策划编辑。',
-              '仅返回 JSON 对象，格式为 {"suggestions":["主题1","主题2","主题3"]}。',
-              '必须恰好提供 3 条互不重复的中文创作主题。',
-              '每条主题必须意象明确、情境清楚，尽量包含时令、场景、人物行动或情感转折。',
-              '每条不超过 50 个汉字；允许约 10 个字的简短主题，不要为了凑长度添加空话。',
-              '不要写词作正文，不要添加序号、标题、引号或格律说明。',
-            ].join('\n'),
-          },
-          {
-            role: 'user',
-            content: [
-              '请直接推荐三条适合宋词创作的主题，不绑定任何特定词牌或体式。',
-              '三条主题在季节、场景和情绪上应有明显差异。',
-              '每次尽量探索不同的人物关系、叙事视角和意象组合，避免重复常见主题模板。',
-            ].join('\n'),
-          },
-        ],
-        parse: parseIdeaSuggestions,
-      });
-      return { suggestions: generated.value };
+      return { suggestions: await ideaSuggestions.get() };
     } catch (error) {
       request.log.error({ err: error }, 'Failed to generate creation idea suggestions');
       return reply.code(502).send({ error: 'idea_suggestions_failed' });
@@ -279,31 +256,6 @@ export async function buildApp(dependencies: AppDependencies = {}): Promise<Fast
   );
 
   return app;
-}
-
-function parseIdeaSuggestions(value: unknown): ReadonlyArray<string> {
-  const rawSuggestions =
-    isRecord(value) && Array.isArray(value['suggestions']) ? value['suggestions'] : [];
-  const suggestions: string[] = [];
-  for (const rawSuggestion of rawSuggestions) {
-    if (typeof rawSuggestion !== 'string') continue;
-    const normalized = rawSuggestion
-      .trim()
-      .replace(/^(?:\d+|[一二三])[.、:：]\s*/u, '')
-      .replace(/\s+/gu, ' ');
-    if (normalized === '') continue;
-    const bounded = Array.from(normalized).slice(0, 50).join('');
-    if (!suggestions.includes(bounded)) suggestions.push(bounded);
-    if (suggestions.length === 3) break;
-  }
-  if (suggestions.length !== 3) {
-    throw new Error('LLM must return three unique idea suggestions');
-  }
-  return suggestions;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 const graphemeSegmenter = new Intl.Segmenter('zh-CN', {

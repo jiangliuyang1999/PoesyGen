@@ -3,28 +3,39 @@ import { OpenAiCompatibleProvider, type LlmProvider } from '@poesygen/llm';
 export function createIdeaProvider(
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): LlmProvider | undefined {
-  const providerName = environment['LLM_PROVIDER'] ?? 'openai-compatible';
+  const providerName =
+    environment['IDEA_LLM_PROVIDER'] ?? environment['LLM_PROVIDER'] ?? 'openai-compatible';
   if (providerName === 'mock') return undefined;
   if (providerName !== 'openai-compatible') {
-    throw new Error(`Unsupported LLM_PROVIDER: ${providerName}`);
+    throw new Error(`Unsupported IDEA_LLM_PROVIDER: ${providerName}`);
   }
 
   const apiKey =
-    environment['LLM_API_KEY'] ?? environment['OPENAI_API_KEY'] ?? environment['ARK_API_KEY'];
-  const model = environment['LLM_MODEL'] ?? environment['OPENAI_MODEL'];
+    environment['IDEA_LLM_API_KEY'] ??
+    environment['LLM_API_KEY'] ??
+    environment['OPENAI_API_KEY'] ??
+    environment['ARK_API_KEY'];
+  const model =
+    environment['IDEA_LLM_MODEL'] ?? environment['LLM_MODEL'] ?? environment['OPENAI_MODEL'];
   if (apiKey === undefined || apiKey.trim() === '' || model === undefined || model.trim() === '') {
     return undefined;
   }
 
+  const endpoint = environment['IDEA_LLM_ENDPOINT'] ?? environment['LLM_ENDPOINT'];
   return new OpenAiCompatibleProvider({
     apiKey,
     model,
-    baseUrl: environment['LLM_BASE_URL'] ?? 'https://api.openai.com/v1',
-    ...(environment['LLM_ENDPOINT'] === undefined ? {} : { endpoint: environment['LLM_ENDPOINT'] }),
-    timeoutMs: parsePositiveInteger(environment['LLM_TIMEOUT_MS'] ?? '120000'),
-    maxTokens: Math.min(parsePositiveInteger(environment['LLM_MAX_TOKENS'] ?? '512'), 1_024),
-    jsonMode: environment['LLM_JSON_MODE'] !== 'false',
-    headers: parseHeaders(environment['LLM_EXTRA_HEADERS']),
+    baseUrl:
+      environment['IDEA_LLM_BASE_URL'] ??
+      environment['LLM_BASE_URL'] ??
+      'https://api.openai.com/v1',
+    ...(endpoint === undefined ? {} : { endpoint }),
+    timeoutMs: parsePositiveInteger(environment['IDEA_LLM_TIMEOUT_MS'] ?? '20000'),
+    maxTokens: Math.min(parsePositiveInteger(environment['IDEA_LLM_MAX_TOKENS'] ?? '256'), 512),
+    jsonMode: (environment['IDEA_LLM_JSON_MODE'] ?? environment['LLM_JSON_MODE']) !== 'false',
+    headers: parseHeaders(
+      environment['IDEA_LLM_EXTRA_HEADERS'] ?? environment['LLM_EXTRA_HEADERS'],
+    ),
   });
 }
 
