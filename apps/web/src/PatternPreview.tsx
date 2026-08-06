@@ -112,10 +112,12 @@ export function PatternPreview({
       </div>
 
       <footer className="preview-note">
-        <span>平</span> 平声
-        <span>仄</span> 仄声
-        <span>中</span> 可平可仄
-        <i /> 韵脚
+        <span className="preview-note-legend">
+          <span>平</span> 平声
+          <span>仄</span> 仄声
+          <span>中</span> 可平可仄
+          <i /> 韵脚
+        </span>
         {pattern.example !== undefined && <em>例词：{pattern.example.author}</em>}
       </footer>
     </section>

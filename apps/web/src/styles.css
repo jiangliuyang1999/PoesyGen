@@ -821,16 +821,23 @@ button:disabled {
 
 .preview-note {
   display: flex;
-  flex-wrap: wrap;
-  gap: 7px 12px;
   align-items: center;
+  gap: 12px;
   padding-top: 15px;
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 0.68rem;
 }
 
-.preview-note > span {
+.preview-note-legend {
+  display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
+  align-items: center;
+  gap: 7px 12px;
+}
+
+.preview-note-legend > span {
   display: grid;
   width: 20px;
   height: 20px;
@@ -850,8 +857,10 @@ button:disabled {
 }
 
 .preview-note em {
+  flex: none;
   margin-left: auto;
   font-style: normal;
+  white-space: nowrap;
 }
 
 .theme-editor {
@@ -3783,11 +3792,6 @@ html[data-platform='mobile'] .loading-state {
 
   .character-cell {
     min-width: 22px;
-  }
-
-  .preview-note em {
-    width: 100%;
-    margin-left: 0;
   }
 
   .character-card {
