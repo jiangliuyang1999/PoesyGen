@@ -1,17 +1,17 @@
-import type { CiPattern, GenerationResult, RhymeGroupSummary } from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult } from '@poesygen/domain';
 
+import type { RhymeGroupSummary } from './catalog-types.js';
 import { compatibleRhymeGroups, displayRhymeLabel, patternRhymeLabels } from './model.js';
 
 export interface SubmissionStatus {
-  readonly kind: 'idle' | 'loading' | 'queued' | 'running' | 'completed' | 'error';
+  readonly kind: 'idle' | 'loading' | 'running' | 'completed' | 'error';
   readonly message: string;
   readonly sessionId?: string;
-  readonly jobId?: string;
   readonly result?: GenerationResult;
 }
 
 export function isSubmissionInProgress(status: SubmissionStatus): boolean {
-  return status.kind === 'loading' || status.kind === 'queued' || status.kind === 'running';
+  return status.kind === 'loading' || status.kind === 'running';
 }
 
 interface GenerationSettingsProps {
@@ -129,24 +129,21 @@ export function GenerationSettings({
 
 function SubmissionNotice({ status }: { readonly status: SubmissionStatus }) {
   if (status.kind === 'idle') {
-    return <p className="settings-note">提交后可使用会话编号追踪生成任务。</p>;
+    return <p className="settings-note">配置 LLM 后，生成与格律校验会在当前设备完成。</p>;
   }
   return (
     <div className="submission-notice" data-kind={status.kind} role="status">
       <strong>
         {status.kind === 'completed'
           ? '词作已完成'
-          : status.kind === 'queued'
-            ? '任务已排队'
-            : status.kind === 'running'
-              ? '正在优化'
-              : status.kind === 'error'
-                ? '提交失败'
-                : '正在连接生成服务'}
+          : status.kind === 'running'
+            ? '正在优化'
+            : status.kind === 'error'
+              ? '生成失败'
+              : '正在准备生成'}
       </strong>
       <p>{status.message}</p>
       {status.sessionId !== undefined && <code>会话 {status.sessionId}</code>}
-      {status.jobId !== undefined && <code>任务 {status.jobId}</code>}
     </div>
   );
 }

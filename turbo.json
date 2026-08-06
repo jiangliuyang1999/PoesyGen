@@ -3,8 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**"],
-      "passThroughEnv": ["VITE_API_URL"]
+      "outputs": ["dist/**"]
     },
     "clean": {
       "cache": false
@@ -14,34 +13,14 @@
       "cache": false,
       "persistent": true,
       "passThroughEnv": [
-        "HOST",
-        "PORT",
-        "DATABASE_URL",
-        "REDIS_URL",
-        "LLM_PROVIDER",
         "LLM_BASE_URL",
         "LLM_ENDPOINT",
         "LLM_MODEL",
         "LLM_API_KEY",
-        "OPENAI_API_KEY",
-        "OPENAI_MODEL",
-        "ARK_API_KEY",
         "LLM_JSON_MODE",
         "LLM_TIMEOUT_MS",
         "LLM_MAX_TOKENS",
-        "LLM_EXTRA_HEADERS",
-        "IDEA_LLM_PROVIDER",
-        "IDEA_LLM_BASE_URL",
-        "IDEA_LLM_ENDPOINT",
-        "IDEA_LLM_MODEL",
-        "IDEA_LLM_API_KEY",
-        "IDEA_LLM_JSON_MODE",
-        "IDEA_LLM_TIMEOUT_MS",
-        "IDEA_LLM_MAX_TOKENS",
-        "IDEA_LLM_EXTRA_HEADERS",
-        "WORKER_CONCURRENCY",
-        "POESYGEN_API",
-        "VITE_API_URL"
+        "LLM_EXTRA_HEADERS"
       ]
     },
     "test": {

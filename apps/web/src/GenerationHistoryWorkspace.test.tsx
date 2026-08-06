@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type { CiPattern, GenerationResult } from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult } from '@poesygen/domain';
 
 import { GenerationHistoryWorkspace } from './GenerationHistoryWorkspace.js';
 import type { GenerationHistoryEntry } from './generation-history.js';

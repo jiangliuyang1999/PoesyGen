@@ -2,9 +2,10 @@ export type ApplicationView = 'create' | 'history' | 'patterns' | 'dictionary';
 
 interface MobileAppChromeProps {
   readonly activeView: ApplicationView;
-  readonly generationAvailable: boolean;
-  readonly hasLoadedPatterns: boolean;
+  readonly serviceReady: boolean;
+  readonly serviceLabel: string;
   readonly onSelectView: (view: ApplicationView) => void;
+  readonly onOpenConfig: () => void;
 }
 
 const navigationItems: ReadonlyArray<{
@@ -19,16 +20,11 @@ const navigationItems: ReadonlyArray<{
 
 export function MobileAppChrome({
   activeView,
-  generationAvailable,
-  hasLoadedPatterns,
+  serviceReady,
+  serviceLabel,
   onSelectView,
+  onOpenConfig,
 }: MobileAppChromeProps) {
-  const serviceLabel = generationAvailable
-    ? '服务就绪'
-    : hasLoadedPatterns
-      ? '服务未就绪'
-      : '连接中';
-
   return (
     <>
       <header className="mobile-app-header">
@@ -41,10 +37,16 @@ export function MobileAppChrome({
           <span>词</span>
           <strong>PoesyGen</strong>
         </button>
-        <span className="mobile-service-status" title={serviceLabel}>
-          <i data-ready={generationAvailable} />
+        <button
+          className="mobile-service-status"
+          type="button"
+          title={serviceLabel}
+          aria-label={`生成配置：${serviceLabel}`}
+          onClick={onOpenConfig}
+        >
+          <i data-ready={serviceReady} />
           {serviceLabel}
-        </span>
+        </button>
       </header>
 
       <nav className="mobile-tabbar" aria-label="手机端导航">

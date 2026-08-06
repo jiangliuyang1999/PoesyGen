@@ -1,12 +1,11 @@
-import type {
-  CharacterPronunciationResponse,
-  CiPattern,
-  GenerationSessionStatusResponse,
-  RhymeGroupDetail,
-  RhymeGroupSummary,
-} from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult } from '@poesygen/domain';
 import { findPattern } from '@poesygen/patterns';
 
+import type {
+  CharacterPronunciationResponse,
+  RhymeGroupDetail,
+  RhymeGroupSummary,
+} from './local-catalog.js';
 const toneLabels = {
   level: '平',
   oblique: '仄',
@@ -14,9 +13,13 @@ const toneLabels = {
 } as const;
 
 export function formatPatternSummary(pattern: CiPattern): string {
+  return `${pattern.name}·${formatPatternVariantSummary(pattern)}`;
+}
+
+export function formatPatternVariantSummary(pattern: CiPattern): string {
   const lines = pattern.sections.flatMap((section) => section.lines);
   const characters = lines.reduce((sum, line) => sum + line.positions.length, 0);
-  return `${pattern.name}·${pattern.variant}  ${characters}字/${lines.length}句  ${pattern.id}`;
+  return `${pattern.variant}  ${characters}字/${lines.length}句  ${pattern.id}`;
 }
 
 export function formatPattern(pattern: CiPattern): string {
@@ -105,21 +108,12 @@ export function patternRhymeLabels(pattern: CiPattern): ReadonlyArray<{
   return [...labels].map(([id, tone]) => ({ id, tone }));
 }
 
-export function formatGenerationSession(session: GenerationSessionStatusResponse): string {
-  if (session.status === 'failed') {
-    return `生成失败\n会话：${session.id}\n原因：${session.error ?? '未知错误'}`;
-  }
-  if (session.result === undefined) {
-    const progress = formatProgress(session.progress);
-    return [
-      session.status === 'running' ? '正在生成' : '任务排队中',
-      `会话：${session.id}`,
-      ...(progress === undefined ? [] : [progress]),
-    ].join('\n');
-  }
-
-  const { draft, report, rounds, status } = session.result;
-  const pattern = findPattern(draft.patternId);
+export function formatGenerationResult(
+  result: GenerationResult,
+  selectedPattern?: CiPattern,
+): string {
+  const { draft, report, rounds, status } = result;
+  const pattern = selectedPattern ?? findPattern(draft.patternId);
   return [
     formatGenerationTitle(pattern?.name, draft.title),
     '',
@@ -134,7 +128,6 @@ export function formatGenerationSession(session: GenerationSessionStatusResponse
           (issue) =>
             `- ${issue.lineId}${issue.charIndex === undefined ? '' : ` 第${issue.charIndex + 1}字`}：${issue.message}`,
         )),
-    `会话：${session.id}`,
   ].join('\n');
 }
 
@@ -175,16 +168,6 @@ function formatGenerationTitle(patternName: string | undefined, title: string | 
     titleBody = titleBody.slice(patternName.length).replace(/^[\s·・.。:：—-]+/u, '');
   }
   return titleBody === '' ? patternName : `${patternName}·${titleBody}`;
-}
-
-export function formatProgress(progress: unknown): string | undefined {
-  if (typeof progress === 'number') return `进度：${progress}%`;
-  if (typeof progress !== 'object' || progress === null) return undefined;
-  const candidate = progress as { message?: unknown; rounds?: unknown };
-  if (typeof candidate.message !== 'string') return undefined;
-  return typeof candidate.rounds === 'number'
-    ? `${candidate.message}（${candidate.rounds} 轮）`
-    : candidate.message;
 }
 
 function wrapCharacters(value: string, width: number): string {

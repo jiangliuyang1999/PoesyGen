@@ -2,38 +2,38 @@
 
 import { Command, Option } from 'commander';
 
-import {
-  PoesyGenApiError,
-  PoesyGenClient,
-  type CiPattern,
-  type RhymeGroupSummary,
-} from '@poesygen/client-sdk';
+import type { CiPattern, GenerationRequest } from '@poesygen/domain';
 
+import { isSingleHanCharacter } from './character.js';
+import { loadLocalEnvironment } from './environment.js';
 import {
   formatCharacter,
-  formatGenerationSession,
+  formatGenerationResult,
   formatPattern,
-  formatProgress,
   formatPatternSummary,
   formatRhymeGroup,
   formatRhymeGroupSummary,
 } from './format.js';
+import { loadCliLlmConfig, runLocalGeneration } from './generation.js';
+import {
+  promptCharacter,
+  promptGenerationRequest,
+  promptMainAction,
+  promptMissingLlmEnvironment,
+  promptPattern,
+  promptRhymeGroup,
+} from './interactive.js';
 import {
   getLocalCharacterPronunciations,
   getLocalRhymeGroup,
   listLocalPatterns,
   listLocalRhymeGroups,
+  type RhymeGroupSummary,
 } from './local-catalog.js';
-import {
-  promptCharacter,
-  promptGenerationRequest,
-  promptMainAction,
-  promptPattern,
-  promptRhymeGroup,
-} from './interactive.js';
+
+loadLocalEnvironment();
 
 interface RootOptions {
-  readonly api: string;
   readonly interactive: boolean;
   readonly json: boolean;
 }
@@ -42,22 +42,16 @@ interface GenerateOptions {
   readonly pattern?: string;
   readonly theme?: string;
   readonly rhyme?: string;
-  readonly maxRounds: string;
+  readonly maxRounds: number;
   readonly requirement: ReadonlyArray<string>;
-  readonly wait: boolean;
 }
 
 const program = new Command();
 
 program
   .name('poesygen')
-  .description('生成、校验和微调词作')
+  .description('在本地生成、校验和微调词作')
   .version('0.1.0')
-  .option(
-    '--api <url>',
-    'PoesyGen API 地址',
-    process.env['POESYGEN_API'] ?? 'http://localhost:3000',
-  )
   .option('-i, --interactive', '强制进入交互模式', false)
   .option('--json', '输出机器可读 JSON', false)
   .action(async () => {
@@ -65,23 +59,7 @@ program
       program.outputHelp();
       return;
     }
-    await runInteractiveMenu(createClient());
-  });
-
-program
-  .command('health')
-  .description('检查 API 服务状态')
-  .action(async () => {
-    const client = createClient();
-    const [health, generation] = await Promise.all([client.health(), client.getGenerationHealth()]);
-    print(
-      { api: health, generation },
-      [
-        `${health.service}: ${health.status}`,
-        `Redis: ${generation.redis}`,
-        `Worker: ${generation.workers > 0 ? `${generation.workers} 个在线` : '未连接'}`,
-      ].join('\n'),
-    );
+    await runInteractiveMenu();
   });
 
 program
@@ -126,7 +104,7 @@ program
   .description('查询单字的普通话、反切、唐音和平仄韵部')
   .action(async (value?: string) => {
     const character = value ?? (await requireInteractive(promptCharacter));
-    if (Array.from(character.trim()).length !== 1) {
+    if (!isSingleHanCharacter(character)) {
       throw new Error('character 命令需要且只接受一个汉字');
     }
     const result = await getLocalCharacterPronunciations(character.trim());
@@ -135,26 +113,13 @@ program
   });
 
 program
-  .command('session <id>')
-  .description('查询生成进度或最终词作')
-  .option('-w, --wait', '持续等待任务结束', false)
-  .action(async (id: string, options: { wait: boolean }) => {
-    const client = createClient();
-    const session = options.wait
-      ? await waitForSession(client, id)
-      : await client.getGenerationSession(id);
-    print(session, formatGenerationSession(session));
-  });
-
-program
   .command('generate')
   .alias('create')
-  .description('提交生成任务；不传参数时进入交互引导')
-  .option('-p, --pattern <id>', '词牌 ID')
+  .description('直接调用已配置的 LLM；不传参数时进入交互引导')
+  .option('-p, --pattern <id>', '词牌 ID 或名称')
   .option('-t, --theme <text>', '作品主题')
   .option('-r, --rhyme <group>', '指定韵部')
-  .option('--no-wait', '提交后立即返回，不等待最终词作')
-  .addOption(new Option('--max-rounds <count>', '最大优化轮数').default('8').argParser(parseRounds))
+  .addOption(new Option('--max-rounds <count>', '最大优化轮数').default(8).argParser(parseRounds))
   .option(
     '--requirement <text>',
     '附加要求，可重复传入',
@@ -162,50 +127,38 @@ program
     [],
   )
   .action(async (options: GenerateOptions) => {
-    const client = createClient();
+    const patterns = await listLocalPatterns();
     const hasRequiredOptions = options.pattern !== undefined && options.theme !== undefined;
     if (!hasRequiredOptions && !isInteractiveTerminal()) {
       throw new Error('非交互环境必须同时提供 --pattern 和 --theme');
     }
 
     const request = hasRequiredOptions
-      ? {
-          patternId: options.pattern!,
-          theme: options.theme!,
-          maxRounds: Number(options.maxRounds),
-          ...(options.rhyme === undefined ? {} : { preferredRhymeGroup: options.rhyme }),
-          ...(options.requirement.length === 0
-            ? {}
-            : { additionalRequirements: [...options.requirement] }),
-        }
+      ? createRequest(await resolvePattern(patterns, options.pattern), options.theme!, options)
       : await buildInteractiveRequest({
-          ...(options.pattern === undefined ? {} : { patternId: options.pattern }),
+          ...(options.pattern === undefined
+            ? {}
+            : { patternId: (await resolvePattern(patterns, options.pattern)).id }),
           ...(options.theme === undefined ? {} : { theme: options.theme }),
           ...(options.rhyme === undefined ? {} : { preferredRhymeGroup: options.rhyme }),
-          maxRounds: Number(options.maxRounds),
+          maxRounds: options.maxRounds,
         });
     if (request === undefined) {
       process.stdout.write('已取消。\n');
       return;
     }
 
-    const session = await client.createGenerationSession(request);
-    if (!options.wait) {
-      print(
-        session,
-        [`任务已进入队列`, `会话：${session.id}`, `任务：${session.jobId}`].join('\n'),
-      );
-      return;
-    }
-    if (!program.opts<RootOptions>().json) {
-      process.stdout.write(`任务已进入队列\n会话：${session.id}\n`);
-    }
-    const completed = await waitForSession(client, session.id);
-    print(completed, formatGenerationSession(completed));
+    const pattern = patterns.find(({ id }) => id === request.patternId);
+    if (pattern === undefined) throw new Error(`未找到词牌：${request.patternId}`);
+    await generateAndPrint(request, pattern);
   });
 
 try {
-  await program.parseAsync();
+  const argumentsToParse =
+    process.argv[2] === '--'
+      ? [...process.argv.slice(0, 2), ...process.argv.slice(3)]
+      : process.argv;
+  await program.parseAsync(argumentsToParse);
 } catch (error) {
   if (isExitPromptError(error)) {
     process.stdout.write('\n已退出。\n');
@@ -215,7 +168,7 @@ try {
   }
 }
 
-async function runInteractiveMenu(client: PoesyGenClient): Promise<void> {
+async function runInteractiveMenu(): Promise<void> {
   process.stdout.write('PoesyGen 词作工作台\n\n');
   let patterns: ReadonlyArray<CiPattern> | undefined;
   let groups: ReadonlyArray<RhymeGroupSummary> | undefined;
@@ -225,16 +178,6 @@ async function runInteractiveMenu(client: PoesyGenClient): Promise<void> {
     process.stdout.write('\n');
     if (action === 'exit') return;
 
-    if (action === 'health') {
-      const [health, generation] = await Promise.all([
-        client.health(),
-        client.getGenerationHealth(),
-      ]);
-      process.stdout.write(
-        `${health.service}: ${health.status}\nRedis: ${generation.redis}\nWorker: ${generation.workers} 个在线\n\n`,
-      );
-      continue;
-    }
     if (action === 'pattern') {
       patterns ??= await listLocalPatterns();
       process.stdout.write(`${formatPattern(await promptPattern(patterns))}\n\n`);
@@ -255,20 +198,49 @@ async function runInteractiveMenu(client: PoesyGenClient): Promise<void> {
       process.stdout.write(`${formatCharacter(result)}\n\n`);
       continue;
     }
-    if (action === 'generate') {
-      patterns ??= await listLocalPatterns();
-      groups ??= await listLocalRhymeGroups();
-      const request = await promptGenerationRequest(patterns, groups);
-      if (request === undefined) {
-        process.stdout.write('已取消。\n\n');
-        continue;
-      }
-      const session = await client.createGenerationSession(request);
-      process.stdout.write(`任务已进入队列\n会话：${session.id}\n`);
-      const completed = await waitForSession(client, session.id);
-      process.stdout.write(`${formatGenerationSession(completed)}\n\n`);
+
+    patterns ??= await listLocalPatterns();
+    groups ??= await listLocalRhymeGroups();
+    const request = await promptGenerationRequest(patterns, groups);
+    if (request === undefined) {
+      process.stdout.write('已取消。\n\n');
+      continue;
     }
+    const pattern = patterns.find(({ id }) => id === request.patternId);
+    if (pattern === undefined) throw new Error(`未找到词牌：${request.patternId}`);
+    await generateAndPrint(request, pattern);
+    process.stdout.write('\n');
   }
+}
+
+async function generateAndPrint(request: GenerationRequest, pattern: CiPattern): Promise<void> {
+  if (isInteractiveTerminal()) {
+    await promptMissingLlmEnvironment();
+  }
+  loadCliLlmConfig();
+  if (!program.opts<RootOptions>().json) {
+    process.stdout.write('正在直接调用 LLM，并在本地校验格律…\n');
+  }
+  const result = await runLocalGeneration(request, pattern);
+  print(result, formatGenerationResult(result, pattern));
+}
+
+function createRequest(
+  pattern: CiPattern,
+  theme: string,
+  options: GenerateOptions,
+): GenerationRequest {
+  const normalizedTheme = theme.trim();
+  if (normalizedTheme === '') throw new Error('作品主题不能为空');
+  return {
+    patternId: pattern.id,
+    theme: normalizedTheme,
+    maxRounds: options.maxRounds,
+    ...(options.rhyme === undefined ? {} : { preferredRhymeGroup: options.rhyme }),
+    ...(options.requirement.length === 0
+      ? {}
+      : { additionalRequirements: [...options.requirement] }),
+  };
 }
 
 async function resolvePattern(
@@ -292,23 +264,18 @@ async function buildInteractiveRequest(defaults: Parameters<typeof promptGenerat
   return promptGenerationRequest(patterns, groups, defaults);
 }
 
-function createClient(): PoesyGenClient {
-  const { api } = program.opts<RootOptions>();
-  return new PoesyGenClient({ baseUrl: api });
-}
-
 function print(value: unknown, text: string): void {
   process.stdout.write(
     `${program.opts<RootOptions>().json ? JSON.stringify(value, null, 2) : text}\n`,
   );
 }
 
-function parseRounds(value: string): string {
+function parseRounds(value: string): number {
   const rounds = Number(value);
   if (!Number.isInteger(rounds) || rounds < 1 || rounds > 20) {
     throw new Error('--max-rounds 必须是 1 到 20 之间的整数');
   }
-  return value;
+  return rounds;
 }
 
 function isInteractiveTerminal(): boolean {
@@ -330,41 +297,8 @@ function isExitPromptError(error: unknown): boolean {
 }
 
 function formatError(error: unknown): string {
-  if (error instanceof PoesyGenApiError) {
-    const body =
-      typeof error.body === 'object' && error.body !== null
-        ? (error.body as { message?: unknown; error?: unknown })
-        : undefined;
-    const detail =
-      typeof body?.message === 'string'
-        ? body.message
-        : typeof body?.error === 'string'
-          ? body.error
-          : typeof error.body === 'string'
-            ? error.body
-            : '请求失败';
-    return `API ${error.status}: ${detail}`;
-  }
   if (error instanceof TypeError && error.message === 'fetch failed') {
-    const { api } = program.opts<RootOptions>();
-    return [
-      `无法连接 PoesyGen API：${api}`,
-      '生成和会话操作需要 API；请先在另一个终端运行 `pnpm dev`，或用 --api 指定地址。',
-    ].join('\n');
+    return '无法连接 LLM API，请检查 LLM_BASE_URL、网络和供应商状态。';
   }
   return error instanceof Error ? error.message : String(error);
-}
-
-async function waitForSession(client: PoesyGenClient, sessionId: string) {
-  let lastProgress: string | undefined;
-  return client.waitForGenerationSession(sessionId, {
-    onUpdate(session) {
-      if (program.opts<RootOptions>().json) return;
-      const progress = formatProgress(session.progress);
-      if (progress !== undefined && progress !== lastProgress) {
-        process.stdout.write(`${progress}\n`);
-        lastProgress = progress;
-      }
-    },
-  });
 }

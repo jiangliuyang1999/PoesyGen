@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { CiPattern } from '@poesygen/client-sdk';
+import type { CiPattern } from '@poesygen/domain';
 
 import { PatternPreview } from './PatternPreview.js';
 import {

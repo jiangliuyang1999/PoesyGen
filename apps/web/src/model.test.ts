@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CiPattern, RhymeGroupSummary } from '@poesygen/client-sdk';
+import type { CiPattern } from '@poesygen/domain';
 
+import type { RhymeGroupSummary } from './catalog-types.js';
 import {
   compatibleRhymeGroups,
   filterPatterns,

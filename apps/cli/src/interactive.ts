@@ -1,12 +1,13 @@
-import { confirm, input, number, select } from '@inquirer/prompts';
+import { confirm, input, number, password, select } from '@inquirer/prompts';
 
-import type { CiPattern, PoesyGenClient, RhymeGroupSummary } from '@poesygen/client-sdk';
+import type { CiPattern, GenerationRequest } from '@poesygen/domain';
 
-import { formatPatternSummary, patternRhymeLabels } from './format.js';
+import { isSingleHanCharacter } from './character.js';
+import { formatPatternVariantSummary, patternRhymeLabels } from './format.js';
+import { listMissingCliLlmFields, type Environment } from './generation.js';
+import type { RhymeGroupSummary } from './local-catalog.js';
 
-type GenerationRequest = Parameters<PoesyGenClient['createGenerationSession']>[0];
-
-export type MainAction = 'generate' | 'pattern' | 'rhymes' | 'character' | 'health' | 'exit';
+export type MainAction = 'generate' | 'pattern' | 'rhymes' | 'character' | 'exit';
 
 export interface GenerationDefaults {
   readonly patternId?: string;
@@ -24,7 +25,6 @@ export async function promptMainAction(): Promise<MainAction> {
       { name: '查看词牌', value: 'pattern', description: '浏览句式、平仄和例词' },
       { name: '浏览词林正韵', value: 'rhymes', description: '查看十九部韵字' },
       { name: '查询单字', value: 'character', description: '查看普通话、反切和古韵' },
-      { name: '检查服务', value: 'health', description: '确认 API 是否可用' },
       { name: '退出', value: 'exit' },
     ],
   });
@@ -34,18 +34,34 @@ export async function promptPattern(
   patterns: ReadonlyArray<CiPattern>,
   message = '选择词牌',
 ): Promise<CiPattern> {
-  const patternId = await select({
+  const families = groupPatternsByName(patterns);
+  if (families.length === 0) throw new Error('没有可用词牌');
+  const patternName = await select({
     message,
     pageSize: 12,
     loop: false,
-    choices: patterns.map((pattern) => ({
-      name: formatPatternSummary(pattern),
+    choices: families.map((family) => ({
+      name: family.name,
+      value: family.name,
+      description: `${family.patterns.length} 种体式`,
+    })),
+  });
+  const family = families.find(({ name }) => name === patternName);
+  if (family === undefined) throw new Error(`未找到词牌 ${patternName}`);
+  if (family.patterns.length === 1) return family.patterns[0]!;
+
+  const patternId = await select({
+    message: `选择《${family.name}》的体式`,
+    pageSize: 12,
+    loop: false,
+    choices: family.patterns.map((pattern) => ({
+      name: formatPatternVariantSummary(pattern),
       value: pattern.id,
       ...(pattern.example === undefined ? {} : { description: `例词：${pattern.example.author}` }),
     })),
   });
-  const pattern = patterns.find(({ id }) => id === patternId);
-  if (pattern === undefined) throw new Error(`未找到词牌 ${patternId}`);
+  const pattern = family.patterns.find(({ id }) => id === patternId);
+  if (pattern === undefined) throw new Error(`未找到体式 ${patternId}`);
   return pattern;
 }
 
@@ -72,9 +88,44 @@ export async function promptRhymeGroup(
 export async function promptCharacter(): Promise<string> {
   return input({
     message: '输入一个汉字',
-    validate: (value) => Array.from(value.trim()).length === 1 || '请输入一个汉字',
+    validate: (value) => isSingleHanCharacter(value) || '请输入一个汉字',
     transformer: (value) => value.trim(),
   });
+}
+
+export async function promptMissingLlmEnvironment(
+  environment: Environment = process.env,
+): Promise<void> {
+  const missing = listMissingCliLlmFields(environment);
+  if (missing.length === 0) return;
+
+  process.stdout.write('\n未检测到完整的 LLM 环境变量，请补充当前会话配置。\n');
+  if (missing.includes('connection')) {
+    environment['LLM_BASE_URL'] = (
+      await input({
+        message: 'LLM_BASE_URL',
+        default: 'https://api.openai.com/v1',
+        validate: validateHttpUrl,
+      })
+    ).trim();
+  }
+  if (missing.includes('model')) {
+    environment['LLM_MODEL'] = (
+      await input({
+        message: 'LLM_MODEL',
+        validate: (value) => value.trim() !== '' || '请输入模型名称或方舟 endpoint-id',
+      })
+    ).trim();
+  }
+  if (missing.includes('apiKey')) {
+    environment['LLM_API_KEY'] = (
+      await password({
+        message: 'LLM_API_KEY（仅用于当前进程）',
+        mask: '*',
+        validate: (value) => value.trim() !== '' || '请输入 API Key',
+      })
+    ).trim();
+  }
 }
 
 export async function promptGenerationRequest(
@@ -156,9 +207,36 @@ export async function promptGenerationRequest(
     ...(additionalRequirements.length === 0 ? {} : { additionalRequirements }),
   };
   const shouldSubmit = await confirm({
-    message: `提交《${pattern.name}》生成任务？`,
+    message: `开始生成《${pattern.name}》？`,
     default: true,
   });
 
   return shouldSubmit ? request : undefined;
+}
+
+function validateHttpUrl(value: string): boolean | string {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? true
+      : '请输入 HTTP 或 HTTPS 地址';
+  } catch {
+    return '请输入有效的 API Base URL';
+  }
+}
+
+function groupPatternsByName(patterns: ReadonlyArray<CiPattern>): ReadonlyArray<{
+  readonly name: string;
+  readonly patterns: ReadonlyArray<CiPattern>;
+}> {
+  const grouped = new Map<string, CiPattern[]>();
+  for (const pattern of patterns) {
+    const variants = grouped.get(pattern.name) ?? [];
+    variants.push(pattern);
+    grouped.set(pattern.name, variants);
+  }
+  return [...grouped].map(([name, variants]) => ({
+    name,
+    patterns: variants,
+  }));
 }

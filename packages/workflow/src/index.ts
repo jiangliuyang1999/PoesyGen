@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 
 import type {
@@ -169,7 +167,7 @@ export class ExampleDraftEngine implements DraftEngine {
     if (request.sourceDraft !== undefined && request.selections !== undefined) {
       return Promise.resolve({
         ...request.sourceDraft,
-        id: randomUUID(),
+        id: globalThis.crypto.randomUUID(),
         version: request.sourceDraft.version + 1,
       });
     }
@@ -192,7 +190,7 @@ export class ExampleDraftEngine implements DraftEngine {
   public repairDraft(input: RepairDraftInput, _signal?: AbortSignal): Promise<WorkDraft> {
     return Promise.resolve({
       ...input.draft,
-      id: randomUUID(),
+      id: globalThis.crypto.randomUUID(),
       version: input.draft.version + 1,
     });
   }
@@ -459,7 +457,7 @@ function payloadToDraft(
 ): WorkDraft {
   const expectedLines = pattern.sections.flatMap((section) => section.lines);
   return {
-    id: randomUUID(),
+    id: globalThis.crypto.randomUUID(),
     patternId: pattern.id,
     theme: request.theme,
     ...(typeof request.preferredRhymeGroup === 'string'

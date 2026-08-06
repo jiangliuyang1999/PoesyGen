@@ -6,7 +6,6 @@ import { app, BrowserWindow, Menu, net, protocol, shell } from 'electron';
 
 const scheme = 'poesygen';
 const developmentUrl = process.env['DESKTOP_WEB_URL'] ?? 'http://localhost:5173';
-const apiBaseUrl = (process.env['POESYGEN_API'] ?? 'http://127.0.0.1:3000').replace(/\/+$/u, '');
 const builtPreview = process.argv.includes('--built');
 
 protocol.registerSchemesAsPrivileged([
@@ -88,30 +87,12 @@ function loadDevelopmentUrl(window: BrowserWindow, retries = 40): void {
 async function handleApplicationRequest(request: Request, webRoot: string): Promise<Response> {
   const url = new URL(request.url);
   if (url.hostname !== 'app') return new Response('Not found', { status: 404 });
-  if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
-    return proxyApiRequest(request, url);
-  }
 
   const requestedPath = decodeURIComponent(url.pathname === '/' ? 'index.html' : url.pathname);
   const filePath = safeWebPath(webRoot, requestedPath);
   const existingPath = filePath === undefined ? undefined : await existingFile(filePath);
   const responsePath = existingPath ?? join(webRoot, 'index.html');
   return net.fetch(pathToFileURL(responsePath).toString());
-}
-
-async function proxyApiRequest(request: Request, url: URL): Promise<Response> {
-  const target = `${apiBaseUrl}${url.pathname.slice('/api'.length)}${url.search}`;
-  const headers = new Headers(request.headers);
-  headers.delete('content-length');
-  headers.delete('host');
-  headers.delete('origin');
-  const body =
-    request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer();
-  return net.fetch(target, {
-    method: request.method,
-    headers,
-    ...(body === undefined ? {} : { body }),
-  });
 }
 
 function safeWebPath(webRoot: string, pathname: string): string | undefined {

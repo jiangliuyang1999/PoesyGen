@@ -1,5 +1,6 @@
-import type { CiPattern, RhymeGroupSummary } from '@poesygen/client-sdk';
+import type { CiPattern } from '@poesygen/domain';
 
+import type { RhymeGroupSummary } from './catalog-types.js';
 export interface PatternRhymeLabel {
   readonly id: string;
   readonly tone: 'level' | 'oblique' | 'either';

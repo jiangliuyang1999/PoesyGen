@@ -1,4 +1,4 @@
-import type { CiPattern, GenerationResult } from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult } from '@poesygen/domain';
 
 export const generationHistoryStorageKey = 'poesygen:generation-history:v1';
 

@@ -14,11 +14,9 @@
     "clean": "turbo run clean",
     "data:check": "tsx tooling/data/import-authoritative-data.ts --check",
     "data:import": "tsx tooling/data/import-authoritative-data.ts",
-    "dev": "node --env-file-if-exists=.env ./node_modules/turbo/bin/turbo run dev --parallel",
+    "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "infra:down": "docker compose down",
-    "infra:up": "docker compose up -d redis",
     "test": "turbo run test",
     "typecheck": "tsc -p tooling/tsconfig.json --noEmit && turbo run typecheck"
   },

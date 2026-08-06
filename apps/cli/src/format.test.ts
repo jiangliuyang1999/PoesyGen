@@ -1,19 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import type {
-  CharacterPronunciationResponse,
-  CiPattern,
-  GenerationSessionStatusResponse,
-} from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult } from '@poesygen/domain';
 import { findPattern } from '@poesygen/patterns';
 
 import {
   formatCharacter,
-  formatGenerationSession,
+  formatGenerationResult,
   formatPattern,
   formatPatternSummary,
   patternRhymeLabels,
 } from './format.js';
+import type { CharacterPronunciationResponse } from './local-catalog.js';
 
 const pattern: CiPattern = {
   id: 'test-standard',
@@ -77,11 +74,11 @@ describe('CLI formatters', () => {
   });
 
   it('adds the tune name to generated titles without duplicating it', () => {
-    expect(formatGenerationSession(createCompletedSession('春归'))).toMatch(/^如梦令·春归\n/u);
-    expect(formatGenerationSession(createCompletedSession('如梦令·春归'))).toMatch(
+    expect(formatGenerationResult(createGenerationResult('春归'))).toMatch(/^如梦令·春归\n/u);
+    expect(formatGenerationResult(createGenerationResult('如梦令·春归'))).toMatch(
       /^如梦令·春归\n/u,
     );
-    expect(formatGenerationSession(createCompletedSession('如梦令·如梦令·春归'))).toMatch(
+    expect(formatGenerationResult(createGenerationResult('如梦令·如梦令·春归'))).toMatch(
       /^如梦令·春归\n/u,
     );
   });
@@ -95,8 +92,8 @@ describe('CLI formatters', () => {
       .flatMap((section) => section.lines)
       .map((_, index) => `第${index + 1}句`);
     const upperLineCount = doublePattern.sections[0]?.lines.length ?? 0;
-    const output = formatGenerationSession(
-      createCompletedSession('春归', {
+    const output = formatGenerationResult(
+      createGenerationResult('春归', {
         patternId: doublePattern.id,
         lineTexts,
       }),
@@ -107,37 +104,30 @@ describe('CLI formatters', () => {
   });
 });
 
-function createCompletedSession(
+function createGenerationResult(
   title: string,
   options: {
     readonly patternId?: string;
     readonly lineTexts?: ReadonlyArray<string>;
   } = {},
-): GenerationSessionStatusResponse {
+): GenerationResult {
   return {
-    id: 'session-1',
-    jobId: 'job-1',
     status: 'completed',
-    progress: 100,
-    result: {
-      sessionId: 'session-1',
-      status: 'completed',
-      rounds: 2,
-      draft: {
-        id: 'draft-1',
-        patternId: options.patternId ?? 'ru-meng-ling-standard',
-        theme: '暮春',
-        version: 2,
-        title,
-        lines: (options.lineTexts ?? ['春归']).map((text, index) => ({
-          id: `line-${index + 1}`,
-          text,
-        })),
-      },
-      report: {
-        passed: true,
-        issues: [],
-      },
+    rounds: 2,
+    draft: {
+      id: 'draft-1',
+      patternId: options.patternId ?? 'ru-meng-ling-standard',
+      theme: '暮春',
+      version: 2,
+      title,
+      lines: (options.lineTexts ?? ['春归']).map((text, index) => ({
+        id: `line-${index + 1}`,
+        text,
+      })),
+    },
+    report: {
+      passed: true,
+      issues: [],
     },
   };
 }

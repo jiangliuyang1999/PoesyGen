@@ -9,7 +9,7 @@
     "open:ios": "cap open ios",
     "run:android": "pnpm run sync && cap run android",
     "run:ios": "pnpm run sync && cap run ios",
-    "sync": "node scripts/require-api-url.mjs && pnpm --filter @poesygen/web build && cap sync",
+    "sync": "pnpm --filter @poesygen/web build && cap sync",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

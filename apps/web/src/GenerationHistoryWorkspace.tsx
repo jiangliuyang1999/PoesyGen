@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import type { GenerationResult, TextSelection } from '@poesygen/client-sdk';
+import type { GenerationResult, TextSelection } from '@poesygen/domain';
 
 import { GenerationResultPanel } from './GenerationResultPanel.js';
 import {

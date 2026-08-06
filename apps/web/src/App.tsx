@@ -1,19 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import {
-  PoesyGenClient,
-  type CharacterPronunciationResponse,
-  type CiPattern,
-  type GenerationHealthResponse,
-  type GenerationResult,
-  type IdeaSuggestionsResponse,
-  type GenerationSessionResponse,
-  type GenerationSessionStatusResponse,
-  type RhymeGroupDetail,
-  type RhymeGroupSummary,
-  type TextSelection,
-} from '@poesygen/client-sdk';
+import type {
+  CiPattern,
+  GenerationRequest,
+  GenerationResult,
+  TextSelection,
+} from '@poesygen/domain';
 
+import type {
+  CharacterPronunciationResponse,
+  RhymeGroupDetail,
+  RhymeGroupSummary,
+} from './catalog-types.js';
 import { DictionaryWorkspace } from './DictionaryWorkspace.js';
 import { GenerationHistoryWorkspace } from './GenerationHistoryWorkspace.js';
 import { GenerationResultPanel } from './GenerationResultPanel.js';
@@ -22,10 +20,17 @@ import {
   isSubmissionInProgress,
   type SubmissionStatus,
 } from './GenerationSettings.js';
+import { LlmConfigDialog } from './LlmConfigDialog.js';
 import { MobileAppChrome, type ApplicationView } from './MobileAppChrome.js';
 import { MobilePatternWorkspace } from './MobilePatternWorkspace.js';
 import { PatternBrowser } from './PatternBrowser.js';
 import { PatternPreview, PatternPreviewTitle } from './PatternPreview.js';
+import {
+  isDirectLlmConfigReady,
+  loadDirectLlmConfig,
+  saveDirectLlmConfig,
+} from './direct-llm-config.js';
+import { runDirectGeneration, runDirectIdeaSuggestions } from './direct-generation.js';
 import { toUserMessage } from './errors.js';
 import {
   addGenerationHistoryEntry,
@@ -34,6 +39,8 @@ import {
   saveGenerationHistory,
   type GenerationHistoryEntry,
 } from './generation-history.js';
+import { LocalCatalogClient } from './local-catalog.js';
+import { randomLocalCreationIdeas } from './local-ideas.js';
 import {
   displayRhymeLabel,
   formatPatternVariantSummary,
@@ -45,20 +52,8 @@ import {
 export interface AppClient {
   listPatterns(): Promise<ReadonlyArray<CiPattern>>;
   listCilinRhymeGroups(): Promise<ReadonlyArray<RhymeGroupSummary>>;
-  getGenerationHealth(): Promise<GenerationHealthResponse>;
-  suggestCreationIdeas(): Promise<IdeaSuggestionsResponse>;
   getCilinRhymeGroup(groupId: string): Promise<RhymeGroupDetail>;
   getCharacterPronunciations(character: string): Promise<CharacterPronunciationResponse>;
-  createGenerationSession(
-    request: Parameters<PoesyGenClient['createGenerationSession']>[0],
-  ): Promise<GenerationSessionResponse>;
-  createRefinementSession(
-    request: Parameters<PoesyGenClient['createRefinementSession']>[0],
-  ): Promise<GenerationSessionResponse>;
-  waitForGenerationSession(
-    sessionId: string,
-    options?: Parameters<PoesyGenClient['waitForGenerationSession']>[1],
-  ): Promise<GenerationSessionStatusResponse>;
 }
 
 interface AppProps {
@@ -77,16 +72,8 @@ const idleStatus: SubmissionStatus = {
   message: '',
 };
 
-const initialLoadRetryDelays = [0, 250, 500, 1_000, 1_500] as const;
-
 export function App({ client: providedClient }: AppProps = {}) {
-  const defaultClient = useMemo(
-    () =>
-      new PoesyGenClient({
-        baseUrl: import.meta.env['VITE_API_URL'] ?? '/api',
-      }),
-    [],
-  );
+  const defaultClient = useMemo(() => new LocalCatalogClient(), []);
   const client = providedClient ?? defaultClient;
   const [view, setView] = useState<ApplicationView>('create');
   const [patterns, setPatterns] = useState<ReadonlyArray<CiPattern>>([]);
@@ -98,6 +85,8 @@ export function App({ client: providedClient }: AppProps = {}) {
   const [requirements, setRequirements] = useState('');
   const [rounds, setRounds] = useState(8);
   const [rhymeAssignments, setRhymeAssignments] = useState<Record<string, string>>({});
+  const [directLlmConfig, setDirectLlmConfig] = useState(loadDirectLlmConfig);
+  const [llmConfigOpen, setLlmConfigOpen] = useState(false);
   const [ideaSuggestions, setIdeaSuggestions] = useState<IdeaSuggestionsState>({
     status: 'idle',
     suggestions: [],
@@ -105,57 +94,37 @@ export function App({ client: providedClient }: AppProps = {}) {
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>(idleStatus);
   const [resultVersions, setResultVersions] = useState<ReadonlyArray<GenerationResult>>([]);
   const [activeHistoryEntryId, setActiveHistoryEntryId] = useState<string>();
-  const [connectionStatus, setConnectionStatus] = useState('正在载入词谱…');
-  const [generationAvailable, setGenerationAvailable] = useState(false);
+  const [catalogStatus, setCatalogStatus] = useState('正在载入本地词谱…');
   const [dictionaryCharacter, setDictionaryCharacter] = useState<string>();
   const [generationHistory, setGenerationHistory] =
     useState<ReadonlyArray<GenerationHistoryEntry>>(loadGenerationHistory);
   const ideaRequestSequence = useRef(0);
-  const prefetchedIdeaSuggestions = useRef<ReadonlyArray<string> | undefined>(undefined);
-  const ideaPrefetchPromise = useRef<Promise<ReadonlyArray<string>> | undefined>(undefined);
   const creationLocked = isSubmissionInProgress(submissionStatus);
+  const creationServiceAvailable = isDirectLlmConfigReady(directLlmConfig);
+
+  useEffect(() => {
+    saveDirectLlmConfig(directLlmConfig);
+  }, [directLlmConfig]);
 
   useEffect(() => {
     let active = true;
 
     const loadInitialData = async (): Promise<void> => {
-      let lastError: unknown = new Error('无法连接生成服务');
-
-      for (const retryDelay of initialLoadRetryDelays) {
+      try {
+        const [loadedPatterns, loadedGroups] = await Promise.all([
+          client.listPatterns(),
+          client.listCilinRhymeGroups(),
+        ]);
         if (!active) return;
-        if (retryDelay > 0) {
-          setConnectionStatus('API 正在启动，正在重新连接…');
-          await new Promise((resolve) => setTimeout(resolve, retryDelay));
-          if (!active) return;
-        }
-
-        try {
-          const [loadedPatterns, loadedGroups, generation] = await Promise.all([
-            client.listPatterns(),
-            client.listCilinRhymeGroups(),
-            client.getGenerationHealth(),
-          ]);
-          if (!active) return;
-          const tuneCount = new Set(loadedPatterns.map(({ name }) => name)).size;
-          setPatterns(loadedPatterns);
-          setRhymeGroups(loadedGroups);
-          setGenerationAvailable(generation.available);
-          const initialPatternId = loadedPatterns[0]?.id ?? '';
-          setCreationPatternId(initialPatternId);
-          setCatalogPatternId(initialPatternId);
-          setConnectionStatus(
-            generation.available
-              ? `已载入 ${tuneCount} 个词牌、${loadedPatterns.length} 种体式，生成 Worker 已就绪`
-              : `已载入 ${tuneCount} 个词牌、${loadedPatterns.length} 种体式，但生成 Worker 未连接`,
-          );
-          return;
-        } catch (error) {
-          lastError = error;
-        }
-      }
-
-      if (active) {
-        setConnectionStatus(toUserMessage(lastError));
+        const tuneCount = new Set(loadedPatterns.map(({ name }) => name)).size;
+        setPatterns(loadedPatterns);
+        setRhymeGroups(loadedGroups);
+        const initialPatternId = loadedPatterns[0]?.id ?? '';
+        setCreationPatternId(initialPatternId);
+        setCatalogPatternId(initialPatternId);
+        setCatalogStatus(`已载入 ${tuneCount} 个词牌、${loadedPatterns.length} 种体式`);
+      } catch (error) {
+        if (active) setCatalogStatus(toUserMessage(error));
       }
     };
 
@@ -196,54 +165,24 @@ export function App({ client: providedClient }: AppProps = {}) {
     setView('dictionary');
   };
 
-  function startIdeaSuggestionPrefetch(): Promise<ReadonlyArray<string>> {
-    if (prefetchedIdeaSuggestions.current !== undefined) {
-      return Promise.resolve(prefetchedIdeaSuggestions.current);
-    }
-    if (ideaPrefetchPromise.current !== undefined) {
-      return ideaPrefetchPromise.current;
-    }
-
-    const pending = client.suggestCreationIdeas().then(normalizeIdeaSuggestions);
-    ideaPrefetchPromise.current = pending;
-    void pending
-      .then((suggestions) => {
-        prefetchedIdeaSuggestions.current = suggestions;
-      })
-      .catch(() => undefined)
-      .finally(() => {
-        if (ideaPrefetchPromise.current === pending) ideaPrefetchPromise.current = undefined;
-      });
-    return pending;
-  }
-
   function requestIdeaSuggestions(preserveCurrent = false): void {
-    if (preserveCurrent && prefetchedIdeaSuggestions.current !== undefined) {
-      ideaRequestSequence.current += 1;
-      const suggestions = prefetchedIdeaSuggestions.current;
-      prefetchedIdeaSuggestions.current = undefined;
-      setIdeaSuggestions({ status: 'ready', suggestions });
-      void startIdeaSuggestionPrefetch().catch(() => undefined);
+    const requestSequence = ++ideaRequestSequence.current;
+    if (!isDirectLlmConfigReady(directLlmConfig)) {
+      setIdeaSuggestions({
+        status: 'ready',
+        suggestions: randomLocalCreationIdeas(),
+      });
       return;
     }
 
-    const requestSequence = ++ideaRequestSequence.current;
     setIdeaSuggestions((current) => ({
       status: 'loading',
       suggestions: preserveCurrent ? current.suggestions : [],
     }));
-    const request =
-      preserveCurrent && ideaPrefetchPromise.current !== undefined
-        ? ideaPrefetchPromise.current
-        : client.suggestCreationIdeas().then(normalizeIdeaSuggestions);
-    void request
+    void runDirectIdeaSuggestions(directLlmConfig)
       .then((suggestions) => {
         if (requestSequence !== ideaRequestSequence.current) return;
-        if (prefetchedIdeaSuggestions.current === suggestions) {
-          prefetchedIdeaSuggestions.current = undefined;
-        }
         setIdeaSuggestions({ status: 'ready', suggestions });
-        void startIdeaSuggestionPrefetch().catch(() => undefined);
       })
       .catch(() => {
         if (requestSequence !== ideaRequestSequence.current) return;
@@ -256,11 +195,18 @@ export function App({ client: providedClient }: AppProps = {}) {
 
   const submit = async (event: { preventDefault(): void }): Promise<void> => {
     event.preventDefault();
-    if (creationLocked || creationPattern === undefined || theme.trim() === '') return;
+    if (
+      creationLocked ||
+      !creationServiceAvailable ||
+      creationPattern === undefined ||
+      theme.trim() === ''
+    ) {
+      return;
+    }
 
     setSubmissionStatus({
       kind: 'loading',
-      message: '正在创建会话并投递生成任务。',
+      message: '正在准备页面直连生成流程。',
     });
     const labels = patternRhymeLabels(creationPattern);
     const selectedRhymes = Object.fromEntries(
@@ -294,77 +240,60 @@ export function App({ client: providedClient }: AppProps = {}) {
         };
       }),
     };
+    const generationRequest = {
+      patternId: creationPattern.id,
+      theme: theme.trim(),
+      maxRounds: rounds,
+      ...(preferredRhymeGroup === undefined ? {} : { preferredRhymeGroup }),
+      ...(additionalRequirements.length === 0
+        ? {}
+        : { additionalRequirements: [...additionalRequirements] }),
+    };
+
+    const completeGeneration = (result: GenerationResult, sessionId: string): void => {
+      setSubmissionStatus({
+        kind: 'completed',
+        message: result.report.passed
+          ? `《${creationPattern.name}》已通过格律校验。`
+          : `《${creationPattern.name}》已达到优化轮次上限。`,
+        sessionId,
+        result,
+      });
+      setResultVersions([result]);
+      setActiveHistoryEntryId(sessionId);
+      const historyEntry: GenerationHistoryEntry = {
+        id: sessionId,
+        createdAt: new Date().toISOString(),
+        theme: theme.trim(),
+        settings: historySettings,
+        pattern: creationPattern,
+        result,
+        versions: [result],
+      };
+      setGenerationHistory((current) => {
+        const next = addGenerationHistoryEntry(current, historyEntry);
+        saveGenerationHistory(next);
+        return next;
+      });
+    };
 
     try {
-      const session = await client.createGenerationSession({
-        patternId: creationPattern.id,
-        theme: theme.trim(),
-        maxRounds: rounds,
-        ...(preferredRhymeGroup === undefined ? {} : { preferredRhymeGroup }),
-        ...(additionalRequirements.length === 0
-          ? {}
-          : { additionalRequirements: [...additionalRequirements] }),
-      });
-      setSubmissionStatus({
-        kind: 'queued',
-        message: `《${creationPattern.name}》生成任务已进入队列。`,
-        sessionId: session.id,
-        jobId: session.jobId,
-      });
-      const completed = await client.waitForGenerationSession(session.id, {
-        onUpdate(update) {
-          if (update.status !== 'queued' && update.status !== 'running') return;
-          setSubmissionStatus({
-            kind: update.status,
-            message:
-              progressMessage(update.progress) ??
-              (update.status === 'running' ? '模型正在生成并校验词稿。' : '等待 Worker 接收任务。'),
-            sessionId: update.id,
-            jobId: update.jobId,
-          });
+      const sessionId = `direct-${globalThis.crypto.randomUUID()}`;
+      const result = await runDirectGeneration(
+        directLlmConfig,
+        generationRequest,
+        creationPattern,
+        {
+          onProgress(progress) {
+            setSubmissionStatus({
+              kind: progress.phase,
+              message: progress.message,
+              sessionId,
+            });
+          },
         },
-      });
-      if (completed.status === 'failed') {
-        setSubmissionStatus({
-          kind: 'error',
-          message: completed.error ?? '生成任务失败。',
-          sessionId: completed.id,
-          jobId: completed.jobId,
-        });
-      } else if (completed.result === undefined) {
-        setSubmissionStatus({
-          kind: 'error',
-          message: '任务已结束，但没有返回词稿。',
-          sessionId: completed.id,
-          jobId: completed.jobId,
-        });
-      } else {
-        setSubmissionStatus({
-          kind: 'completed',
-          message: completed.result.report.passed
-            ? `《${creationPattern.name}》已通过格律校验。`
-            : `《${creationPattern.name}》已达到优化轮次上限。`,
-          sessionId: completed.id,
-          jobId: completed.jobId,
-          result: completed.result,
-        });
-        setResultVersions([completed.result]);
-        setActiveHistoryEntryId(completed.id);
-        const historyEntry: GenerationHistoryEntry = {
-          id: completed.id,
-          createdAt: new Date().toISOString(),
-          theme: theme.trim(),
-          settings: historySettings,
-          pattern: creationPattern,
-          result: completed.result,
-          versions: [completed.result],
-        };
-        setGenerationHistory((current) => {
-          const next = addGenerationHistoryEntry(current, historyEntry);
-          saveGenerationHistory(next);
-          return next;
-        });
-      }
+      );
+      completeGeneration(result, sessionId);
     } catch (error) {
       setSubmissionStatus({
         kind: 'error',
@@ -374,53 +303,37 @@ export function App({ client: providedClient }: AppProps = {}) {
   };
 
   const runRefinementSession = async (
-    request: Parameters<AppClient['createRefinementSession']>[0],
+    request: GenerationRequest,
     sourceResult: GenerationResult,
+    pattern: CiPattern,
     onStatus?: (status: SubmissionStatus) => void,
   ): Promise<{
     readonly result: GenerationResult;
     readonly sessionId: string;
-    readonly jobId: string;
   }> => {
-    const session = await client.createRefinementSession(request);
-    onStatus?.({
-      kind: 'queued',
-      message: '局部修改任务已进入队列。',
-      sessionId: session.id,
-      jobId: session.jobId,
-      result: sourceResult,
-    });
-    const completed = await client.waitForGenerationSession(session.id, {
-      onUpdate(update) {
-        if (update.status !== 'queued' && update.status !== 'running') return;
+    if (!isDirectLlmConfigReady(directLlmConfig)) {
+      throw new Error('请先完成 LLM 配置');
+    }
+    const sessionId = `direct-${globalThis.crypto.randomUUID()}`;
+    const result = await runDirectGeneration(directLlmConfig, request, pattern, {
+      onProgress(progress) {
         onStatus?.({
-          kind: update.status,
-          message:
-            progressMessage(update.progress) ??
-            (update.status === 'running' ? '模型正在按意见修改并校验。' : '等待 Worker 接收任务。'),
-          sessionId: update.id,
-          jobId: update.jobId,
+          kind: progress.phase,
+          message: progress.message,
+          sessionId,
           result: sourceResult,
         });
       },
     });
-    if (completed.status === 'failed' || completed.result === undefined) {
-      throw new Error(completed.error ?? '局部修改任务没有返回新词稿');
-    }
     onStatus?.({
       kind: 'completed',
-      message: completed.result.report.passed
+      message: result.report.passed
         ? '新版本已按意见修改并通过格律校验。'
         : '新版本已生成，但仍有格律问题。',
-      sessionId: completed.id,
-      jobId: completed.jobId,
-      result: completed.result,
+      sessionId,
+      result,
     });
-    return {
-      result: completed.result,
-      sessionId: completed.id,
-      jobId: completed.jobId,
-    };
+    return { result, sessionId };
   };
 
   const refineCurrentResult = async (selections: ReadonlyArray<TextSelection>): Promise<void> => {
@@ -473,6 +386,7 @@ export function App({ client: providedClient }: AppProps = {}) {
           additionalRequirements,
         }),
         sourceResult,
+        creationPattern,
         setSubmissionStatus,
       );
       setResultVersions((current) => [
@@ -535,6 +449,7 @@ export function App({ client: providedClient }: AppProps = {}) {
         additionalRequirements,
       }),
       sourceResult,
+      entry.pattern,
     );
     setGenerationHistory((current) => {
       const next = addGenerationHistoryVersion(current, entry.id, result);
@@ -559,15 +474,17 @@ export function App({ client: providedClient }: AppProps = {}) {
     document.body.scrollTop = 0;
   };
   const mobilePlatform = document.documentElement.dataset['platform'] === 'mobile';
+  const generationConnectionLabel = creationServiceAvailable ? 'LLM 已配置' : 'LLM 未配置';
 
   return (
     <div className="app-shell">
       {mobilePlatform ? (
         <MobileAppChrome
           activeView={view}
-          generationAvailable={generationAvailable}
-          hasLoadedPatterns={patterns.length > 0}
+          serviceReady={creationServiceAvailable}
+          serviceLabel={generationConnectionLabel}
           onSelectView={selectMobileView}
+          onOpenConfig={() => setLlmConfigOpen(true)}
         />
       ) : (
         <header className="topbar">
@@ -606,14 +523,16 @@ export function App({ client: providedClient }: AppProps = {}) {
             </button>
           </nav>
 
-          <div className="connection-status" title={connectionStatus}>
-            <span data-ready={generationAvailable} />
-            {generationAvailable
-              ? '生成服务就绪'
-              : patterns.length > 0
-                ? 'Worker 未连接'
-                : '正在连接'}
-          </div>
+          <button
+            className="connection-status"
+            type="button"
+            title={generationConnectionLabel}
+            aria-label={`生成配置：${generationConnectionLabel}`}
+            onClick={() => setLlmConfigOpen(true)}
+          >
+            <span data-ready={creationServiceAvailable} />
+            {generationConnectionLabel}
+          </button>
         </header>
       )}
 
@@ -625,7 +544,7 @@ export function App({ client: providedClient }: AppProps = {}) {
           onInitialCharacterHandled={() => setDictionaryCharacter(undefined)}
         />
       ) : patterns.length === 0 || creationPattern === undefined || catalogPattern === undefined ? (
-        <LoadingState message={connectionStatus} />
+        <LoadingState message={catalogStatus} />
       ) : view === 'patterns' ? (
         <main className="page-workspace" key="patterns">
           <header className="workspace-header">
@@ -851,7 +770,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                 rounds={rounds}
                 requirements={requirements}
                 status={submissionStatus}
-                canSubmit={theme.trim() !== '' && generationAvailable}
+                canSubmit={theme.trim() !== '' && creationServiceAvailable}
                 onRhymeChange={(label, groupId) =>
                   setRhymeAssignments((current) => {
                     const next = { ...current };
@@ -878,19 +797,17 @@ export function App({ client: providedClient }: AppProps = {}) {
           </form>
         </main>
       )}
+
+      <LlmConfigDialog
+        open={llmConfigOpen}
+        config={directLlmConfig}
+        disabled={creationLocked}
+        directReady={isDirectLlmConfigReady(directLlmConfig)}
+        onChange={setDirectLlmConfig}
+        onClose={() => setLlmConfigOpen(false)}
+      />
     </div>
   );
-}
-
-function normalizeIdeaSuggestions(response: IdeaSuggestionsResponse): ReadonlyArray<string> {
-  const suggestions = response.suggestions
-    .map((suggestion) => suggestion.trim())
-    .filter((suggestion) => suggestion !== '' && Array.from(suggestion).length <= 50)
-    .slice(0, 3);
-  if (suggestions.length !== 3) {
-    throw new Error('灵感推荐结果格式不正确');
-  }
-  return suggestions;
 }
 
 interface CreateRefinementRequestInput {
@@ -898,9 +815,7 @@ interface CreateRefinementRequestInput {
   readonly pattern: CiPattern;
   readonly selections: ReadonlyArray<TextSelection>;
   readonly maxRounds: number;
-  readonly preferredRhymeGroup: Parameters<
-    AppClient['createRefinementSession']
-  >[0]['preferredRhymeGroup'];
+  readonly preferredRhymeGroup: GenerationRequest['preferredRhymeGroup'];
   readonly additionalRequirements: ReadonlyArray<string>;
 }
 
@@ -911,11 +826,11 @@ function createRefinementRequest({
   maxRounds,
   preferredRhymeGroup,
   additionalRequirements,
-}: CreateRefinementRequestInput): Parameters<AppClient['createRefinementSession']>[0] {
+}: CreateRefinementRequestInput): GenerationRequest {
   return {
     patternId: pattern.id,
     theme: sourceResult.draft.theme,
-    draft: {
+    sourceDraft: {
       id: sourceResult.draft.id,
       patternId: sourceResult.draft.patternId,
       theme: sourceResult.draft.theme,
@@ -946,10 +861,4 @@ function LoadingState({ message }: { readonly message: string }) {
       <p>{message}</p>
     </main>
   );
-}
-
-function progressMessage(progress: unknown): string | undefined {
-  if (typeof progress !== 'object' || progress === null) return undefined;
-  const message = (progress as { message?: unknown }).message;
-  return typeof message === 'string' ? message : undefined;
 }

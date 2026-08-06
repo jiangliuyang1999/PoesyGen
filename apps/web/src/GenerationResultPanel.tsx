@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
-import type { CiPattern, GenerationResult, TextSelection } from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult, TextSelection } from '@poesygen/domain';
 
 import { formatGenerationTitle } from './model.js';
 
@@ -76,7 +76,6 @@ export function GenerationResultPanel({
   }, [result.report.issues]);
 
   useEffect(() => {
-    setView((current) => (current === 'refinement' ? 'poem' : current));
     setSelection(undefined);
     setInstruction('');
     setRefinementItems([]);

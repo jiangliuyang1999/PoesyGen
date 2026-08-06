@@ -4,8 +4,7 @@ import type {
   CharacterPronunciationResponse,
   RhymeGroupDetail,
   RhymeGroupSummary,
-} from '@poesygen/client-sdk';
-
+} from './catalog-types.js';
 import { toUserMessage } from './errors.js';
 
 interface DictionaryClient {

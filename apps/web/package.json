@@ -11,7 +11,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@poesygen/client-sdk": "workspace:*",
+    "@capacitor/core": "^8.5.0",
+    "@poesygen/domain": "workspace:*",
+    "@poesygen/llm": "workspace:*",
+    "@poesygen/patterns": "workspace:*",
+    "@poesygen/prosody": "workspace:*",
+    "@poesygen/workflow": "workspace:*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

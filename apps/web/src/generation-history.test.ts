@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CiPattern, GenerationResult } from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult } from '@poesygen/domain';
 
 import {
   addGenerationHistoryEntry,

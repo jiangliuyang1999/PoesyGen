@@ -1,4 +1,4 @@
-import type { CiPattern } from '@poesygen/client-sdk';
+import type { CiPattern } from '@poesygen/domain';
 
 import { formatPatternVariantSummary } from './model.js';
 

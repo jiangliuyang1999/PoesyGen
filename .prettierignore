@@ -1,2 +1,4 @@
 packages/patterns/src/data/*.json
 packages/prosody/src/data/*.json
+apps/mobile/android/
+apps/mobile/ios/

@@ -4,16 +4,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import type {
-  CharacterPronunciationResponse,
-  CiPattern,
-  RhymeGroupDetail,
-  RhymeGroupSummary,
-  GenerationSessionStatusResponse,
-} from '@poesygen/client-sdk';
+import type { CiPattern, GenerationResult } from '@poesygen/domain';
+
+vi.mock('./direct-generation.js', () => ({
+  runDirectGeneration: vi.fn(),
+  runDirectIdeaSuggestions: vi.fn(),
+}));
 
 import { App, type AppClient } from './App.js';
+import type {
+  CharacterPronunciationResponse,
+  RhymeGroupDetail,
+  RhymeGroupSummary,
+} from './catalog-types.js';
 import { splitGraphemes } from './DictionaryWorkspace.js';
+import { runDirectGeneration, runDirectIdeaSuggestions } from './direct-generation.js';
+import { defaultDirectLlmConfig, saveDirectLlmConfig } from './direct-llm-config.js';
 import { generationHistoryStorageKey } from './generation-history.js';
 
 const pattern: CiPattern = {
@@ -139,15 +145,34 @@ const ideaSuggestions = [
 
 beforeEach(() => {
   delete document.documentElement.dataset['platform'];
+  const localStorage = createTestStorage();
+  const sessionStorage = createTestStorage();
   Object.defineProperty(window, 'localStorage', {
     configurable: true,
-    value: createTestStorage(),
+    value: localStorage,
   });
+  Object.defineProperty(window, 'sessionStorage', {
+    configurable: true,
+    value: sessionStorage,
+  });
+  saveDirectLlmConfig(
+    {
+      ...defaultDirectLlmConfig,
+      model: 'test-model',
+      apiKey: 'test-key',
+    },
+    localStorage,
+    sessionStorage,
+  );
+  vi.mocked(runDirectIdeaSuggestions).mockResolvedValue(ideaSuggestions);
 });
 
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  window.sessionStorage.clear();
+  vi.mocked(runDirectGeneration).mockReset();
+  vi.mocked(runDirectIdeaSuggestions).mockReset();
   delete document.documentElement.dataset['platform'];
 });
 
@@ -156,15 +181,15 @@ describe('web creation workspace', () => {
     expect(splitGraphemes(`东\uFE00风`)).toEqual([`东\uFE00`, '风']);
   });
 
-  it('retries initial data loading while the API is starting', async () => {
+  it('loads patterns and rhyme groups from the local catalog', async () => {
     const client = createClient();
-    vi.mocked(client.listPatterns).mockRejectedValueOnce(new TypeError('fetch failed'));
 
     render(<App client={client} />);
 
     expect(await screen.findByRole('heading', { name: '测试令', level: 2 })).toBeTruthy();
-    expect(client.listPatterns).toHaveBeenCalledTimes(2);
-    expect(screen.getByText('生成服务就绪')).toBeTruthy();
+    expect(client.listPatterns).toHaveBeenCalledOnce();
+    expect(client.listCilinRhymeGroups).toHaveBeenCalledOnce();
+    expect(screen.getByText('LLM 已配置')).toBeTruthy();
   });
 
   it('groups creation inputs and toggles the embedded prosody preview', async () => {
@@ -310,7 +335,7 @@ describe('web creation workspace', () => {
     expect(
       within(navigation).getByRole('button', { name: '创作' }).getAttribute('aria-current'),
     ).toBe('page');
-    expect(screen.getByText('服务就绪')).toBeTruthy();
+    expect(screen.getByText('LLM 已配置')).toBeTruthy();
 
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上春归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
@@ -414,17 +439,14 @@ describe('web creation workspace', () => {
       '雪夜归家，推门见故人留下的一盏灯',
       '雨后重游旧园，在落花间想起少年约定',
     ];
-    vi.mocked(client.suggestCreationIdeas)
-      .mockResolvedValueOnce({ suggestions: ideaSuggestions })
-      .mockResolvedValueOnce({ suggestions: nextIdeaSuggestions })
-      .mockResolvedValue({ suggestions: ideaSuggestions });
+    vi.mocked(runDirectIdeaSuggestions)
+      .mockResolvedValueOnce(ideaSuggestions)
+      .mockResolvedValueOnce(nextIdeaSuggestions);
     const user = userEvent.setup();
     render(<App client={client} />);
 
     const suggestion = await screen.findByRole('button', { name: ideaSuggestions[0] });
-    await waitFor(() => {
-      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(2);
-    });
+    expect(runDirectIdeaSuggestions).toHaveBeenCalledOnce();
     expect(Array.from(suggestion.textContent ?? '').length).toBeLessThanOrEqual(50);
 
     await user.click(suggestion);
@@ -433,10 +455,21 @@ describe('web creation workspace', () => {
     );
 
     await user.click(screen.getByRole('button', { name: '换一组' }));
-    expect(screen.getByRole('button', { name: nextIdeaSuggestions[0]! })).toBeTruthy();
-    await waitFor(() => {
-      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(3);
-    });
+    expect(await screen.findByRole('button', { name: nextIdeaSuggestions[0]! })).toBeTruthy();
+    expect(runDirectIdeaSuggestions).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses three random local ideas when LLM is not configured', async () => {
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    const client = createClient();
+    render(<App client={client} />);
+
+    const ideaGroup = await screen.findByLabelText('大模型灵感推荐');
+    expect(within(ideaGroup).getAllByRole('button')).toHaveLength(4);
+    expect(runDirectIdeaSuggestions).not.toHaveBeenCalled();
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: /开始生成/ }).disabled).toBe(true);
+    expect(screen.getByText('LLM 未配置')).toBeTruthy();
   });
 
   it('switches between forms of the same tune and submits the selected pattern ID', async () => {
@@ -444,9 +477,6 @@ describe('web creation workspace', () => {
     const user = userEvent.setup();
     render(<App client={client} />);
     await screen.findByRole('heading', { name: '测试令', level: 2 });
-    await waitFor(() => {
-      expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(2);
-    });
 
     await user.selectOptions(screen.getByRole('combobox', { name: '创作词牌' }), otherPattern.name);
     expect(screen.getByRole('heading', { name: '另一令', level: 2 })).toBeTruthy();
@@ -458,29 +488,32 @@ describe('web creation workspace', () => {
     );
 
     expect(screen.getByLabelText('词牌信息').textContent).toBe('格二 · 3字 · 单调 · 1句 · 1韵位');
-    expect(client.suggestCreationIdeas).toHaveBeenCalledTimes(2);
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上晚归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
     await screen.findByText('词作已完成');
-    expect(client.createGenerationSession).toHaveBeenCalledWith(
+    expect(runDirectGeneration).toHaveBeenCalledWith(
+      expect.any(Object),
       expect.objectContaining({
         patternId: alternatePattern.id,
       }),
+      alternatePattern,
+      expect.any(Object),
     );
   });
 
   it('locks all creation inputs while a generation task is in progress', async () => {
     const client = createClient([pattern, alternatePattern]);
-    const waitForGenerationSession = vi.mocked(client.waitForGenerationSession);
-    const completeGeneration = waitForGenerationSession.getMockImplementation();
+    const directGeneration = vi.mocked(runDirectGeneration);
+    const completeGeneration = directGeneration.getMockImplementation();
     if (completeGeneration === undefined) throw new Error('Missing generation test implementation');
     let releaseGeneration = (): void => {};
     const generationGate = new Promise<void>((resolve) => {
       releaseGeneration = resolve;
     });
-    waitForGenerationSession.mockImplementation(async (sessionId, options) => {
+    directGeneration.mockImplementation(async (config, request, selectedPattern, options) => {
+      options?.onProgress?.({ phase: 'running', message: '正在生成初稿' });
       await generationGate;
-      return completeGeneration(sessionId, options);
+      return completeGeneration(config, request, selectedPattern, options);
     });
 
     const user = userEvent.setup();
@@ -492,7 +525,7 @@ describe('web creation workspace', () => {
     const theme = screen.getByRole<HTMLTextAreaElement>('textbox', { name: '作品主题' });
     await user.type(theme, '江上晚归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
-    await screen.findByText('任务已排队');
+    await screen.findByText('正在优化');
 
     const lockedControls = [
       screen.getByRole<HTMLSelectElement>('combobox', { name: '创作词牌' }),
@@ -509,6 +542,15 @@ describe('web creation workspace', () => {
     lockedControls.forEach((control) => {
       expect(control.disabled).toBe(true);
     });
+    await user.click(
+      screen.getByRole('button', {
+        name: '生成配置：LLM 已配置',
+      }),
+    );
+    expect(screen.getByRole('dialog', { name: 'LLM 配置' })).toBeTruthy();
+    expect(screen.getByLabelText<HTMLInputElement>('LLM Model').disabled).toBe(true);
+    expect(screen.getByText('生成进行中，当前配置暂不可修改。')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '关闭配置' }));
 
     releaseGeneration();
     await screen.findByText('词作已完成');
@@ -518,7 +560,69 @@ describe('web creation workspace', () => {
     });
   });
 
-  it('submits theme, rhyme and optimization settings through the shared client', async () => {
+  it('requires the configured LLM and generates directly in the page', async () => {
+    const client = createClient();
+    const directResult: GenerationResult = {
+      status: 'completed',
+      rounds: 1,
+      draft: {
+        id: 'direct-draft-1',
+        patternId: pattern.id,
+        theme: '江上晚归',
+        version: 1,
+        title: '江归',
+        lines: [{ id: 'line-1', text: '春晚' }],
+      },
+      report: {
+        passed: true,
+        issues: [],
+      },
+    };
+    vi.mocked(runDirectGeneration).mockResolvedValue(directResult);
+
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    expect(screen.queryByRole('combobox', { name: '生成方式' })).toBeNull();
+    await user.click(
+      screen.getByRole('button', {
+        name: '生成配置：LLM 已配置',
+      }),
+    );
+    const configDialog = screen.getByRole('dialog', { name: 'LLM 配置' });
+    const modelInput = within(configDialog).getByLabelText('LLM Model');
+    const apiKeyInput = within(configDialog).getByLabelText('LLM API Key');
+    await user.clear(modelInput);
+    await user.type(modelInput, 'fast-model');
+    await user.clear(apiKeyInput);
+    await user.type(apiKeyInput, 'local-secret');
+    expect(screen.getAllByText('LLM 已配置').length).toBeGreaterThan(0);
+    await user.click(within(configDialog).getByRole('button', { name: '完成' }));
+
+    await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上晚归');
+    await user.click(screen.getByRole('button', { name: /开始生成/ }));
+
+    expect(await screen.findByRole('heading', { name: '测试令·江归' })).toBeTruthy();
+    expect(runDirectGeneration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'fast-model',
+        apiKey: 'local-secret',
+      }),
+      expect.objectContaining({
+        patternId: pattern.id,
+        theme: '江上晚归',
+        maxRounds: 8,
+      }),
+      pattern,
+      expect.objectContaining({
+        onProgress: expect.any(Function),
+      }),
+    );
+    expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('direct-draft-1');
+  });
+
+  it('submits theme, rhyme and optimization settings to the local workflow', async () => {
     const client = createClient();
     const user = userEvent.setup();
     render(<App client={client} />);
@@ -530,15 +634,21 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
 
     await screen.findByText('词作已完成');
-    expect(client.createGenerationSession).toHaveBeenCalledWith({
-      patternId: 'test-standard',
-      theme: '暮春江上归舟，怀念故友',
-      maxRounds: 8,
-      preferredRhymeGroup: 'cilin-17',
-      additionalRequirements: ['含蓄抒情', '避免重字'],
-    });
-    expect(screen.getByText('会话 session-1')).toBeTruthy();
-    expect(screen.getByText('任务 job-1')).toBeTruthy();
+    expect(runDirectGeneration).toHaveBeenNthCalledWith(
+      1,
+      expect.any(Object),
+      {
+        patternId: 'test-standard',
+        theme: '暮春江上归舟，怀念故友',
+        maxRounds: 8,
+        preferredRhymeGroup: 'cilin-17',
+        additionalRequirements: ['含蓄抒情', '避免重字'],
+      },
+      pattern,
+      expect.any(Object),
+    );
+    const sessionCode = screen.getByText(/^会话 direct-/);
+    const sessionId = sessionCode.textContent!.replace('会话 ', '');
     expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
     expect(
       within(screen.getByLabelText('词作内容')).getByRole('heading', {
@@ -600,10 +710,12 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: '根据全部意见重新生成' }));
 
     await screen.findByText('新版本已按意见修改并通过格律校验。');
-    expect(client.createRefinementSession).toHaveBeenCalledWith(
+    expect(runDirectGeneration).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Object),
       expect.objectContaining({
         patternId: pattern.id,
-        draft: expect.objectContaining({ id: 'draft-1', version: 2 }),
+        sourceDraft: expect.objectContaining({ id: 'draft-1', version: 2 }),
         selections: [
           {
             lineId: 'line-1',
@@ -619,8 +731,19 @@ describe('web creation workspace', () => {
           },
         ],
       }),
+      pattern,
+      expect.any(Object),
     );
-    expect(screen.getByTitle('查询“秋”')).toBeTruthy();
+    expect(refinementView.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '当前修改意见' }).value).toBe(
+      '',
+    );
+    expect(screen.queryByLabelText('修改清单')).toBeNull();
+    expect(
+      screen.getByRole('button', {
+        name: '选择第1句第1字“秋”',
+      }),
+    ).toBeTruthy();
     const currentVersion = screen.getByRole('group', { name: '作品版本' });
     expect(within(currentVersion).getByText('版本 2/2')).toBeTruthy();
     const currentViewSwitcher = screen.getByRole('group', { name: '结果视图' });
@@ -642,7 +765,7 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: '正文' }));
     expect(screen.getByTitle('查询“秋”')).toBeTruthy();
 
-    expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('session-1');
+    expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain(sessionId);
     await user.click(screen.getByRole('button', { name: /历史记录/ }));
     expect(await screen.findByLabelText('生成历史列表')).toBeTruthy();
     expect(screen.getByLabelText('历史记录总数').textContent).toBe('共 1 条记录');
@@ -662,7 +785,7 @@ describe('web creation workspace', () => {
     expect(within(historySettings).getByText('第十七部 · 四质')).toBeTruthy();
     expect(within(historySettings).getByText('生成时间')).toBeTruthy();
     expect(within(historySettings).getByText('会话 ID')).toBeTruthy();
-    expect(within(historySettings).getByText('session-1')).toBeTruthy();
+    expect(within(historySettings).getByText(sessionId)).toBeTruthy();
     const historyList = screen.getByLabelText('生成历史列表');
     expect(within(historyList).getByText('2 个版本')).toBeTruthy();
     expect(screen.getByText('版本 2/2')).toBeTruthy();
@@ -674,11 +797,22 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: '根据全部意见重新生成' }));
 
     expect(await screen.findByText('版本 3/3')).toBeTruthy();
-    expect(screen.getByTitle('查询“雪”')).toBeTruthy();
-    expect(client.createRefinementSession).toHaveBeenLastCalledWith(
+    const historyRefinementView = screen.getByRole('button', { name: '局部修改' });
+    expect(historyRefinementView.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '当前修改意见' }).value).toBe(
+      '',
+    );
+    expect(screen.queryByLabelText('修改清单')).toBeNull();
+    expect(
+      screen.getByRole('button', {
+        name: '选择第1句第1字“雪”',
+      }),
+    ).toBeTruthy();
+    expect(runDirectGeneration).toHaveBeenLastCalledWith(
+      expect.any(Object),
       expect.objectContaining({
         patternId: pattern.id,
-        draft: expect.objectContaining({ id: 'draft-2', version: 3 }),
+        sourceDraft: expect.objectContaining({ id: 'draft-2', version: 3 }),
         maxRounds: 8,
         preferredRhymeGroup: 'cilin-17',
         additionalRequirements: ['含蓄抒情', '避免重字'],
@@ -691,15 +825,38 @@ describe('web creation workspace', () => {
           },
         ],
       }),
+      pattern,
+      expect.any(Object),
     );
     expect(within(historyList).getByText('3 个版本')).toBeTruthy();
 
+    await user.click(screen.getByRole('button', { name: '选择第1句第1字“雪”' }));
+    await user.type(screen.getByRole('textbox', { name: '当前修改意见' }), '未提交的临时意见');
+    await user.click(screen.getByRole('button', { name: '加入修改清单' }));
+    expect(screen.getByLabelText('修改清单')).toBeTruthy();
+
     await user.click(screen.getByRole('button', { name: '上一版本' }));
     expect(screen.getByText('版本 2/3')).toBeTruthy();
-    expect(screen.getByTitle('查询“秋”')).toBeTruthy();
+    expect(historyRefinementView.getAttribute('aria-pressed')).toBe('true');
+    await waitFor(() => {
+      expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: '当前修改意见' }).value).toBe(
+        '',
+      );
+      expect(screen.queryByLabelText('修改清单')).toBeNull();
+    });
+    expect(
+      screen.getByRole('button', {
+        name: '选择第1句第1字“秋”',
+      }),
+    ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '上一版本' }));
     expect(screen.getByText('版本 1/3')).toBeTruthy();
-    expect(screen.getByTitle('查询“春”')).toBeTruthy();
+    expect(historyRefinementView.getAttribute('aria-pressed')).toBe('true');
+    expect(
+      screen.getByRole('button', {
+        name: '选择第1句第1字“春”',
+      }),
+    ).toBeTruthy();
 
     const historySearch = screen.getByRole('searchbox', { name: '搜索历史结果' });
     await user.type(historySearch, '不存在的主题');
@@ -757,8 +914,46 @@ describe('web creation workspace', () => {
 });
 
 function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
-  let requestedPatternId = patterns[0]?.id ?? pattern.id;
   let refinementSequence = 0;
+  vi.mocked(runDirectGeneration).mockImplementation(
+    async (_config, request, selectedPattern, options) => {
+      const refining = request.sourceDraft !== undefined;
+      if (refining) refinementSequence += 1;
+      options?.onProgress?.({
+        phase: 'running',
+        message: refining ? '正在按修改意见调整' : '正在生成初稿',
+      });
+      const draftLines = selectedPattern.sections
+        .flatMap((section) => section.lines)
+        .map((_, index) => ({
+          id: `line-${index + 1}`,
+          text:
+            index === 0
+              ? refinementSequence === 1
+                ? '秋晚'
+                : refinementSequence === 2
+                  ? '雪晚'
+                  : '春晚'
+              : '江归',
+        }));
+      return {
+        status: 'completed',
+        rounds: 2,
+        draft: {
+          id: refining ? `draft-${refinementSequence + 1}` : 'draft-1',
+          patternId: request.patternId,
+          theme: request.theme,
+          version: request.sourceDraft === undefined ? 2 : request.sourceDraft.version + 1,
+          title: '春归',
+          lines: draftLines,
+        },
+        report: {
+          passed: refining,
+          issues: [],
+        },
+      };
+    },
+  );
   const getCharacterPronunciations = vi.fn(
     async (character: string): Promise<CharacterPronunciationResponse> => ({
       character,
@@ -778,90 +973,8 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
   const client: AppClient = {
     listPatterns: vi.fn(async () => patterns),
     listCilinRhymeGroups: vi.fn(async () => rhymeGroups),
-    getGenerationHealth: vi.fn(async () => ({
-      available: true,
-      redis: 'ok' as const,
-      workers: 1,
-    })),
-    suggestCreationIdeas: vi.fn(async () => ({ suggestions: ideaSuggestions })),
     getCilinRhymeGroup: vi.fn(async () => groupDetail),
     getCharacterPronunciations,
-    createGenerationSession: vi.fn(
-      async (request: Parameters<AppClient['createGenerationSession']>[0]) => {
-        requestedPatternId = request.patternId;
-        return {
-          id: 'session-1',
-          jobId: 'job-1',
-          status: 'queued' as const,
-        };
-      },
-    ),
-    createRefinementSession: vi.fn(
-      async (request: Parameters<AppClient['createRefinementSession']>[0]) => {
-        requestedPatternId = request.patternId;
-        refinementSequence += 1;
-        return {
-          id: `refinement-${refinementSequence}`,
-          jobId: `refinement-job-${refinementSequence}`,
-          status: 'queued' as const,
-        };
-      },
-    ),
-    waitForGenerationSession: vi.fn(
-      async (sessionId, options): Promise<GenerationSessionStatusResponse> => {
-        const refinementNumber = sessionId.startsWith('refinement-')
-          ? Number(sessionId.slice('refinement-'.length))
-          : undefined;
-        const refining = refinementNumber !== undefined;
-        const jobId = refining ? `refinement-job-${refinementNumber}` : 'job-1';
-        options?.onUpdate?.({
-          id: sessionId,
-          jobId,
-          status: 'running',
-          progress: {
-            phase: refining ? 'refining' : 'generating',
-            message: refining ? '正在按修改意见调整' : '正在生成初稿',
-          },
-        });
-        const selectedPattern = patterns.find(({ id }) => id === requestedPatternId) ?? pattern;
-        const draftLines = selectedPattern.sections
-          .flatMap((section) => section.lines)
-          .map((_, index) => ({
-            id: `line-${index + 1}`,
-            text:
-              index === 0
-                ? refinementNumber === 1
-                  ? '秋晚'
-                  : refinementNumber === 2
-                    ? '雪晚'
-                    : '春晚'
-                : '江归',
-          }));
-        return {
-          id: sessionId,
-          jobId,
-          status: 'completed',
-          progress: 100,
-          result: {
-            sessionId: 'session-1',
-            status: 'completed',
-            rounds: 2,
-            draft: {
-              id: refining ? `draft-${refinementNumber + 1}` : 'draft-1',
-              patternId: requestedPatternId,
-              theme: '暮春江上归舟，怀念故友',
-              version: refining ? refinementNumber + 2 : 2,
-              title: '春归',
-              lines: draftLines,
-            },
-            report: {
-              passed: refining,
-              issues: [],
-            },
-          },
-        };
-      },
-    ),
   };
   return client;
 }
