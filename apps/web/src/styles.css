@@ -1847,6 +1847,77 @@ button:disabled {
   font-size: 1rem;
 }
 
+.theme-input-shell {
+  position: relative;
+}
+
+.theme-input-shell > label {
+  display: block;
+}
+
+.theme-input-shell textarea {
+  display: block;
+  resize: none;
+}
+
+.theme-polish-action {
+  position: absolute;
+  right: 8px;
+  bottom: 7px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgb(159 60 47 / 26%);
+  border-radius: 50%;
+  place-items: center;
+  background: rgb(250 248 242 / 96%);
+  color: var(--vermilion);
+  box-shadow: 0 3px 10px rgb(63 51 37 / 8%);
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.theme-polish-action:hover:not(:disabled) {
+  border-color: rgb(159 60 47 / 48%);
+  background: #fffdf8;
+  transform: translateY(-1px);
+}
+
+.theme-polish-action:disabled {
+  color: var(--muted);
+  opacity: 0.45;
+}
+
+.theme-polish-action[data-state='error'] {
+  border-color: rgb(159 60 47 / 45%);
+  background: rgb(159 60 47 / 7%);
+  color: var(--vermilion);
+}
+
+.theme-polish-action svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.theme-polish-action[data-state='loading'] svg {
+  animation: theme-polish-spin 900ms linear infinite;
+}
+
+@keyframes theme-polish-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .theme-editor textarea:focus,
 .generation-settings textarea:focus,
 .generation-settings select:focus,
@@ -2957,6 +3028,11 @@ html[data-platform='mobile'] .theme-editor textarea {
   border-radius: 8px;
 }
 
+html[data-platform='mobile'] .theme-polish-action {
+  width: 32px;
+  height: 32px;
+}
+
 html[data-platform='mobile'] .theme-prompts button {
   padding: 10px 11px;
 }
@@ -3853,7 +3929,8 @@ html[data-platform='mobile'] .loading-state {
 
 @media (prefers-reduced-motion: reduce) {
   .loading-state > span,
-  .generation-progress li[data-state='active'] > i {
+  .generation-progress li[data-state='active'] > i,
+  .theme-polish-action[data-state='loading'] svg {
     animation: none;
   }
 }

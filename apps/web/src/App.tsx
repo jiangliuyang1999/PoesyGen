@@ -12,6 +12,7 @@ import type {
   RhymeGroupDetail,
   RhymeGroupSummary,
 } from './catalog-types.js';
+import { AutoResizeTextarea } from './AutoResizeTextarea.js';
 import { DictionaryWorkspace } from './DictionaryWorkspace.js';
 import { GenerationHistoryWorkspace } from './GenerationHistoryWorkspace.js';
 import { GenerationResultPanel } from './GenerationResultPanel.js';
@@ -31,7 +32,7 @@ import {
   loadDirectLlmConfig,
   saveDirectLlmConfig,
 } from './direct-llm-config.js';
-import { runDirectIdeaSuggestions } from './direct-generation.js';
+import { runDirectIdeaSuggestions, runDirectThemePolish } from './direct-generation.js';
 import { toUserMessage } from './errors.js';
 import {
   addGenerationHistoryEntry,
@@ -63,6 +64,7 @@ interface AppProps {
 }
 
 type IdeaSuggestionsStatus = 'idle' | 'loading' | 'ready' | 'error';
+type ThemePolishStatus = 'idle' | 'loading' | 'error';
 
 interface IdeaSuggestionsState {
   readonly status: IdeaSuggestionsStatus;
@@ -93,6 +95,7 @@ export function App({ client: providedClient }: AppProps = {}) {
     status: 'idle',
     suggestions: [],
   });
+  const [themePolishStatus, setThemePolishStatus] = useState<ThemePolishStatus>('idle');
   const [submissionStatus, setSubmissionStatus] = useState<SubmissionStatus>(idleStatus);
   const [resultVersions, setResultVersions] = useState<ReadonlyArray<GenerationResult>>([]);
   const [activeHistoryRecordId, setActiveHistoryRecordId] = useState<string>();
@@ -103,6 +106,17 @@ export function App({ client: providedClient }: AppProps = {}) {
   const ideaRequestSequence = useRef(0);
   const creationLocked = isSubmissionInProgress(submissionStatus);
   const creationServiceAvailable = isDirectLlmConfigReady(directLlmConfig);
+  const themePolishing = themePolishStatus === 'loading';
+  const themeEditingLocked = creationLocked || themePolishing;
+  const themePolishLabel = themePolishing
+    ? '正在润色主题描述'
+    : themePolishStatus === 'error'
+      ? '主题润色失败，点击重试'
+      : !creationServiceAvailable
+        ? '请先配置 LLM 再润色主题'
+        : theme.trim() === ''
+          ? '输入主题后润色'
+          : '润色主题描述';
   const updateGenerationHistory = (
     update: (
       entries: ReadonlyArray<GenerationHistoryEntry>,
@@ -206,10 +220,31 @@ export function App({ client: providedClient }: AppProps = {}) {
       });
   }
 
+  const updateTheme = (nextTheme: string): void => {
+    setTheme(nextTheme);
+    setThemePolishStatus('idle');
+  };
+
+  const polishTheme = async (): Promise<void> => {
+    const sourceTheme = theme.trim();
+    if (sourceTheme === '' || themeEditingLocked || !isDirectLlmConfigReady(directLlmConfig)) {
+      return;
+    }
+
+    setThemePolishStatus('loading');
+    try {
+      setTheme(await runDirectThemePolish(directLlmConfig, sourceTheme));
+      setThemePolishStatus('idle');
+    } catch {
+      setThemePolishStatus('error');
+    }
+  };
+
   const submit = async (event: { preventDefault(): void }): Promise<void> => {
     event.preventDefault();
     if (
       creationLocked ||
+      themePolishing ||
       !creationServiceAvailable ||
       creationPattern === undefined ||
       theme.trim() === ''
@@ -645,24 +680,44 @@ export function App({ client: providedClient }: AppProps = {}) {
                     </div>
                     <span>{theme.length}/2000</span>
                   </div>
-                  <label>
-                    <span className="sr-only">作品主题</span>
-                    <textarea
-                      value={theme}
-                      disabled={creationLocked}
-                      onChange={(event) => setTheme(event.target.value)}
-                      placeholder="暮春江上归舟，忽忆多年未见的故友。希望词意含蓄，以江风、残照和远帆寄托惆怅。"
-                      rows={3}
-                      maxLength={2_000}
-                      required
-                    />
-                  </label>
+                  <div className="theme-input-shell">
+                    <label>
+                      <span className="sr-only">作品主题</span>
+                      <AutoResizeTextarea
+                        value={theme}
+                        disabled={themeEditingLocked}
+                        onChange={(event) => updateTheme(event.target.value)}
+                        placeholder="暮春江上归舟，忽忆多年未见的故友。希望词意含蓄，以江风、残照和远帆寄托惆怅。"
+                        minRows={3}
+                        maxRows={10}
+                        maxLength={2_000}
+                        required
+                      />
+                    </label>
+                    <button
+                      className="theme-polish-action"
+                      type="button"
+                      aria-label={themePolishLabel}
+                      title={themePolishLabel}
+                      data-state={themePolishStatus}
+                      disabled={
+                        themeEditingLocked || theme.trim() === '' || !creationServiceAvailable
+                      }
+                      onClick={() => void polishTheme()}
+                    >
+                      <svg aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="m14.5 4.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1 1-2.5Z" />
+                        <path d="m6.5 12.5.75 1.75L9 15l-1.75.75L6.5 17.5l-.75-1.75L4 15l1.75-.75.75-1.75Z" />
+                        <path d="m11 15 6 6" />
+                      </svg>
+                    </button>
+                  </div>
                   <div className="theme-ideas" aria-label="大模型灵感推荐" aria-live="polite">
                     <div className="theme-ideas-header">
                       <span>灵感推荐</span>
                       <button
                         type="button"
-                        disabled={creationLocked || ideaSuggestions.status === 'loading'}
+                        disabled={themeEditingLocked || ideaSuggestions.status === 'loading'}
                         onClick={() => requestIdeaSuggestions(true)}
                       >
                         {ideaSuggestions.status === 'loading'
@@ -677,8 +732,8 @@ export function App({ client: providedClient }: AppProps = {}) {
                         <button
                           key={prompt}
                           type="button"
-                          disabled={creationLocked}
-                          onClick={() => setTheme(prompt)}
+                          disabled={themeEditingLocked}
+                          onClick={() => updateTheme(prompt)}
                         >
                           {prompt}
                         </button>
@@ -701,7 +756,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                   rounds={rounds}
                   requirements={requirements}
                   status={submissionStatus}
-                  canSubmit={theme.trim() !== '' && creationServiceAvailable}
+                  canSubmit={theme.trim() !== '' && creationServiceAvailable && !themePolishing}
                   onRoundsChange={setRounds}
                   onRequirementsChange={setRequirements}
                 />

@@ -9,6 +9,7 @@ import type { CiPattern, GenerationResult } from '@poesygen/domain';
 vi.mock('./direct-generation.js', () => ({
   runDirectGeneration: vi.fn(),
   runDirectIdeaSuggestions: vi.fn(),
+  runDirectThemePolish: vi.fn(),
 }));
 
 import { App, type AppClient } from './App.js';
@@ -18,7 +19,11 @@ import type {
   RhymeGroupSummary,
 } from './catalog-types.js';
 import { splitGraphemes } from './DictionaryWorkspace.js';
-import { runDirectGeneration, runDirectIdeaSuggestions } from './direct-generation.js';
+import {
+  runDirectGeneration,
+  runDirectIdeaSuggestions,
+  runDirectThemePolish,
+} from './direct-generation.js';
 import { defaultDirectLlmConfig, saveDirectLlmConfig } from './direct-llm-config.js';
 import { generationHistoryStorageKey } from './generation-history.js';
 
@@ -173,6 +178,7 @@ afterEach(() => {
   window.sessionStorage.clear();
   vi.mocked(runDirectGeneration).mockReset();
   vi.mocked(runDirectIdeaSuggestions).mockReset();
+  vi.mocked(runDirectThemePolish).mockReset();
   delete document.documentElement.dataset['platform'];
 });
 
@@ -463,6 +469,32 @@ describe('web creation workspace', () => {
     expect(screen.queryByText('机器回查')).toBeNull();
   });
 
+  it('polishes the current theme with the configured LLM', async () => {
+    const polishedTheme = '暮春江上归舟，残照映着远帆，忽忆多年未见的故友。';
+    vi.mocked(runDirectThemePolish).mockResolvedValue(polishedTheme);
+    const user = userEvent.setup();
+    render(<App client={createClient()} />);
+
+    const themeInput = await screen.findByRole<HTMLTextAreaElement>('textbox', {
+      name: '作品主题',
+    });
+    expect(screen.getByRole<HTMLButtonElement>('button', { name: '输入主题后润色' }).disabled).toBe(
+      true,
+    );
+
+    await user.type(themeInput, '江上晚归，想念故友');
+    await user.click(screen.getByRole('button', { name: '润色主题描述' }));
+
+    await waitFor(() => expect(themeInput.value).toBe(polishedTheme));
+    expect(runDirectThemePolish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'test-model',
+        apiKey: 'test-key',
+      }),
+      '江上晚归，想念故友',
+    );
+  });
+
   it('loads LLM idea suggestions and fills the theme editor', async () => {
     const client = createClient();
     const nextIdeaSuggestions = [
@@ -500,6 +532,11 @@ describe('web creation workspace', () => {
     expect(within(ideaGroup).getAllByRole('button')).toHaveLength(4);
     expect(runDirectIdeaSuggestions).not.toHaveBeenCalled();
     expect(screen.getByRole<HTMLButtonElement>('button', { name: /开始生成/ }).disabled).toBe(true);
+    expect(
+      screen.getByRole<HTMLButtonElement>('button', {
+        name: '请先配置 LLM 再润色主题',
+      }).disabled,
+    ).toBe(true);
     expect(screen.getByText('LLM 未配置')).toBeTruthy();
   });
 
