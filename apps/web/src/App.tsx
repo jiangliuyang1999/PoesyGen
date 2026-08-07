@@ -19,7 +19,6 @@ import {
   GenerationSettings,
   isSubmissionInProgress,
   RhymeSettings,
-  type SubmissionProgressEntry,
   type SubmissionStatus,
 } from './GenerationSettings.js';
 import { LlmConfigDialog } from './LlmConfigDialog.js';
@@ -32,11 +31,7 @@ import {
   loadDirectLlmConfig,
   saveDirectLlmConfig,
 } from './direct-llm-config.js';
-import {
-  runDirectGeneration,
-  runDirectIdeaSuggestions,
-  type DirectGenerationProgress,
-} from './direct-generation.js';
+import { runDirectIdeaSuggestions } from './direct-generation.js';
 import { toUserMessage } from './errors.js';
 import {
   addGenerationHistoryEntry,
@@ -45,16 +40,16 @@ import {
   saveGenerationHistory,
   type GenerationHistoryEntry,
 } from './generation-history.js';
+import {
+  createGenerationPreferences,
+  createInitialGenerationRequest,
+  createRefinementRequest,
+  historyRefinementPreferences,
+} from './generation-request.js';
+import { runGenerationSession, type GenerationSessionResult } from './generation-session.js';
 import { LocalCatalogClient } from './local-catalog.js';
 import { randomLocalCreationIdeas } from './local-ideas.js';
-import {
-  displayRhymeLabel,
-  formatPatternVariantSummary,
-  groupPatternsByName,
-  patternRhymeLabels,
-  sortPatternFamiliesByPinyin,
-  splitRequirements,
-} from './model.js';
+import { formatPatternVariantSummary, listPatternFamilies } from './model.js';
 
 export interface AppClient {
   listPatterns(): Promise<ReadonlyArray<CiPattern>>;
@@ -108,6 +103,17 @@ export function App({ client: providedClient }: AppProps = {}) {
   const ideaRequestSequence = useRef(0);
   const creationLocked = isSubmissionInProgress(submissionStatus);
   const creationServiceAvailable = isDirectLlmConfigReady(directLlmConfig);
+  const updateGenerationHistory = (
+    update: (
+      entries: ReadonlyArray<GenerationHistoryEntry>,
+    ) => ReadonlyArray<GenerationHistoryEntry>,
+  ): void => {
+    setGenerationHistory((current) => {
+      const next = update(current);
+      saveGenerationHistory(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     saveDirectLlmConfig(directLlmConfig);
@@ -124,9 +130,7 @@ export function App({ client: providedClient }: AppProps = {}) {
         ]);
         if (!active) return;
         const tuneCount = new Set(loadedPatterns.map(({ name }) => name)).size;
-        const initialPatternId =
-          sortPatternFamiliesByPinyin(groupPatternsByName(loadedPatterns))[0]?.patterns[0]?.id ??
-          '';
+        const initialPatternId = listPatternFamilies(loadedPatterns)[0]?.patterns[0]?.id ?? '';
         setPatterns(loadedPatterns);
         setRhymeGroups(loadedGroups);
         setCreationPatternId(initialPatternId);
@@ -150,10 +154,7 @@ export function App({ client: providedClient }: AppProps = {}) {
 
   const creationPattern = patterns.find(({ id }) => id === creationPatternId);
   const catalogPattern = patterns.find(({ id }) => id === catalogPatternId);
-  const patternFamilies = useMemo(
-    () => sortPatternFamiliesByPinyin(groupPatternsByName(patterns)),
-    [patterns],
-  );
+  const patternFamilies = useMemo(() => listPatternFamilies(patterns), [patterns]);
   const creationPatternFamily = patternFamilies.find(({ name }) => name === creationPattern?.name);
   const catalogPatternFamily = patternFamilies.find(({ name }) => name === catalogPattern?.name);
 
@@ -216,67 +217,31 @@ export function App({ client: providedClient }: AppProps = {}) {
       return;
     }
 
-    let generationProgress: ReadonlyArray<SubmissionProgressEntry> = [
-      {
-        stage: 'preparing',
-        message: '已锁定创作设置，正在准备生成',
-      },
-    ];
-    setSubmissionStatus({
-      kind: 'loading',
-      message: '正在准备页面直连生成流程。',
-      progress: generationProgress,
+    const preferences = createGenerationPreferences({
+      pattern: creationPattern,
+      rhymeAssignments,
+      rhymeGroups,
+      maxRounds: rounds,
+      requirements,
     });
-    const labels = patternRhymeLabels(creationPattern);
-    const selectedRhymes = Object.fromEntries(
-      labels
-        .map(({ id }) => [id, rhymeAssignments[id]] as const)
-        .filter((entry): entry is readonly [string, string] => entry[1] !== undefined),
-    );
-    const preferredRhymeGroup =
-      Object.keys(selectedRhymes).length === 0
-        ? undefined
-        : labels.length === 1
-          ? selectedRhymes[labels[0]!.id]
-          : selectedRhymes;
-    const additionalRequirements = splitRequirements(requirements);
-    const historySettings = {
+    const generationRequest = createInitialGenerationRequest({
+      pattern: creationPattern,
+      theme,
       maxRounds: rounds,
-      additionalRequirements,
-      rhymeSettings: labels.map((label, index) => {
-        const groupId = rhymeAssignments[label.id];
-        const group = rhymeGroups.find(({ id }) => id === groupId);
-        return {
-          label: displayRhymeLabel(label, index),
-          tone: label.tone,
-          ...(groupId === undefined ? {} : { groupId }),
-          ...(group === undefined
-            ? {}
-            : {
-                groupName: group.name,
-                sections: group.sections.map(({ name }) => name),
-              }),
-        };
-      }),
-    };
-    const generationRequest = {
-      patternId: creationPattern.id,
-      theme: theme.trim(),
-      maxRounds: rounds,
-      ...(preferredRhymeGroup === undefined ? {} : { preferredRhymeGroup }),
-      ...(additionalRequirements.length === 0
-        ? {}
-        : { additionalRequirements: [...additionalRequirements] }),
-    };
+      preferences,
+    });
 
-    const completeGeneration = (result: GenerationResult, recordId: string): void => {
+    const completeGeneration = (
+      { result, progress }: GenerationSessionResult,
+      recordId: string,
+    ): void => {
       setSubmissionStatus({
         kind: 'completed',
         message: result.report.passed
           ? `《${creationPattern.name}》已通过格律校验。`
           : `《${creationPattern.name}》已达到优化轮次上限。`,
         result,
-        progress: generationProgress,
+        progress,
       });
       setResultVersions([result]);
       setActiveHistoryRecordId(recordId);
@@ -284,53 +249,30 @@ export function App({ client: providedClient }: AppProps = {}) {
         id: recordId,
         createdAt: new Date().toISOString(),
         theme: theme.trim(),
-        settings: historySettings,
+        settings: preferences.historySettings,
         pattern: creationPattern,
         result,
         versions: [result],
       };
-      setGenerationHistory((current) => {
-        const next = addGenerationHistoryEntry(current, historyEntry);
-        saveGenerationHistory(next);
-        return next;
-      });
+      updateGenerationHistory((current) => addGenerationHistoryEntry(current, historyEntry));
     };
 
     try {
       const recordId = globalThis.crypto.randomUUID();
-      const result = await runDirectGeneration(
-        directLlmConfig,
-        generationRequest,
-        creationPattern,
-        {
-          onProgress(progress) {
-            generationProgress = [
-              ...generationProgress,
-              directProgressToSubmissionProgress(progress),
-            ];
-            setSubmissionStatus({
-              kind: progress.phase,
-              message: progress.message,
-              progress: generationProgress,
-            });
-          },
+      const session = await runGenerationSession({
+        config: directLlmConfig,
+        request: generationRequest,
+        pattern: creationPattern,
+        initialProgress: {
+          stage: 'preparing',
+          message: '已锁定创作设置，正在准备生成',
         },
-      );
-      completeGeneration(result, recordId);
-    } catch (error) {
-      const message = toUserMessage(error);
-      generationProgress = [
-        ...generationProgress,
-        {
-          stage: 'error',
-          message,
-        },
-      ];
-      setSubmissionStatus({
-        kind: 'error',
-        message,
-        progress: generationProgress,
+        loadingMessage: '正在准备页面直连生成流程。',
+        onStatus: setSubmissionStatus,
       });
+      completeGeneration(session, recordId);
+    } catch {
+      return;
     }
   };
 
@@ -347,58 +289,25 @@ export function App({ client: providedClient }: AppProps = {}) {
       throw new Error('请先完成 LLM 配置');
     }
     const recordId = globalThis.crypto.randomUUID();
-    let generationProgress: ReadonlyArray<SubmissionProgressEntry> = [
-      {
+    const { result, progress } = await runGenerationSession({
+      config: directLlmConfig,
+      request,
+      pattern,
+      initialProgress: {
         stage: 'preparing',
         message: '已接收修改意见，正在准备新版本',
       },
-    ];
-    onStatus?.({
-      kind: 'loading',
-      message: generationProgress[0]!.message,
-      result: sourceResult,
-      progress: generationProgress,
+      loadingMessage: '已接收修改意见，正在准备新版本',
+      retainedResult: sourceResult,
+      onStatus: (status) => onStatus?.(status),
     });
-    let result: GenerationResult;
-    try {
-      result = await runDirectGeneration(directLlmConfig, request, pattern, {
-        onProgress(progress) {
-          generationProgress = [
-            ...generationProgress,
-            directProgressToSubmissionProgress(progress),
-          ];
-          onStatus?.({
-            kind: progress.phase,
-            message: progress.message,
-            result: sourceResult,
-            progress: generationProgress,
-          });
-        },
-      });
-    } catch (error) {
-      const message = toUserMessage(error);
-      generationProgress = [
-        ...generationProgress,
-        {
-          stage: 'error',
-          message,
-        },
-      ];
-      onStatus?.({
-        kind: 'error',
-        message,
-        result: sourceResult,
-        progress: generationProgress,
-      });
-      throw error;
-    }
     onStatus?.({
       kind: 'completed',
       message: result.report.passed
         ? '新版本已按意见修改并通过格律校验。'
         : '新版本已生成，但仍有格律问题。',
       result,
-      progress: generationProgress,
+      progress,
     });
     return { result, recordId };
   };
@@ -412,86 +321,54 @@ export function App({ client: providedClient }: AppProps = {}) {
       throw new Error('当前没有可修改的词稿');
     }
 
-    const labels = patternRhymeLabels(creationPattern);
-    const selectedRhymes = Object.fromEntries(
-      labels
-        .map(({ id }) => [id, rhymeAssignments[id]] as const)
-        .filter((entry): entry is readonly [string, string] => entry[1] !== undefined),
-    );
-    const preferredRhymeGroup =
-      Object.keys(selectedRhymes).length === 0
-        ? undefined
-        : labels.length === 1
-          ? selectedRhymes[labels[0]!.id]
-          : selectedRhymes;
-    const additionalRequirements = splitRequirements(requirements);
-    const historySettings = {
+    const preferences = createGenerationPreferences({
+      pattern: creationPattern,
+      rhymeAssignments,
+      rhymeGroups,
       maxRounds: rounds,
-      additionalRequirements,
-      rhymeSettings: labels.map((label, index) => {
-        const groupId = rhymeAssignments[label.id];
-        const group = rhymeGroups.find(({ id }) => id === groupId);
-        return {
-          label: displayRhymeLabel(label, index),
-          tone: label.tone,
-          ...(groupId === undefined ? {} : { groupId }),
-          ...(group === undefined
-            ? {}
-            : {
-                groupName: group.name,
-                sections: group.sections.map(({ name }) => name),
-              }),
-        };
-      }),
-    };
+      requirements,
+    });
 
-    try {
-      const updateRefinementProgress = (status: SubmissionStatus): void => {
-        const targetedStatus: SubmissionStatus = {
-          ...status,
-          progressTarget: 'refinement',
-        };
-        setSubmissionStatus(targetedStatus);
-        onProgress?.(targetedStatus);
+    const updateRefinementProgress = (status: SubmissionStatus): void => {
+      const targetedStatus: SubmissionStatus = {
+        ...status,
+        progressTarget: 'refinement',
       };
-      const { result, recordId } = await runRefinementSession(
-        createRefinementRequest({
-          sourceResult,
-          pattern: creationPattern,
-          selections,
-          maxRounds: rounds,
-          preferredRhymeGroup,
-          additionalRequirements,
-        }),
+      setSubmissionStatus(targetedStatus);
+      onProgress?.(targetedStatus);
+    };
+    const { result, recordId } = await runRefinementSession(
+      createRefinementRequest({
         sourceResult,
-        creationPattern,
-        updateRefinementProgress,
-      );
-      setResultVersions((current) => [
-        ...current.filter(({ draft }) => draft.id !== result.draft.id),
-        result,
-      ]);
-      const historyRecordId = activeHistoryRecordId ?? recordId;
-      if (activeHistoryRecordId === undefined) setActiveHistoryRecordId(historyRecordId);
-      setGenerationHistory((current) => {
-        const next =
-          activeHistoryRecordId === undefined
-            ? addGenerationHistoryEntry(current, {
-                id: historyRecordId,
-                createdAt: new Date().toISOString(),
-                theme: sourceResult.draft.theme,
-                settings: historySettings,
-                pattern: creationPattern,
-                result,
-                versions: [sourceResult, result],
-              })
-            : addGenerationHistoryVersion(current, historyRecordId, result);
-        saveGenerationHistory(next);
-        return next;
-      });
-    } catch (error) {
-      throw error;
-    }
+        pattern: creationPattern,
+        selections,
+        maxRounds: rounds,
+        preferredRhymeGroup: preferences.preferredRhymeGroup,
+        additionalRequirements: preferences.additionalRequirements,
+      }),
+      sourceResult,
+      creationPattern,
+      updateRefinementProgress,
+    );
+    setResultVersions((current) => [
+      ...current.filter(({ draft }) => draft.id !== result.draft.id),
+      result,
+    ]);
+    const historyRecordId = activeHistoryRecordId ?? recordId;
+    if (activeHistoryRecordId === undefined) setActiveHistoryRecordId(historyRecordId);
+    updateGenerationHistory((current) =>
+      activeHistoryRecordId === undefined
+        ? addGenerationHistoryEntry(current, {
+            id: historyRecordId,
+            createdAt: new Date().toISOString(),
+            theme: sourceResult.draft.theme,
+            settings: preferences.historySettings,
+            pattern: creationPattern,
+            result,
+            versions: [sourceResult, result],
+          })
+        : addGenerationHistoryVersion(current, historyRecordId, result),
+    );
   };
 
   const refineHistoryResult = async (
@@ -500,37 +377,21 @@ export function App({ client: providedClient }: AppProps = {}) {
     selections: ReadonlyArray<TextSelection>,
     onProgress?: (status: SubmissionStatus) => void,
   ): Promise<GenerationResult> => {
-    const labels = patternRhymeLabels(entry.pattern);
-    const selectedRhymes = Object.fromEntries(
-      labels
-        .map((label, index) => [label.id, entry.settings?.rhymeSettings[index]?.groupId] as const)
-        .filter((item): item is readonly [string, string] => item[1] !== undefined),
-    );
-    const preferredRhymeGroup =
-      Object.keys(selectedRhymes).length === 0
-        ? sourceResult.draft.requestedRhymeGroup
-        : labels.length === 1
-          ? selectedRhymes[labels[0]!.id]
-          : selectedRhymes;
-    const additionalRequirements = entry.settings?.additionalRequirements ?? [];
+    const preferences = historyRefinementPreferences(entry, sourceResult);
     const { result } = await runRefinementSession(
       createRefinementRequest({
         sourceResult,
         pattern: entry.pattern,
         selections,
-        maxRounds: entry.settings?.maxRounds ?? 8,
-        preferredRhymeGroup,
-        additionalRequirements,
+        maxRounds: preferences.maxRounds,
+        preferredRhymeGroup: preferences.preferredRhymeGroup,
+        additionalRequirements: preferences.additionalRequirements,
       }),
       sourceResult,
       entry.pattern,
       onProgress,
     );
-    setGenerationHistory((current) => {
-      const next = addGenerationHistoryVersion(current, entry.id, result);
-      saveGenerationHistory(next);
-      return next;
-    });
+    updateGenerationHistory((current) => addGenerationHistoryVersion(current, entry.id, result));
     return result;
   };
 
@@ -878,61 +739,6 @@ export function App({ client: providedClient }: AppProps = {}) {
       />
     </div>
   );
-}
-
-interface CreateRefinementRequestInput {
-  readonly sourceResult: GenerationResult;
-  readonly pattern: CiPattern;
-  readonly selections: ReadonlyArray<TextSelection>;
-  readonly maxRounds: number;
-  readonly preferredRhymeGroup: GenerationRequest['preferredRhymeGroup'];
-  readonly additionalRequirements: ReadonlyArray<string>;
-}
-
-function createRefinementRequest({
-  sourceResult,
-  pattern,
-  selections,
-  maxRounds,
-  preferredRhymeGroup,
-  additionalRequirements,
-}: CreateRefinementRequestInput): GenerationRequest {
-  return {
-    patternId: pattern.id,
-    theme: sourceResult.draft.theme,
-    sourceDraft: {
-      id: sourceResult.draft.id,
-      patternId: sourceResult.draft.patternId,
-      theme: sourceResult.draft.theme,
-      lines: sourceResult.draft.lines.map((line) => ({ ...line })),
-      version: sourceResult.draft.version,
-      ...(sourceResult.draft.title === undefined ? {} : { title: sourceResult.draft.title }),
-      ...(sourceResult.draft.requestedRhymeGroup === undefined
-        ? {}
-        : { requestedRhymeGroup: sourceResult.draft.requestedRhymeGroup }),
-    },
-    selections: selections.map((selection) => ({
-      ...selection,
-      instruction: selection.instruction.trim(),
-    })),
-    maxRounds,
-    ...(preferredRhymeGroup === undefined ? {} : { preferredRhymeGroup }),
-    ...(additionalRequirements.length === 0
-      ? {}
-      : { additionalRequirements: [...additionalRequirements] }),
-  };
-}
-
-function directProgressToSubmissionProgress(
-  progress: DirectGenerationProgress,
-): SubmissionProgressEntry {
-  return {
-    stage: progress.stage,
-    message: progress.message,
-    ...(progress.round === undefined ? {} : { round: progress.round }),
-    ...(progress.maxRounds === undefined ? {} : { maxRounds: progress.maxRounds }),
-    ...(progress.issueCount === undefined ? {} : { issueCount: progress.issueCount }),
-  };
 }
 
 function LoadingState({ message }: { readonly message: string }) {

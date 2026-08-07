@@ -1,4 +1,9 @@
-import type { CiPattern, GenerationResult } from '@poesygen/domain';
+import {
+  patternRhymeLabels,
+  patternStats,
+  type CiPattern,
+  type GenerationResult,
+} from '@poesygen/domain';
 import { findPattern } from '@poesygen/patterns';
 
 import type {
@@ -6,6 +11,9 @@ import type {
   RhymeGroupDetail,
   RhymeGroupSummary,
 } from './local-catalog.js';
+
+export { patternRhymeLabels } from '@poesygen/domain';
+
 const toneLabels = {
   level: '平',
   oblique: '仄',
@@ -17,9 +25,8 @@ export function formatPatternSummary(pattern: CiPattern): string {
 }
 
 export function formatPatternVariantSummary(pattern: CiPattern): string {
-  const lines = pattern.sections.flatMap((section) => section.lines);
-  const characters = lines.reduce((sum, line) => sum + line.positions.length, 0);
-  return `${pattern.variant}  ${characters}字/${lines.length}句  ${pattern.id}`;
+  const stats = patternStats(pattern);
+  return `${pattern.variant}  ${stats.characters}字/${stats.lines}句  ${pattern.id}`;
 }
 
 export function formatPattern(pattern: CiPattern): string {
@@ -91,21 +98,6 @@ export function formatCharacter(response: CharacterPronunciationResponse): strin
     });
   }
   return output.join('\n');
-}
-
-export function patternRhymeLabels(pattern: CiPattern): ReadonlyArray<{
-  readonly id: string;
-  readonly tone: 'level' | 'oblique' | 'either';
-}> {
-  const labels = new Map<string, 'level' | 'oblique' | 'either'>();
-  for (const position of pattern.sections.flatMap((section) =>
-    section.lines.flatMap((line) => line.positions),
-  )) {
-    if (position.rhyme !== undefined && !labels.has(position.rhyme)) {
-      labels.set(position.rhyme, position.rhymeTone ?? position.tone);
-    }
-  }
-  return [...labels].map(([id, tone]) => ({ id, tone }));
 }
 
 export function formatGenerationResult(

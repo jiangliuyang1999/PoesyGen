@@ -1555,8 +1555,7 @@ button:disabled {
   color: var(--vermilion);
 }
 
-.history-page-numbers,
-.pattern-page-numbers {
+.pagination-pages {
   display: flex;
   gap: 5px;
   justify-content: center;

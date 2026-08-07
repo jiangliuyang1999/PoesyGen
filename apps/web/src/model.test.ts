@@ -5,12 +5,15 @@ import type { CiPattern } from '@poesygen/domain';
 import type { RhymeGroupSummary } from './catalog-types.js';
 import {
   compatibleRhymeGroups,
+  filterPatternFamilies,
   filterPatterns,
   formatGenerationTitle,
   formatPatternVariantSummary,
   groupPatternsByName,
+  listPatternFamilies,
   patternRhymeLabels,
   patternStats,
+  selectPatternFamilyVariant,
   sortPatternFamiliesByPinyin,
   splitRequirements,
 } from './model.js';
@@ -116,6 +119,25 @@ describe('web interaction model', () => {
       '浣溪沙',
       '竹枝词',
     ]);
+  });
+
+  it('reuses sorted families for filtering and variant selection', () => {
+    const alternate = {
+      ...testPattern,
+      id: 'test-variant-02',
+      variant: '格二',
+    };
+    const other = {
+      ...testPattern,
+      id: 'an-xiang-standard',
+      name: '暗香',
+    };
+    const families = listPatternFamilies([testPattern, alternate, other]);
+
+    expect(families.map(({ name }) => name)).toEqual(['暗香', '测试令']);
+    expect(filterPatternFamilies(families, '格二').map(({ name }) => name)).toEqual(['测试令']);
+    expect(selectPatternFamilyVariant(families[1]!, alternate.id)).toBe(alternate);
+    expect(selectPatternFamilyVariant(families[1]!)).toBe(testPattern);
   });
 
   it('filters patterns and normalizes requirement lines', () => {

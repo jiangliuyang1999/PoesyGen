@@ -33,16 +33,7 @@ export async function runDirectGeneration(
   const [{ createGenerationWorkflow, LlmDraftEngine }, { cilinZhengyunLexicon }] =
     await Promise.all([import('@poesygen/workflow'), import('@poesygen/prosody')]);
 
-  const provider = new OpenAiCompatibleProvider({
-    apiKey: config.apiKey,
-    model: config.model,
-    baseUrl: config.baseUrl,
-    ...(config.endpoint.trim() === '' ? {} : { endpoint: config.endpoint.trim() }),
-    timeoutMs: config.timeoutMs,
-    maxTokens: config.maxTokens,
-    jsonMode: config.jsonMode,
-    fetch: createDirectLlmFetch(),
-  });
+  const provider = createDirectLlmProvider(config);
   const workflow = createGenerationWorkflow({
     draftEngine: new LlmDraftEngine(provider),
     lexicon: cilinZhengyunLexicon,

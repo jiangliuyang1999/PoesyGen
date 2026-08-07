@@ -3,11 +3,12 @@ import { useRef, useState } from 'react';
 import type { CiPattern } from '@poesygen/domain';
 
 import {
-  filterPatterns,
-  groupPatternsByName,
+  filterPatternFamilies,
+  listPatternFamilies,
   patternStats,
-  sortPatternFamiliesByPinyin,
+  selectPatternFamilyVariant,
 } from './model.js';
+import { paginateItems } from './Pagination.js';
 import { PatternPagination, patternPageSize } from './PatternPagination.js';
 
 interface PatternBrowserProps {
@@ -26,26 +27,18 @@ export function PatternBrowser({
   onSelect,
 }: PatternBrowserProps) {
   const listRef = useRef<HTMLDivElement>(null);
-  const matchingPatternIds = new Set(filterPatterns(patterns, query).map(({ id }) => id));
-  const families = sortPatternFamiliesByPinyin(groupPatternsByName(patterns));
+  const families = listPatternFamilies(patterns);
   const initialSelectedFamilyIndex = families.findIndex(({ patterns: variants }) =>
     variants.some(({ id }) => id === selectedPatternId),
   );
   const [pageIndex, setPageIndex] = useState(
     Math.max(0, Math.floor(initialSelectedFamilyIndex / patternPageSize)),
   );
-  const visibleFamilies = families.filter(({ patterns: variants }) =>
-    variants.some(({ id }) => matchingPatternIds.has(id)),
-  );
-  const pageCount = Math.max(1, Math.ceil(visibleFamilies.length / patternPageSize));
-  const activePageIndex = Math.min(pageIndex, pageCount - 1);
-  const pageFamilies = visibleFamilies.slice(
-    activePageIndex * patternPageSize,
-    (activePageIndex + 1) * patternPageSize,
-  );
+  const visibleFamilies = filterPatternFamilies(families, query);
+  const pagination = paginateItems(visibleFamilies, pageIndex, patternPageSize);
 
   const changePage = (nextPageIndex: number): void => {
-    setPageIndex(Math.max(0, Math.min(nextPageIndex, pageCount - 1)));
+    setPageIndex(Math.max(0, Math.min(nextPageIndex, pagination.pageCount - 1)));
     if (listRef.current !== null) listRef.current.scrollTop = 0;
   };
 
@@ -83,11 +76,10 @@ export function PatternBrowser({
       </label>
 
       <div className="pattern-list" ref={listRef}>
-        {pageFamilies.map((family) => {
-          const selectedPattern = family.patterns.find(({ id }) => id === selectedPatternId);
-          const activePattern = selectedPattern ?? family.patterns[0]!;
+        {pagination.items.map((family) => {
+          const selected = family.patterns.some(({ id }) => id === selectedPatternId);
+          const activePattern = selectPatternFamilyVariant(family, selectedPatternId)!;
           const stats = patternStats(activePattern);
-          const selected = selectedPattern !== undefined;
           return (
             <div className="pattern-family" data-selected={selected} key={family.name}>
               <button
@@ -121,7 +113,11 @@ export function PatternBrowser({
         {visibleFamilies.length === 0 && <p className="empty-copy">没有匹配的词牌或体式。</p>}
       </div>
 
-      <PatternPagination pageIndex={activePageIndex} pageCount={pageCount} onChange={changePage} />
+      <PatternPagination
+        pageIndex={pagination.pageIndex}
+        pageCount={pagination.pageCount}
+        onChange={changePage}
+      />
     </aside>
   );
 }

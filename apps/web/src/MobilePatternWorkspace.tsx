@@ -4,11 +4,11 @@ import type { CiPattern } from '@poesygen/domain';
 
 import { PatternPreview } from './PatternPreview.js';
 import {
-  filterPatterns,
+  filterPatternFamilies,
   formatPatternVariantSummary,
-  groupPatternsByName,
+  listPatternFamilies,
   patternStats,
-  sortPatternFamiliesByPinyin,
+  selectPatternFamilyVariant,
 } from './model.js';
 
 interface MobilePatternWorkspaceProps {
@@ -31,18 +31,12 @@ export function MobilePatternWorkspace({
   onCreate,
 }: MobilePatternWorkspaceProps) {
   const [detailOpen, setDetailOpen] = useState(false);
-  const families = sortPatternFamiliesByPinyin(groupPatternsByName(patterns));
-  const matchingPatternIds = new Set(filterPatterns(patterns, query).map(({ id }) => id));
-  const visibleFamilies = families.filter(({ patterns: variants }) =>
-    variants.some(({ id }) => matchingPatternIds.has(id)),
-  );
+  const families = listPatternFamilies(patterns);
+  const visibleFamilies = filterPatternFamilies(families, query);
   const selectedFamily = families.find(({ name }) => name === selectedPattern.name);
 
   const openFamily = (family: (typeof families)[number]): void => {
-    const activePattern =
-      family.patterns.find(({ id }) => id === selectedPattern.id) ??
-      family.patterns.find(({ variant }) => variant === '正体') ??
-      family.patterns[0];
+    const activePattern = selectPatternFamilyVariant(family, selectedPattern.id);
     if (activePattern === undefined) return;
     onSelect(activePattern.id);
     setDetailOpen(true);
@@ -111,10 +105,7 @@ export function MobilePatternWorkspace({
 
           <div className="mobile-pattern-grid" aria-label="手机词牌列表">
             {visibleFamilies.map((family) => {
-              const activePattern =
-                family.patterns.find(({ id }) => id === selectedPattern.id) ??
-                family.patterns.find(({ variant }) => variant === '正体') ??
-                family.patterns[0]!;
+              const activePattern = selectPatternFamilyVariant(family, selectedPattern.id)!;
               const stats = patternStats(activePattern);
               return (
                 <button

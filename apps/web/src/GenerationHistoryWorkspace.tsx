@@ -10,6 +10,7 @@ import {
   type GenerationHistoryEntry,
 } from './generation-history.js';
 import { formatGenerationTitle, patternStats } from './model.js';
+import { paginateItems, Pagination } from './Pagination.js';
 import { PatternPreview } from './PatternPreview.js';
 
 interface GenerationHistoryWorkspaceProps {
@@ -32,6 +33,12 @@ const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
 });
 
 const historyPageSize = 8;
+const historyPaginationLabels = {
+  navigation: '历史记录分页',
+  previous: '上一页历史记录',
+  next: '下一页历史记录',
+  page: (pageNumber: number) => `第 ${pageNumber} 页`,
+};
 
 export function GenerationHistoryWorkspace({
   entries,
@@ -46,17 +53,13 @@ export function GenerationHistoryWorkspace({
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const visibleEntries = filterGenerationHistory(entries, query);
-  const pageCount = mobilePlatform
-    ? 1
-    : Math.max(1, Math.ceil(visibleEntries.length / historyPageSize));
-  const activePageIndex = Math.min(pageIndex, pageCount - 1);
-  const pageEntries = mobilePlatform
-    ? visibleEntries
-    : visibleEntries.slice(
-        activePageIndex * historyPageSize,
-        (activePageIndex + 1) * historyPageSize,
-      );
-  const selectedEntry = pageEntries.find(({ id }) => id === selectedEntryId) ?? pageEntries[0];
+  const pagination = paginateItems(
+    visibleEntries,
+    pageIndex,
+    mobilePlatform ? undefined : historyPageSize,
+  );
+  const selectedEntry =
+    pagination.items.find(({ id }) => id === selectedEntryId) ?? pagination.items[0];
   const versions = selectedEntry === undefined ? [] : generationHistoryVersions(selectedEntry);
   const selectedResult =
     versions.find(({ draft }) => draft.id === selectedVersionId) ?? versions.at(-1);
@@ -82,7 +85,11 @@ export function GenerationHistoryWorkspace({
   };
 
   const changePage = (nextPageIndex: number): void => {
-    const normalizedPageIndex = Math.max(0, Math.min(nextPageIndex, pageCount - 1));
+    const normalizedPageIndex = paginateItems(
+      visibleEntries,
+      nextPageIndex,
+      historyPageSize,
+    ).pageIndex;
     setPageIndex(normalizedPageIndex);
     setSelectedEntryId(visibleEntries[normalizedPageIndex * historyPageSize]?.id);
     setSelectedVersionId(undefined);
@@ -115,7 +122,7 @@ export function GenerationHistoryWorkspace({
           </label>
 
           <div className="history-list">
-            {pageEntries.map((entry) => {
+            {pagination.items.map((entry) => {
               const selected = !mobilePlatform && entry.id === selectedEntry?.id;
               return (
                 <button
@@ -154,38 +161,14 @@ export function GenerationHistoryWorkspace({
             )}
           </div>
 
-          {!mobilePlatform && pageCount > 1 && (
-            <nav className="history-pagination" aria-label="历史记录分页">
-              <button
-                type="button"
-                aria-label="上一页历史记录"
-                disabled={activePageIndex === 0}
-                onClick={() => changePage(activePageIndex - 1)}
-              >
-                ←
-              </button>
-              <span className="history-page-numbers">
-                {Array.from({ length: pageCount }, (_, index) => (
-                  <button
-                    type="button"
-                    key={index}
-                    aria-label={`第 ${index + 1} 页`}
-                    {...(index === activePageIndex ? { 'aria-current': 'page' as const } : {})}
-                    onClick={() => changePage(index)}
-                  >
-                    {index + 1}
-                  </button>
-                ))}
-              </span>
-              <button
-                type="button"
-                aria-label="下一页历史记录"
-                disabled={activePageIndex === pageCount - 1}
-                onClick={() => changePage(activePageIndex + 1)}
-              >
-                →
-              </button>
-            </nav>
+          {!mobilePlatform && (
+            <Pagination
+              className="history-pagination"
+              pageIndex={pagination.pageIndex}
+              pageCount={pagination.pageCount}
+              labels={historyPaginationLabels}
+              onChange={changePage}
+            />
           )}
 
           <p className="history-total-count" aria-label="历史记录总数">

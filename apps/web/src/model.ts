@@ -1,32 +1,25 @@
-import type { CiPattern } from '@poesygen/domain';
+import {
+  groupPatternsByName,
+  patternStats,
+  type CiPattern,
+  type PatternFamily,
+  type PatternRhymeLabel,
+} from '@poesygen/domain';
 
 import type { RhymeGroupSummary } from './catalog-types.js';
-export interface PatternRhymeLabel {
-  readonly id: string;
-  readonly tone: 'level' | 'oblique' | 'either';
-}
 
-export interface PatternFamily {
-  readonly name: string;
-  readonly patterns: ReadonlyArray<CiPattern>;
-}
+export {
+  groupPatternsByName,
+  patternRhymeLabels,
+  patternStats,
+  type PatternFamily,
+  type PatternRhymeLabel,
+} from '@poesygen/domain';
 
 const pinyinCollator = new Intl.Collator('zh-CN-u-co-pinyin', {
   sensitivity: 'base',
   numeric: true,
 });
-
-export function groupPatternsByName(
-  patterns: ReadonlyArray<CiPattern>,
-): ReadonlyArray<PatternFamily> {
-  const grouped = new Map<string, CiPattern[]>();
-  for (const pattern of patterns) {
-    const variants = grouped.get(pattern.name) ?? [];
-    variants.push(pattern);
-    grouped.set(pattern.name, variants);
-  }
-  return [...grouped].map(([name, variants]) => ({ name, patterns: variants }));
-}
 
 export function sortPatternFamiliesByPinyin(
   families: ReadonlyArray<PatternFamily>,
@@ -40,23 +33,39 @@ export function sortPatternFamiliesByPinyin(
   });
 }
 
-function patternFamilyPinyinKey(family: PatternFamily): string {
-  return (family.patterns[0]?.id ?? family.name).replace(/-(?:standard|variant-\d+)$/u, '');
+export function listPatternFamilies(
+  patterns: ReadonlyArray<CiPattern>,
+): ReadonlyArray<PatternFamily> {
+  return sortPatternFamiliesByPinyin(groupPatternsByName(patterns));
 }
 
-export function patternStats(pattern: CiPattern): {
-  readonly characters: number;
-  readonly lines: number;
-  readonly sections: number;
-  readonly rhymePositions: number;
-} {
-  const lines = pattern.sections.flatMap((section) => section.lines);
-  return {
-    characters: lines.reduce((sum, line) => sum + line.positions.length, 0),
-    lines: lines.length,
-    sections: pattern.sections.length,
-    rhymePositions: lines.filter((line) => line.positions.at(-1)?.rhyme !== undefined).length,
-  };
+export function filterPatternFamilies(
+  families: ReadonlyArray<PatternFamily>,
+  query: string,
+): ReadonlyArray<PatternFamily> {
+  if (query.trim() === '') return families;
+  const matchingPatternIds = new Set(
+    filterPatterns(
+      families.flatMap(({ patterns }) => patterns),
+      query,
+    ).map(({ id }) => id),
+  );
+  return families.filter(({ patterns }) => patterns.some(({ id }) => matchingPatternIds.has(id)));
+}
+
+export function selectPatternFamilyVariant(
+  family: PatternFamily,
+  selectedPatternId?: string,
+): CiPattern | undefined {
+  return (
+    family.patterns.find(({ id }) => id === selectedPatternId) ??
+    family.patterns.find(({ variant }) => variant === '正体') ??
+    family.patterns[0]
+  );
+}
+
+function patternFamilyPinyinKey(family: PatternFamily): string {
+  return (family.patterns[0]?.id ?? family.name).replace(/-(?:standard|variant-\d+)$/u, '');
 }
 
 export function formatPatternVariantSummary(pattern: CiPattern): string {
@@ -68,18 +77,6 @@ export function formatPatternVariantSummary(pattern: CiPattern): string {
     `${stats.lines}句`,
     `${stats.rhymePositions}韵位`,
   ].join(' · ');
-}
-
-export function patternRhymeLabels(pattern: CiPattern): ReadonlyArray<PatternRhymeLabel> {
-  const labels = new Map<string, PatternRhymeLabel['tone']>();
-  for (const position of pattern.sections.flatMap((section) =>
-    section.lines.flatMap((line) => line.positions),
-  )) {
-    if (position.rhyme !== undefined && !labels.has(position.rhyme)) {
-      labels.set(position.rhyme, position.rhymeTone ?? position.tone);
-    }
-  }
-  return [...labels].map(([id, tone]) => ({ id, tone }));
 }
 
 export function compatibleRhymeGroups(

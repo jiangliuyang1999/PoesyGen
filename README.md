@@ -35,7 +35,7 @@ apps/
   desktop/      Electron 桌面壳，复用 Web
   mobile/       Capacitor iOS / Android 壳，复用 Web
 packages/
-  domain/       领域模型
+  domain/       领域模型与跨端复用的词牌派生规则
   patterns/     《御定词谱》版本化词牌谱
   prosody/      《词林正韵》、Unihan 与确定性校验
   workflow/     LangGraph 生成与修复流程
@@ -43,6 +43,9 @@ packages/
   db/           未接入当前端侧运行链路的保留数据模型包
   ui-*/         未接入运行时的 UI 占位包
 ```
+
+Web 端将词牌目录、分页、生成请求组装和生成进度会话拆分为独立纯函数或组件；CLI 与 Web
+共享 `domain` 中的词牌分组、格律统计和韵脚标签推导，避免多端维护不同实现。
 
 ## 本地开发
 

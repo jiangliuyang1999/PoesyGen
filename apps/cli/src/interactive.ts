@@ -1,6 +1,6 @@
 import { confirm, input, number, password, select } from '@inquirer/prompts';
 
-import type { CiPattern, GenerationRequest } from '@poesygen/domain';
+import { groupPatternsByName, type CiPattern, type GenerationRequest } from '@poesygen/domain';
 
 import { isSingleHanCharacter } from './character.js';
 import { formatPatternVariantSummary, patternRhymeLabels } from './format.js';
@@ -223,20 +223,4 @@ function validateHttpUrl(value: string): boolean | string {
   } catch {
     return '请输入有效的 API Base URL';
   }
-}
-
-function groupPatternsByName(patterns: ReadonlyArray<CiPattern>): ReadonlyArray<{
-  readonly name: string;
-  readonly patterns: ReadonlyArray<CiPattern>;
-}> {
-  const grouped = new Map<string, CiPattern[]>();
-  for (const pattern of patterns) {
-    const variants = grouped.get(pattern.name) ?? [];
-    variants.push(pattern);
-    grouped.set(pattern.name, variants);
-  }
-  return [...grouped].map(([name, variants]) => ({
-    name,
-    patterns: variants,
-  }));
 }
