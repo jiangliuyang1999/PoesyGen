@@ -175,7 +175,7 @@ try {
 }
 
 async function runInteractiveMenu(): Promise<void> {
-  process.stdout.write('PoesyGen 词作工作台\n\n');
+  process.stdout.write('PoesyGen 格律诗词作\n\n');
   let patterns: ReadonlyArray<CiPattern> | undefined;
   let groups: ReadonlyArray<RhymeGroupSummary> | undefined;
 

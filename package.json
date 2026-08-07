@@ -17,6 +17,7 @@
     "dev": "turbo run dev --parallel",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "icons:generate": "bash tooling/generate-app-icons.sh",
     "package:android:aab": "pnpm --filter @poesygen/mobile package:android:aab",
     "package:android:apk": "pnpm --filter @poesygen/mobile package:android:apk",
     "package:android:test": "pnpm --filter @poesygen/mobile package:android:test",

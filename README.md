@@ -27,6 +27,8 @@ LLM 负责创作，确定性规则引擎负责字数、平仄和押韵校验，L
   版本关联，不在界面中显示。
 - Web 和桌面端使用左右双栏创作布局；移动端使用底部导航和单列卡片，并按“词牌设置、
   词牌预览、创作主题、生成设置、生成结果”排列创作内容。
+- Web favicon、页面品牌标志、macOS/Windows 桌面图标及 iOS/Android 应用图标统一使用
+  “词”字印章设计；移动端启动画面使用同一品牌图标。
 
 ## 项目结构
 
@@ -149,6 +151,9 @@ pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+图标母版位于 `apps/desktop/build/icon.svg`。修改母版后执行 `pnpm icons:generate`，可重新
+生成 Web、桌面、iOS、Android 图标及移动端启动画面。
 
 ## 数据边界
 

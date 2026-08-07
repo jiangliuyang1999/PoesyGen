@@ -10,6 +10,10 @@ Capacitor iOS / Android 应用壳。应用直接打包 `apps/web/dist`，创作�
 移动端词谱列表按词牌拼音排序并一次显示全部词牌；创作页词牌选项也使用相同顺序，两个
 页面首次载入时均默认选择第一个词牌的第一个体式。
 
+iOS、Android 应用图标和启动画面与 Web、桌面端共用“词”字印章设计。修改
+`apps/desktop/build/icon.svg` 后，在仓库根目录执行 `pnpm icons:generate` 可同步生成
+全部平台图标资源。
+
 ## 环境要求
 
 - iOS：macOS、Xcode 26 或兼容版本

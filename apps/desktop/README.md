@@ -33,6 +33,10 @@ LLM 配置和生成历史保存在桌面应用自己的 Web 存储中，不与�
 
 桌面窗口会给 Web 添加 `platform=desktop`，启用更宽的工作区和更紧凑的桌面布局。
 
+桌面安装包图标与 Web、iOS、Android 共用“词”字印章设计。图标母版为
+`apps/desktop/build/icon.svg`；修改后在仓库根目录执行 `pnpm icons:generate`，会同步
+生成 macOS ICNS、Windows ICO 和其他平台图标。
+
 ## 发布安装包
 
 安装包由 `electron-builder` 生成，内置 Web、词谱、韵书和字典资源，统一输出到

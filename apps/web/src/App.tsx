@@ -471,7 +471,7 @@ export function App({ client: providedClient }: AppProps = {}) {
             <span className="brand-seal">词</span>
             <span>
               <strong>PoesyGen</strong>
-              <small>格律诗词</small>
+              <small>格律诗词作</small>
             </span>
           </button>
 
