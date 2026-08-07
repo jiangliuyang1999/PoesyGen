@@ -17,11 +17,6 @@ export function DirectLlmSettings({ config, disabled, onChange }: DirectLlmSetti
   return (
     <div className="setting-block direct-llm-settings">
       <div className="direct-llm-fields">
-        <p className="direct-llm-notice">
-          配置完整后才能调用模型。未配置时，灵感推荐会从本地 100 条主题中随机选择。Web
-          端要求模型服务允许 CORS；移动端使用原生网络请求。
-        </p>
-
         <label>
           <span>接口协议</span>
           <select aria-label="LLM 接口协议" value="openai-compatible" disabled>

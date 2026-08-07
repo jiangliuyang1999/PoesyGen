@@ -10,6 +10,7 @@ import {
   type GenerationHistoryEntry,
 } from './generation-history.js';
 import { formatGenerationTitle, patternStats } from './model.js';
+import { PatternPreview } from './PatternPreview.js';
 
 interface GenerationHistoryWorkspaceProps {
   readonly entries: ReadonlyArray<GenerationHistoryEntry>;
@@ -30,15 +31,6 @@ const dateFormatter = new Intl.DateTimeFormat('zh-CN', {
   hour12: false,
 });
 
-const detailDateFormatter = new Intl.DateTimeFormat('zh-CN', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-
 const historyPageSize = 8;
 
 export function GenerationHistoryWorkspace({
@@ -50,25 +42,32 @@ export function GenerationHistoryWorkspace({
   const [query, setQuery] = useState('');
   const [selectedEntryId, setSelectedEntryId] = useState(entries[0]?.id);
   const [selectedVersionId, setSelectedVersionId] = useState<string>();
+  const [previewEntryId, setPreviewEntryId] = useState<string>();
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const visibleEntries = filterGenerationHistory(entries, query);
-  const pageCount = Math.max(1, Math.ceil(visibleEntries.length / historyPageSize));
+  const pageCount = mobilePlatform
+    ? 1
+    : Math.max(1, Math.ceil(visibleEntries.length / historyPageSize));
   const activePageIndex = Math.min(pageIndex, pageCount - 1);
-  const pageEntries = visibleEntries.slice(
-    activePageIndex * historyPageSize,
-    (activePageIndex + 1) * historyPageSize,
-  );
+  const pageEntries = mobilePlatform
+    ? visibleEntries
+    : visibleEntries.slice(
+        activePageIndex * historyPageSize,
+        (activePageIndex + 1) * historyPageSize,
+      );
   const selectedEntry = pageEntries.find(({ id }) => id === selectedEntryId) ?? pageEntries[0];
   const versions = selectedEntry === undefined ? [] : generationHistoryVersions(selectedEntry);
   const selectedResult =
     versions.find(({ draft }) => draft.id === selectedVersionId) ?? versions.at(-1);
   const selectedPatternStats =
     selectedEntry === undefined ? undefined : patternStats(selectedEntry.pattern);
+  const patternPreviewOpen = selectedEntry !== undefined && previewEntryId === selectedEntry.id;
 
   const openEntry = (entryId: string): void => {
     setSelectedEntryId(entryId);
     setSelectedVersionId(undefined);
+    setPreviewEntryId(undefined);
     if (mobilePlatform) {
       setMobileDetailOpen(true);
       document.documentElement.scrollTop = 0;
@@ -87,6 +86,7 @@ export function GenerationHistoryWorkspace({
     setPageIndex(normalizedPageIndex);
     setSelectedEntryId(visibleEntries[normalizedPageIndex * historyPageSize]?.id);
     setSelectedVersionId(undefined);
+    setPreviewEntryId(undefined);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   };
@@ -108,6 +108,7 @@ export function GenerationHistoryWorkspace({
                 setPageIndex(0);
                 setSelectedEntryId(undefined);
                 setSelectedVersionId(undefined);
+                setPreviewEntryId(undefined);
               }}
               placeholder="搜索词牌名、题目、主题…"
             />
@@ -153,7 +154,7 @@ export function GenerationHistoryWorkspace({
             )}
           </div>
 
-          {pageCount > 1 && (
+          {!mobilePlatform && pageCount > 1 && (
             <nav className="history-pagination" aria-label="历史记录分页">
               <button
                 type="button"
@@ -212,76 +213,89 @@ export function GenerationHistoryWorkspace({
           ) : (
             <>
               <section className="history-overview" aria-label="历史记录信息">
-                <div className="history-archive-focus">
+                <div className="history-overview-primary">
                   <article className="history-pattern-identity" aria-label="词牌信息">
-                    <p>词牌</p>
-                    <h3>{selectedEntry.pattern.name}</h3>
-                    <span>
+                    <span className="history-card-label">词牌</span>
+                    <h3 aria-label={selectedEntry.pattern.name}>
+                      <button
+                        type="button"
+                        aria-label={`${patternPreviewOpen ? '收起' : '预览'}《${selectedEntry.pattern.name}》词谱`}
+                        aria-expanded={patternPreviewOpen}
+                        aria-controls={`history-pattern-preview-${selectedEntry.id}`}
+                        onClick={() =>
+                          setPreviewEntryId((current) =>
+                            current === selectedEntry.id ? undefined : selectedEntry.id,
+                          )
+                        }
+                      >
+                        <span>{selectedEntry.pattern.name}</span>
+                        <small aria-hidden="true">
+                          {patternPreviewOpen ? '收起词谱' : '预览词谱'}
+                          <i>{patternPreviewOpen ? '↑' : '↗'}</i>
+                        </small>
+                      </button>
+                    </h3>
+                    <p className="history-pattern-stats">
                       {selectedEntry.pattern.variant} · {selectedPatternStats?.characters ?? 0} 字 ·{' '}
+                      {selectedPatternStats?.sections === 1 ? '单调' : '双调'} ·{' '}
                       {selectedPatternStats?.lines ?? 0} 句 ·{' '}
-                      {selectedPatternStats?.sections === 1 ? '单调' : '双调'}
-                    </span>
+                      {selectedPatternStats?.rhymePositions ?? 0} 韵位
+                    </p>
+                    <div className="history-pattern-rhymes" aria-label="韵脚设置">
+                      <span className="history-card-label">韵脚</span>
+                      <div>
+                        {selectedEntry.settings === undefined ||
+                        selectedEntry.settings.rhymeSettings.length === 0 ? (
+                          <span className="history-setting-empty">未记录</span>
+                        ) : (
+                          selectedEntry.settings.rhymeSettings.map((setting) => (
+                            <span key={setting.label}>
+                              {setting.label} ·{' '}
+                              {setting.groupName === undefined
+                                ? '自动择韵'
+                                : `${setting.groupName} · ${setting.sections?.join('、') ?? formatTone(setting.tone)}`}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   </article>
 
-                  <div className="history-creative-brief" aria-label="创作重点">
-                    <article className="history-brief-section" data-primary="true">
-                      <span>创作主题</span>
-                      <p>{selectedEntry.theme}</p>
-                    </article>
-                    <article className="history-brief-section">
-                      <span>附加要求</span>
-                      <p>
-                        {selectedEntry.settings === undefined ||
-                        selectedEntry.settings.additionalRequirements.length === 0
-                          ? '无附加要求'
-                          : selectedEntry.settings.additionalRequirements.join('；')}
-                      </p>
-                    </article>
-                  </div>
+                  <article className="history-theme-card" aria-label="创作主题">
+                    <span className="history-card-label">创作主题</span>
+                    <p>{selectedEntry.theme}</p>
+                  </article>
                 </div>
 
-                <dl className="history-archive-meta" aria-label="历史生成设置">
+                {patternPreviewOpen && (
+                  <div
+                    className="history-pattern-preview"
+                    id={`history-pattern-preview-${selectedEntry.id}`}
+                  >
+                    <PatternPreview
+                      pattern={selectedEntry.pattern}
+                      onInspectCharacter={onInspectCharacter}
+                      showHeader={false}
+                    />
+                  </div>
+                )}
+
+                <dl className="history-generation-notes" aria-label="历史生成设置">
                   <div>
-                    <dt>最大优化轮数</dt>
+                    <dt>优化轮数</dt>
                     <dd>
-                      {selectedEntry.settings === undefined ? (
-                        <span className="history-setting-empty">未记录</span>
-                      ) : (
-                        <>
-                          <strong>{selectedEntry.settings.maxRounds}</strong>
-                          <span>轮</span>
-                        </>
-                      )}
+                      {selectedEntry.settings === undefined
+                        ? '未记录'
+                        : `${selectedEntry.settings.maxRounds} 轮`}
                     </dd>
                   </div>
-                  <div className="history-archive-rhyme">
-                    <dt>韵部设置</dt>
+                  <div>
+                    <dt>附加要求</dt>
                     <dd>
                       {selectedEntry.settings === undefined ||
-                      selectedEntry.settings.rhymeSettings.length === 0 ? (
-                        <span className="history-setting-empty">未记录</span>
-                      ) : (
-                        <ul>
-                          {selectedEntry.settings.rhymeSettings.map((setting) => (
-                            <li key={setting.label}>
-                              <span>{setting.label}</span>：
-                              <strong>
-                                {setting.groupName === undefined
-                                  ? '自动择韵'
-                                  : `${setting.groupName} · ${setting.sections?.join('、') ?? formatTone(setting.tone)}`}
-                              </strong>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>生成时间</dt>
-                    <dd>
-                      <time dateTime={selectedEntry.createdAt}>
-                        {formatDetailDate(selectedEntry.createdAt)}
-                      </time>
+                      selectedEntry.settings.additionalRequirements.length === 0
+                        ? '无附加要求'
+                        : selectedEntry.settings.additionalRequirements.join('；')}
                     </dd>
                   </div>
                 </dl>
@@ -313,11 +327,6 @@ export function GenerationHistoryWorkspace({
 function formatHistoryDate(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
-}
-
-function formatDetailDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : detailDateFormatter.format(date);
 }
 
 function formatTone(tone: 'level' | 'oblique' | 'either'): string {

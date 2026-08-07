@@ -23,7 +23,7 @@ import { defaultDirectLlmConfig, saveDirectLlmConfig } from './direct-llm-config
 import { generationHistoryStorageKey } from './generation-history.js';
 
 const pattern: CiPattern = {
-  id: 'test-standard',
+  id: 'ce-shi-ling-standard',
   name: '测试令',
   variant: '正体',
   source: '测试词谱',
@@ -50,7 +50,7 @@ const pattern: CiPattern = {
 
 const alternatePattern: CiPattern = {
   ...pattern,
-  id: 'test-variant-02',
+  id: 'ce-shi-ling-variant-02',
   variant: '格二',
   example: {
     author: '某氏',
@@ -77,7 +77,7 @@ const alternatePattern: CiPattern = {
 
 const otherPattern: CiPattern = {
   ...pattern,
-  id: 'other-standard',
+  id: 'ling-yi-ling-standard',
   name: '另一令',
 };
 
@@ -240,6 +240,35 @@ describe('web creation workspace', () => {
     expect(within(preview).getByTitle('平声位')).toBeTruthy();
     expect(within(preview).queryByRole('button', { name: '用此体创作' })).toBeNull();
     expect(within(preview).queryByRole('combobox', { name: '创作词牌' })).toBeNull();
+  });
+
+  it('sorts creation tunes and initializes both pages with the first tune and variant', async () => {
+    const user = userEvent.setup();
+    const pinyinPatterns = [
+      { ...pattern, id: 'zhu-zhi-ci-standard', name: '竹枝词' },
+      { ...pattern, id: 'an-xiang-standard', name: '暗香' },
+      { ...alternatePattern, id: 'an-xiang-variant-02', name: '暗香' },
+      { ...pattern, id: 'chang-xiang-si-standard', name: '长相思' },
+      { ...pattern, id: 'huan-xi-sha-standard', name: '浣溪沙' },
+    ];
+    render(<App client={createClient(pinyinPatterns)} />);
+
+    const tuneSelect = await screen.findByRole('combobox', { name: '创作词牌' });
+    expect((tuneSelect as HTMLSelectElement).value).toBe('暗香');
+    expect(
+      within(tuneSelect)
+        .getAllByRole('option')
+        .map(({ textContent }) => textContent),
+    ).toEqual(['暗香 · 2体', '长相思 · 1体', '浣溪沙 · 1体', '竹枝词 · 1体']);
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: '创作体式' }).value).toBe(
+      'an-xiang-standard',
+    );
+
+    await user.click(screen.getByRole('button', { name: '词谱' }));
+    expect(screen.getByRole('region', { name: '暗香' })).toBeTruthy();
+    expect(screen.getByRole<HTMLSelectElement>('combobox', { name: '暗香体式' }).value).toBe(
+      'an-xiang-standard',
+    );
   });
 
   it('uses four top-level pages with a shared workspace container', async () => {
@@ -667,7 +696,7 @@ describe('web creation workspace', () => {
       1,
       expect.any(Object),
       {
-        patternId: 'test-standard',
+        patternId: 'ce-shi-ling-standard',
         theme: '暮春江上归舟，怀念故友',
         maxRounds: 8,
         preferredRhymeGroup: 'cilin-17',
@@ -807,18 +836,20 @@ describe('web creation workspace', () => {
     const historyOverview = screen.getByLabelText('历史记录信息');
     const patternIdentity = within(historyOverview).getByLabelText('词牌信息');
     expect(within(patternIdentity).getByRole('heading', { name: '测试令' })).toBeTruthy();
-    expect(within(patternIdentity).getByText('正体 · 2 字 · 1 句 · 单调')).toBeTruthy();
-    const creativeBrief = within(historyOverview).getByLabelText('创作重点');
-    expect(within(creativeBrief).getByText('暮春江上归舟，怀念故友')).toBeTruthy();
-    expect(within(creativeBrief).getByText('含蓄抒情；避免重字')).toBeTruthy();
+    expect(within(patternIdentity).getByText('正体 · 2 字 · 单调 · 1 句 · 1 韵位')).toBeTruthy();
+    const rhymeSettings = within(patternIdentity).getByLabelText('韵脚设置');
+    expect(within(rhymeSettings).getByText(/第 1 组仄声韵 · 第十七部 · 四质/)).toBeTruthy();
+    const themeCard = within(historyOverview).getByLabelText('创作主题');
+    expect(within(themeCard).getByText('暮春江上归舟，怀念故友')).toBeTruthy();
     const historySettings = screen.getByLabelText('历史生成设置');
-    expect(within(historySettings).getByText('最大优化轮数')).toBeTruthy();
-    expect(within(historySettings).getByText('8')).toBeTruthy();
-    expect(within(historySettings).getByText('轮')).toBeTruthy();
-    expect(within(historySettings).getByText('第 1 组仄声韵')).toBeTruthy();
-    expect(within(historySettings).getByText('第十七部 · 四质')).toBeTruthy();
-    expect(within(historySettings).getByText('生成时间')).toBeTruthy();
+    expect(within(historySettings).getByText('优化轮数')).toBeTruthy();
+    expect(within(historySettings).getByText('8 轮')).toBeTruthy();
+    expect(within(historySettings).getByText('附加要求')).toBeTruthy();
+    expect(within(historySettings).getByText('含蓄抒情；避免重字')).toBeTruthy();
+    expect(within(historyOverview).queryByText('生成时间')).toBeNull();
     expect(within(historySettings).queryByText('会话 ID')).toBeNull();
+    await user.click(within(patternIdentity).getByRole('button', { name: '预览《测试令》词谱' }));
+    expect(within(historyOverview).getByLabelText('格律内容')).toBeTruthy();
     const historyList = screen.getByLabelText('生成历史列表');
     expect(within(historyList).getByText('2 个版本')).toBeTruthy();
     expect(screen.getByText('版本 2/2')).toBeTruthy();

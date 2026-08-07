@@ -62,12 +62,13 @@ describe('generation history pagination', () => {
     expect(screen.getByLabelText('历史记录总数').textContent).toBe('筛选 1 条 / 共 9 条');
   });
 
-  it('keeps the current page after opening and closing a mobile detail', async () => {
+  it('shows all records without pagination on mobile and preserves the list after detail', async () => {
     document.documentElement.dataset['platform'] = 'mobile';
     const user = userEvent.setup();
     renderHistory();
 
-    await user.click(screen.getByRole('button', { name: '第 2 页' }));
+    expect(within(getHistoryCardList()).getAllByRole('button')).toHaveLength(9);
+    expect(screen.queryByRole('navigation', { name: '历史记录分页' })).toBeNull();
     await user.click(
       within(getHistoryCardList()).getByRole('button', {
         name: /如梦令·题目 8/,
@@ -80,9 +81,39 @@ describe('generation history pagination', () => {
     await user.click(screen.getByRole('button', { name: '全部生成记录' }));
 
     expect(within(getHistoryCardList()).getByText('如梦令·题目 8')).toBeTruthy();
-    expect(screen.getByRole('button', { name: '第 2 页' }).getAttribute('aria-current')).toBe(
-      'page',
+    expect(within(getHistoryCardList()).getAllByRole('button')).toHaveLength(9);
+    expect(screen.queryByRole('navigation', { name: '历史记录分页' })).toBeNull();
+  });
+
+  it('shows the key generation settings and toggles the pattern preview', async () => {
+    const user = userEvent.setup();
+    renderHistory();
+
+    const overview = screen.getByLabelText('历史记录信息');
+    const patternIdentity = within(overview).getByLabelText('词牌信息');
+    expect(within(patternIdentity).getByRole('heading', { name: '如梦令' })).toBeTruthy();
+    expect(within(patternIdentity).getByText('正体 · 1 字 · 单调 · 1 句 · 1 韵位')).toBeTruthy();
+    expect(within(patternIdentity).getByText(/第一组仄声韵 · 第十七部 · 四质/)).toBeTruthy();
+    expect(within(overview).getByLabelText('创作主题').textContent).toContain('主题 0');
+
+    const settings = within(overview).getByLabelText('历史生成设置');
+    expect(within(settings).getByText('8 轮')).toBeTruthy();
+    expect(within(settings).getByText('保持含蓄')).toBeTruthy();
+    expect(within(overview).queryByText('生成时间')).toBeNull();
+
+    await user.click(
+      within(patternIdentity).getByRole('button', {
+        name: '预览《如梦令》词谱',
+      }),
     );
+    expect(within(overview).getByLabelText('格律内容')).toBeTruthy();
+
+    await user.click(
+      within(patternIdentity).getByRole('button', {
+        name: '收起《如梦令》词谱',
+      }),
+    );
+    expect(within(overview).queryByLabelText('格律内容')).toBeNull();
   });
 });
 
@@ -121,6 +152,19 @@ function createEntry(index: number): GenerationHistoryEntry {
     id: `record-${index}`,
     createdAt: new Date(Date.UTC(2026, 7, 4, 8, index)).toISOString(),
     theme: result.draft.theme,
+    settings: {
+      maxRounds: 8,
+      additionalRequirements: ['保持含蓄'],
+      rhymeSettings: [
+        {
+          label: '第一组仄声韵',
+          tone: 'oblique',
+          groupId: 'cilin-17',
+          groupName: '第十七部',
+          sections: ['四质'],
+        },
+      ],
+    },
     pattern,
     result,
   };

@@ -11,6 +11,7 @@ import {
   groupPatternsByName,
   patternRhymeLabels,
   patternStats,
+  sortPatternFamiliesByPinyin,
   splitRequirements,
 } from './model.js';
 
@@ -94,6 +95,27 @@ describe('web interaction model', () => {
     expect(formatPatternVariantSummary(testPattern)).toBe('正体 · 2字 · 单调 · 1句 · 1韵位');
     expect(patternRhymeLabels(testPattern)).toEqual([{ id: 'main', tone: 'oblique' }]);
     expect(compatibleRhymeGroups(groups, 'oblique').map(({ id }) => id)).toEqual(['cilin-17']);
+  });
+
+  it('sorts tune names by Chinese pinyin', () => {
+    const families = [
+      ['竹枝词', 'zhu-zhi-ci-standard'],
+      ['长相思', 'chang-xiang-si-standard'],
+      ['浣溪沙', 'huan-xi-sha-standard'],
+      ['八声甘州', 'ba-sheng-gan-zhou-standard'],
+      ['暗香', 'an-xiang-standard'],
+    ].map(([name, id]) => ({
+      name: name!,
+      patterns: [{ ...testPattern, id: id!, name: name! }],
+    }));
+
+    expect(sortPatternFamiliesByPinyin(families).map(({ name }) => name)).toEqual([
+      '暗香',
+      '八声甘州',
+      '长相思',
+      '浣溪沙',
+      '竹枝词',
+    ]);
   });
 
   it('filters patterns and normalizes requirement lines', () => {

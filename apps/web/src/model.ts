@@ -11,6 +11,11 @@ export interface PatternFamily {
   readonly patterns: ReadonlyArray<CiPattern>;
 }
 
+const pinyinCollator = new Intl.Collator('zh-CN-u-co-pinyin', {
+  sensitivity: 'base',
+  numeric: true,
+});
+
 export function groupPatternsByName(
   patterns: ReadonlyArray<CiPattern>,
 ): ReadonlyArray<PatternFamily> {
@@ -21,6 +26,22 @@ export function groupPatternsByName(
     grouped.set(pattern.name, variants);
   }
   return [...grouped].map(([name, variants]) => ({ name, patterns: variants }));
+}
+
+export function sortPatternFamiliesByPinyin(
+  families: ReadonlyArray<PatternFamily>,
+): ReadonlyArray<PatternFamily> {
+  return [...families].sort((left, right) => {
+    const pinyinOrder = patternFamilyPinyinKey(left).localeCompare(
+      patternFamilyPinyinKey(right),
+      'en',
+    );
+    return pinyinOrder === 0 ? pinyinCollator.compare(left.name, right.name) : pinyinOrder;
+  });
+}
+
+function patternFamilyPinyinKey(family: PatternFamily): string {
+  return (family.patterns[0]?.id ?? family.name).replace(/-(?:standard|variant-\d+)$/u, '');
 }
 
 export function patternStats(pattern: CiPattern): {

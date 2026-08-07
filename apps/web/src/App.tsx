@@ -52,6 +52,7 @@ import {
   formatPatternVariantSummary,
   groupPatternsByName,
   patternRhymeLabels,
+  sortPatternFamiliesByPinyin,
   splitRequirements,
 } from './model.js';
 
@@ -123,9 +124,11 @@ export function App({ client: providedClient }: AppProps = {}) {
         ]);
         if (!active) return;
         const tuneCount = new Set(loadedPatterns.map(({ name }) => name)).size;
+        const initialPatternId =
+          sortPatternFamiliesByPinyin(groupPatternsByName(loadedPatterns))[0]?.patterns[0]?.id ??
+          '';
         setPatterns(loadedPatterns);
         setRhymeGroups(loadedGroups);
-        const initialPatternId = loadedPatterns[0]?.id ?? '';
         setCreationPatternId(initialPatternId);
         setCatalogPatternId(initialPatternId);
         setCatalogStatus(`已载入 ${tuneCount} 个词牌、${loadedPatterns.length} 种体式`);
@@ -147,7 +150,10 @@ export function App({ client: providedClient }: AppProps = {}) {
 
   const creationPattern = patterns.find(({ id }) => id === creationPatternId);
   const catalogPattern = patterns.find(({ id }) => id === catalogPatternId);
-  const patternFamilies = useMemo(() => groupPatternsByName(patterns), [patterns]);
+  const patternFamilies = useMemo(
+    () => sortPatternFamiliesByPinyin(groupPatternsByName(patterns)),
+    [patterns],
+  );
   const creationPatternFamily = patternFamilies.find(({ name }) => name === creationPattern?.name);
   const catalogPatternFamily = patternFamilies.find(({ name }) => name === catalogPattern?.name);
 

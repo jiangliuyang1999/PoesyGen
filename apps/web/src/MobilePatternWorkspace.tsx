@@ -8,6 +8,7 @@ import {
   formatPatternVariantSummary,
   groupPatternsByName,
   patternStats,
+  sortPatternFamiliesByPinyin,
 } from './model.js';
 
 interface MobilePatternWorkspaceProps {
@@ -30,7 +31,7 @@ export function MobilePatternWorkspace({
   onCreate,
 }: MobilePatternWorkspaceProps) {
   const [detailOpen, setDetailOpen] = useState(false);
-  const families = groupPatternsByName(patterns);
+  const families = sortPatternFamiliesByPinyin(groupPatternsByName(patterns));
   const matchingPatternIds = new Set(filterPatterns(patterns, query).map(({ id }) => id));
   const visibleFamilies = families.filter(({ patterns: variants }) =>
     variants.some(({ id }) => matchingPatternIds.has(id)),
