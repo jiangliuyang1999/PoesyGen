@@ -2926,6 +2926,27 @@ html[data-platform='mobile'] .creation-preview-panel > .pattern-preview {
   padding: 20px 14px 22px;
 }
 
+html[data-platform='mobile'] .pattern-preview .stanza {
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+html[data-platform='mobile'] .pattern-preview .stanza-label {
+  display: grid;
+  align-self: stretch;
+  min-width: 32px;
+  writing-mode: horizontal-tb;
+  place-items: center;
+}
+
+html[data-platform='mobile'] .pattern-preview .stanza-label > span {
+  flex: none;
+  padding-top: 0;
+  writing-mode: vertical-rl;
+  white-space: nowrap;
+}
+
 html[data-platform='mobile'] .creation-preview-panel > .generation-result {
   order: 5;
 }
