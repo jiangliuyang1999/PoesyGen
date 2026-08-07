@@ -13,6 +13,13 @@ describe('local CLI catalog', () => {
 
     expect(patterns).toHaveLength(231);
     expect(new Set(patterns.map(({ name }) => name)).size).toBe(36);
+    expect([...new Set(patterns.map(({ name }) => name))].slice(0, 5)).toEqual([
+      '卜算子',
+      '采桑子',
+      '点绛唇',
+      '蝶恋花',
+      '贺新郎',
+    ]);
     expect(groups).toHaveLength(19);
     expect(groups[0]?.sections[0]?.characterCount).toBeGreaterThan(0);
   });

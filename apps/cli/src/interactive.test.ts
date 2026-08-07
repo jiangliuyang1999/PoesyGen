@@ -53,11 +53,11 @@ describe('interactive CLI LLM configuration', () => {
 });
 
 describe('interactive CLI pattern selection', () => {
-  it('selects the tune name before selecting one of its variants', async () => {
-    const standard = createPattern('test-standard', '测试令', '正体', 2);
-    const alternate = createPattern('test-alternate', '测试令', '变体', 3);
-    const single = createPattern('single-standard', '单体令', '正体', 4);
-    prompts.select.mockResolvedValueOnce('测试令').mockResolvedValueOnce(alternate.id);
+  it('sorts tune names by pinyin before selecting one of their variants', async () => {
+    const standard = createPattern('zhu-zhi-ci-standard', '竹枝词', '正体', 2);
+    const alternate = createPattern('zhu-zhi-ci-variant-01', '竹枝词', '变体', 3);
+    const single = createPattern('an-xiang-standard', '暗香', '正体', 4);
+    prompts.select.mockResolvedValueOnce('竹枝词').mockResolvedValueOnce(alternate.id);
 
     const selected = await promptPattern([standard, alternate, single]);
 
@@ -67,18 +67,18 @@ describe('interactive CLI pattern selection', () => {
       expect.objectContaining({
         message: '选择词牌',
         choices: [
-          expect.objectContaining({ name: '测试令', value: '测试令' }),
-          expect.objectContaining({ name: '单体令', value: '单体令' }),
+          expect.objectContaining({ name: '暗香', value: '暗香' }),
+          expect.objectContaining({ name: '竹枝词', value: '竹枝词' }),
         ],
       }),
     );
     expect(prompts.select).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        message: '选择《测试令》的体式',
+        message: '选择《竹枝词》的体式',
         choices: expect.arrayContaining([
-          expect.objectContaining({ name: '正体  2字/1句  test-standard' }),
-          expect.objectContaining({ name: '变体  3字/1句  test-alternate' }),
+          expect.objectContaining({ name: '正体  2字/1句  zhu-zhi-ci-standard' }),
+          expect.objectContaining({ name: '变体  3字/1句  zhu-zhi-ci-variant-01' }),
         ]),
       }),
     );

@@ -1,6 +1,6 @@
 import { confirm, input, number, password, select } from '@inquirer/prompts';
 
-import { groupPatternsByName, type CiPattern, type GenerationRequest } from '@poesygen/domain';
+import { listPatternFamilies, type CiPattern, type GenerationRequest } from '@poesygen/domain';
 
 import { isSingleHanCharacter } from './character.js';
 import { formatPatternVariantSummary, patternRhymeLabels } from './format.js';
@@ -34,7 +34,7 @@ export async function promptPattern(
   patterns: ReadonlyArray<CiPattern>,
   message = '选择词牌',
 ): Promise<CiPattern> {
-  const families = groupPatternsByName(patterns);
+  const families = listPatternFamilies(patterns);
   if (families.length === 0) throw new Error('没有可用词牌');
   const patternName = await select({
     message,

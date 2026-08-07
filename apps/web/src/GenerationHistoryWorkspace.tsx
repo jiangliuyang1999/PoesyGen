@@ -182,7 +182,7 @@ export function GenerationHistoryWorkspace({
             {visibleEntries.length === 0 && (
               <p className="empty-copy">
                 {entries.length === 0
-                  ? '还没有生成记录。完成一首词后会自动保存在这里。'
+                  ? '您还没有生成记录，快去创作吧！'
                   : '没有匹配的历史记录。'}
               </p>
             )}
@@ -218,7 +218,7 @@ export function GenerationHistoryWorkspace({
             <section className="history-empty" aria-label="历史结果">
               <p className="section-kicker">生成结果</p>
               <h2>{entries.length === 0 ? '尚无历史词作' : '没有匹配结果'}</h2>
-              <p>生成完成后，可在这里按词牌、题目或主题查询。</p>
+              <p>这里可查看生成记录，包括词牌名、主题和生成结果。</p>
             </section>
           ) : (
             <>

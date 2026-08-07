@@ -5,6 +5,7 @@ import { Command, Option } from 'commander';
 import type { CiPattern, GenerationRequest } from '@poesygen/domain';
 import type { GenerationWorkflowProgress } from '@poesygen/workflow';
 
+import { formatCliBanner } from './banner.js';
 import { isSingleHanCharacter } from './character.js';
 import { loadLocalEnvironment } from './environment.js';
 import {
@@ -175,7 +176,7 @@ try {
 }
 
 async function runInteractiveMenu(): Promise<void> {
-  process.stdout.write('PoesyGen 格律诗词作\n\n');
+  process.stdout.write(`${formatCliBanner()}\n\n`);
   let patterns: ReadonlyArray<CiPattern> | undefined;
   let groups: ReadonlyArray<RhymeGroupSummary> | undefined;
 

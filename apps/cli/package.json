@@ -21,7 +21,8 @@
     "@poesygen/patterns": "workspace:*",
     "@poesygen/prosody": "workspace:*",
     "@poesygen/workflow": "workspace:*",
-    "commander": "^15.0.0"
+    "commander": "^15.0.0",
+    "figlet": "^1.11.4"
   },
   "devDependencies": {
     "tsx": "^4.23.5"

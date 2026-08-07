@@ -1438,6 +1438,11 @@ button:disabled {
   overflow: visible;
 }
 
+.history-list > .empty-copy {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
 .history-list-card {
   position: relative;
   min-width: 0;

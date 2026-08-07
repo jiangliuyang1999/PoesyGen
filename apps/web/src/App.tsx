@@ -584,7 +584,7 @@ export function App({ client: providedClient }: AppProps = {}) {
             <div>
               <p className="section-kicker">历史</p>
               <h1>历史记录</h1>
-              <p>查询本地保存的生成记录、创作设置和作品版本。</p>
+              <p>查询本地保存的生成记录。</p>
             </div>
           </header>
           <GenerationHistoryWorkspace

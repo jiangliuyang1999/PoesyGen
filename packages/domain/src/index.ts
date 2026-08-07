@@ -64,6 +64,33 @@ export function groupPatternsByName(
   return [...grouped].map(([name, variants]) => ({ name, patterns: variants }));
 }
 
+const pinyinCollator = new Intl.Collator('zh-CN-u-co-pinyin', {
+  sensitivity: 'base',
+  numeric: true,
+});
+
+export function sortPatternFamiliesByPinyin(
+  families: ReadonlyArray<PatternFamily>,
+): ReadonlyArray<PatternFamily> {
+  return [...families].sort((left, right) => {
+    const pinyinOrder = patternFamilyPinyinKey(left).localeCompare(
+      patternFamilyPinyinKey(right),
+      'en',
+    );
+    return pinyinOrder === 0 ? pinyinCollator.compare(left.name, right.name) : pinyinOrder;
+  });
+}
+
+export function listPatternFamilies(
+  patterns: ReadonlyArray<CiPattern>,
+): ReadonlyArray<PatternFamily> {
+  return sortPatternFamiliesByPinyin(groupPatternsByName(patterns));
+}
+
+function patternFamilyPinyinKey(family: PatternFamily): string {
+  return (family.patterns[0]?.id ?? family.name).replace(/-(?:standard|variant-\d+)$/u, '');
+}
+
 export function patternRhymeLabels(pattern: CiPattern): ReadonlyArray<PatternRhymeLabel> {
   const labels = new Map<string, ToneRequirement>();
   for (const position of pattern.sections.flatMap((section) =>

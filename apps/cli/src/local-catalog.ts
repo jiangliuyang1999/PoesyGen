@@ -1,4 +1,4 @@
-import type { CiPattern } from '@poesygen/domain';
+import { listPatternFamilies, type CiPattern } from '@poesygen/domain';
 import type { CharacterReading, CilinRhymeGroup, Pronunciation } from '@poesygen/prosody';
 
 export interface RhymeGroupSummary {
@@ -22,7 +22,7 @@ export interface CharacterPronunciationResponse {
 
 export async function listLocalPatterns(): Promise<ReadonlyArray<CiPattern>> {
   const { listPatterns } = await import('@poesygen/patterns');
-  return listPatterns();
+  return listPatternFamilies(listPatterns()).flatMap(({ patterns }) => patterns);
 }
 
 export async function listLocalRhymeGroups(): Promise<ReadonlyArray<RhymeGroupSummary>> {
