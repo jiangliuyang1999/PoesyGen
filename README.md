@@ -116,6 +116,29 @@ pnpm --filter @poesygen/mobile open:android
 [`apps/desktop/README.md`](apps/desktop/README.md) 与
 [`apps/mobile/README.md`](apps/mobile/README.md)。
 
+## 发布安装包
+
+所有发布产物统一输出到仓库根目录的 `release/`：
+
+```bash
+# macOS 通用应用 ZIP（Apple Silicon + Intel）
+pnpm package:mac
+
+# Windows x64 NSIS 安装器和 ZIP
+pnpm package:win
+
+# Android 可直接安装的测试 APK
+pnpm package:android:test
+
+# iOS Simulator 应用 ZIP
+pnpm package:ios:simulator
+```
+
+macOS DMG、iOS 真机 IPA/TestFlight、Android 正式 APK/AAB 需要对应平台签名条件，命令与
+环境变量见 [`apps/desktop/README.md`](apps/desktop/README.md) 和
+[`apps/mobile/README.md`](apps/mobile/README.md)。签名证书、keystore 和密码不得提交
+到仓库。
+
 ## 质量检查
 
 ```bash

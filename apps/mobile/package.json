@@ -7,6 +7,12 @@
   "scripts": {
     "open:android": "cap open android",
     "open:ios": "cap open ios",
+    "package:android:aab": "bash scripts/package-android.sh release-aab",
+    "package:android:apk": "bash scripts/package-android.sh release-apk",
+    "package:android:test": "bash scripts/package-android.sh debug-apk",
+    "package:ios:adhoc": "bash scripts/package-ios.sh adhoc",
+    "package:ios:simulator": "bash scripts/package-ios-simulator.sh",
+    "package:ios:testflight": "bash scripts/package-ios.sh testflight",
     "run:android": "pnpm run sync && cap run android",
     "run:ios": "pnpm run sync && cap run ios",
     "sync": "pnpm --filter @poesygen/web build && cap sync",

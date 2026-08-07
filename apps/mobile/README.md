@@ -47,3 +47,57 @@ iOS 发布通过 Xcode Archive；Android 发布通过 Android Studio 生成签�
 本地历史记录按单次创作归档，局部修改作为同一记录的多个版本保存。记录保存在各自
 应用 WebView 的 `localStorage` 中，不与浏览器、桌面端或另一台设备自动同步；内部
 记录 UUID 不会显示在界面中。
+
+## Android 安装包
+
+产物输出到 `release/android/`：
+
+```bash
+# 使用 Android debug key 签名，可直接安装测试
+pnpm package:android:test
+
+# 使用正式 keystore 生成 APK 或 Play Store AAB
+pnpm package:android:apk
+pnpm package:android:aab
+```
+
+正式 APK/AAB 必须通过环境变量提供长期保存的签名密钥：
+
+```bash
+export ANDROID_KEYSTORE_PATH=/absolute/path/to/poesygen-release.keystore
+export ANDROID_KEYSTORE_PASSWORD='...'
+export ANDROID_KEY_ALIAS='...'
+export ANDROID_KEY_PASSWORD='...'
+export APP_VERSION_CODE=1
+
+pnpm package:android:aab
+```
+
+`APP_VERSION_NAME` 默认使用根 `package.json` 的版本。每次上传应用商店前必须递增
+`APP_VERSION_CODE`，并妥善备份 keystore；丢失正式密钥可能导致无法更新已发布应用。
+
+## iOS 安装包
+
+无需签名即可生成并安装到本机 iOS Simulator：
+
+```bash
+pnpm package:ios:simulator
+```
+
+真机和 TestFlight 需要付费 Apple Developer Team、有效的 Apple Development 或
+Distribution 证书以及 provisioning profile：
+
+```bash
+export APPLE_TEAM_ID='XXXXXXXXXX'
+export IOS_BUNDLE_ID='com.example.poesygen'
+
+# 上传 TestFlight/App Store Connect 的 IPA
+pnpm package:ios:testflight
+
+# 已登记测试设备的 Ad Hoc IPA
+pnpm package:ios:adhoc
+```
+
+产物输出到 `release/ios/`。TRAE 沙箱会阻止 Swift Package Manager 启动内部
+`sandbox-exec`，因此 iOS 归档命令需要在系统 Terminal 中运行。TestFlight 上传后，
+内部测试员通常可在构建处理完成后直接安装。

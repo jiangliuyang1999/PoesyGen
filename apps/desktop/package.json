@@ -4,15 +4,21 @@
   "private": true,
   "type": "module",
   "description": "Electron desktop shell for the shared PoesyGen web client",
+  "author": "PoesyGen",
   "main": "./dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf dist release",
     "dev": "tsc -p tsconfig.json && electron dist/main.js",
+    "package:mac": "pnpm run package:prepare && electron-builder --config electron-builder.yml --mac zip --universal",
+    "package:mac:dmg": "pnpm run package:prepare && electron-builder --config electron-builder.yml --mac dmg --universal",
+    "package:prepare": "pnpm --filter @poesygen/web build && pnpm run build",
+    "package:win": "pnpm run package:prepare && electron-builder --config electron-builder.yml --win",
     "preview": "pnpm --filter @poesygen/web build && pnpm run build && electron dist/main.js --built",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "electron": "^37.2.6"
+    "electron": "^37.2.6",
+    "electron-builder": "26.15.3"
   }
 }

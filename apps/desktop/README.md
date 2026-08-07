@@ -32,3 +32,29 @@ LLM 配置和生成历史保存在桌面应用自己的 Web 存储中，不与�
 同步。API Key 默认只保留在当前会话，只有用户明确启用持久保存后才写入本地存储。
 
 桌面窗口会给 Web 添加 `platform=desktop`，启用更宽的工作区和更紧凑的桌面布局。
+
+## 发布安装包
+
+安装包由 `electron-builder` 生成，内置 Web、词谱、韵书和字典资源，统一输出到
+`release/desktop/`。
+
+```bash
+# macOS 通用 ZIP，包含 arm64 和 x86_64
+pnpm package:mac
+
+# macOS DMG；必须在普通 macOS Terminal 中运行
+pnpm package:mac:dmg
+
+# Windows x64 NSIS 安装器和 ZIP，可在 macOS 交叉构建
+pnpm package:win
+```
+
+未配置证书时仍可生成测试包，但 macOS Gatekeeper 或 Windows SmartScreen 会提示来源
+未知。公开分发前应配置：
+
+- macOS：Developer ID Application 证书，并完成 Apple notarization。
+- Windows：代码签名证书；`electron-builder` 支持通过 `CSC_LINK` 和
+  `CSC_KEY_PASSWORD` 读取。
+
+当前 TRAE 沙箱禁止 `hdiutil` 访问 `/dev/rdisk*`，因此 DMG 命令需要在系统 Terminal
+中执行；默认的 macOS ZIP 不受影响。
