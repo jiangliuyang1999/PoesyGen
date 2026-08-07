@@ -29,6 +29,7 @@ const entries = Array.from({ length: 9 }, (_, index) => createEntry(index));
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   delete document.documentElement.dataset['platform'];
 });
 
@@ -38,7 +39,7 @@ describe('generation history pagination', () => {
     renderHistory();
 
     const firstPageList = getHistoryCardList();
-    expect(within(firstPageList).getAllByRole('button')).toHaveLength(8);
+    expect(firstPageList.querySelectorAll('.history-list-entry')).toHaveLength(8);
     expect(screen.getByLabelText('历史记录总数').textContent).toBe('共 9 条记录');
     expect(
       within(screen.getByRole('navigation', { name: '历史记录分页' }))
@@ -51,7 +52,7 @@ describe('generation history pagination', () => {
     await user.click(screen.getByRole('button', { name: '第 2 页' }));
 
     const secondPageList = getHistoryCardList();
-    expect(within(secondPageList).getAllByRole('button')).toHaveLength(1);
+    expect(secondPageList.querySelectorAll('.history-list-entry')).toHaveLength(1);
     expect(within(secondPageList).getByText('如梦令·题目 8')).toBeTruthy();
     expect(screen.getByRole('heading', { name: '如梦令·题目 8' })).toBeTruthy();
 
@@ -67,11 +68,11 @@ describe('generation history pagination', () => {
     const user = userEvent.setup();
     renderHistory();
 
-    expect(within(getHistoryCardList()).getAllByRole('button')).toHaveLength(9);
+    expect(getHistoryCardList().querySelectorAll('.history-list-entry')).toHaveLength(9);
     expect(screen.queryByRole('navigation', { name: '历史记录分页' })).toBeNull();
     await user.click(
       within(getHistoryCardList()).getByRole('button', {
-        name: /如梦令·题目 8/,
+        name: /^如梦令·题目 8/,
       }),
     );
 
@@ -81,8 +82,28 @@ describe('generation history pagination', () => {
     await user.click(screen.getByRole('button', { name: '全部生成记录' }));
 
     expect(within(getHistoryCardList()).getByText('如梦令·题目 8')).toBeTruthy();
-    expect(within(getHistoryCardList()).getAllByRole('button')).toHaveLength(9);
+    expect(getHistoryCardList().querySelectorAll('.history-list-entry')).toHaveLength(9);
     expect(screen.queryByRole('navigation', { name: '历史记录分页' })).toBeNull();
+  });
+
+  it('confirms before deleting a history entry', async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const confirm = vi
+      .spyOn(window, 'confirm')
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    renderHistory(onDelete);
+
+    const deleteButton = screen.getByRole('button', {
+      name: '删除生成记录《如梦令·题目 0》',
+    });
+    await user.click(deleteButton);
+    expect(onDelete).not.toHaveBeenCalled();
+
+    await user.click(deleteButton);
+    expect(confirm).toHaveBeenCalledWith('确定删除《如梦令·题目 0》的生成记录吗？此操作无法撤销。');
+    expect(onDelete).toHaveBeenCalledWith('record-0');
   });
 
   it('shows the key generation settings and toggles the pattern preview', async () => {
@@ -117,12 +138,13 @@ describe('generation history pagination', () => {
   });
 });
 
-function renderHistory(): void {
+function renderHistory(onDelete = vi.fn()): void {
   render(
     <GenerationHistoryWorkspace
       entries={entries}
       onInspectCharacter={vi.fn()}
       onRefine={async (_entry, result) => result}
+      onDelete={onDelete}
     />,
   );
 }

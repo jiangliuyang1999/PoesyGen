@@ -1438,33 +1438,72 @@ button:disabled {
   overflow: visible;
 }
 
-.history-list > button {
-  display: grid;
-  gap: 8px;
-  width: 100%;
-  padding: 13px 13px 12px;
+.history-list-card {
+  position: relative;
+  min-width: 0;
   border: 1px solid rgb(206 196 181 / 65%);
   border-radius: 7px;
   background: rgb(255 253 248 / 58%);
-  color: var(--ink);
-  text-align: left;
   transition:
     border-color 140ms ease,
     background 140ms ease,
     box-shadow 140ms ease;
 }
 
-.history-list > button:hover {
+.history-list-card:hover {
   border-color: var(--line-strong);
   background: #fffdf8;
 }
 
-.history-list > button[data-selected='true'] {
+.history-list-card[data-selected='true'] {
   border-color: rgb(159 60 47 / 38%);
   background: rgb(159 60 47 / 6%);
   box-shadow:
     inset 3px 0 var(--vermilion),
     0 5px 16px rgb(80 58 38 / 6%);
+}
+
+.history-list-entry {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 13px 42px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+}
+
+.history-list-delete {
+  position: absolute;
+  right: 9px;
+  bottom: 8px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  place-items: center;
+  background: transparent;
+  color: var(--muted);
+}
+
+.history-list-delete:hover {
+  border-color: rgb(159 60 47 / 22%);
+  background: rgb(159 60 47 / 8%);
+  color: var(--vermilion);
+}
+
+.history-list-delete svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
 }
 
 .history-list-title {
@@ -1569,8 +1608,8 @@ button:disabled {
 
 .history-total-count {
   margin: 11px 4px 0;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
+  padding-top: 0;
+  border-top: 0;
   color: var(--muted);
   font-family: ui-monospace, monospace;
   font-size: 0.65rem;
@@ -3323,10 +3362,13 @@ html[data-platform='mobile'] .history-list {
   overflow: visible;
 }
 
-html[data-platform='mobile'] .history-list > button {
+html[data-platform='mobile'] .history-list-card {
   width: 100%;
-  padding: 15px 14px 13px;
   border-radius: 10px;
+}
+
+html[data-platform='mobile'] .history-list-entry {
+  padding: 15px 14px 13px;
 }
 
 html[data-platform='mobile'] .history-total-count {
@@ -3339,7 +3381,7 @@ html[data-platform='mobile'] .history-list-open {
   align-items: center;
   justify-content: space-between;
   margin-top: 2px;
-  padding-top: 9px;
+  padding: 9px 38px 0 0;
   border-top: 1px solid rgb(216 208 195 / 72%);
   color: var(--vermilion);
   font-size: 0.68rem;
@@ -3744,7 +3786,7 @@ html[data-platform='mobile'] .loading-state {
     overflow: visible;
   }
 
-  .history-list > button {
+  .history-list-card {
     min-width: 0;
   }
 

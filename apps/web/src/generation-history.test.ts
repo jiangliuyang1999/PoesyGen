@@ -9,6 +9,7 @@ import {
   generationHistoryVersions,
   generationHistoryStorageKey,
   loadGenerationHistory,
+  removeGenerationHistoryEntry,
   saveGenerationHistory,
   type GenerationHistoryEntry,
 } from './generation-history.js';
@@ -71,6 +72,13 @@ describe('local generation history', () => {
     expect(entries[0]?.result.draft.id).toBe('draft-refined');
     expect(generationHistoryVersions(entries[0]!)).toEqual([original.result, refined]);
     expect(filterGenerationHistory(entries, '梦')).toEqual(entries);
+  });
+
+  it('removes only the requested history entry', () => {
+    const entries = [createEntry(1), createEntry(2)];
+
+    expect(removeGenerationHistoryEntry(entries, 'record-1')).toEqual([entries[1]]);
+    expect(removeGenerationHistoryEntry(entries, 'missing')).toEqual(entries);
   });
 
   it('ignores malformed or incompatible local data', () => {

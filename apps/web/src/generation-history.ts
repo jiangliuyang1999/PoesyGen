@@ -94,6 +94,13 @@ export function addGenerationHistoryVersion(
   return [updated, ...entries.filter(({ id }) => id !== entryId)].slice(0, maxHistoryEntries);
 }
 
+export function removeGenerationHistoryEntry(
+  entries: ReadonlyArray<GenerationHistoryEntry>,
+  entryId: string,
+): ReadonlyArray<GenerationHistoryEntry> {
+  return entries.filter(({ id }) => id !== entryId);
+}
+
 export function saveGenerationHistory(
   entries: ReadonlyArray<GenerationHistoryEntry>,
   storage: HistoryStorage | undefined = browserStorage(),

@@ -389,7 +389,7 @@ describe('web creation workspace', () => {
 
     await user.click(
       within(historyList).getByRole('button', {
-        name: /测试令·春归/,
+        name: /^测试令·春归/,
       }),
     );
 
@@ -965,6 +965,17 @@ describe('web creation workspace', () => {
         name: /测试令·春归.*暮春江上/,
       }),
     ).toHaveLength(1);
+
+    await user.clear(historySearch);
+    const confirmDelete = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    await user.click(
+      screen.getByRole('button', {
+        name: '删除生成记录《测试令·春归》',
+      }),
+    );
+    expect(confirmDelete).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText('历史记录总数').textContent).toBe('共 0 条记录');
+    expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('"entries":[]');
   });
 
   it('marks stanzas in the annotated result view for double-stanza patterns', async () => {

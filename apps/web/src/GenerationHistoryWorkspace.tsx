@@ -16,6 +16,7 @@ import { PatternPreview } from './PatternPreview.js';
 interface GenerationHistoryWorkspaceProps {
   readonly entries: ReadonlyArray<GenerationHistoryEntry>;
   readonly onInspectCharacter: (character: string) => void;
+  readonly onDelete: (entryId: string) => void;
   readonly onRefine: (
     entry: GenerationHistoryEntry,
     result: GenerationResult,
@@ -43,6 +44,7 @@ const historyPaginationLabels = {
 export function GenerationHistoryWorkspace({
   entries,
   onInspectCharacter,
+  onDelete,
   onRefine,
 }: GenerationHistoryWorkspaceProps) {
   const mobilePlatform = document.documentElement.dataset['platform'] === 'mobile';
@@ -98,6 +100,17 @@ export function GenerationHistoryWorkspace({
     document.body.scrollTop = 0;
   };
 
+  const deleteEntry = (entry: GenerationHistoryEntry): void => {
+    const title = formatGenerationTitle(entry.pattern.name, entry.result.draft.title);
+    if (!window.confirm(`确定删除《${title}》的生成记录吗？此操作无法撤销。`)) return;
+    if (selectedEntryId === entry.id) {
+      setSelectedEntryId(undefined);
+      setSelectedVersionId(undefined);
+      setPreviewEntryId(undefined);
+    }
+    onDelete(entry.id);
+  };
+
   return (
     <div
       className="generation-history-layout"
@@ -124,32 +137,46 @@ export function GenerationHistoryWorkspace({
           <div className="history-list">
             {pagination.items.map((entry) => {
               const selected = !mobilePlatform && entry.id === selectedEntry?.id;
+              const title = formatGenerationTitle(entry.pattern.name, entry.result.draft.title);
               return (
-                <button
-                  type="button"
-                  key={entry.id}
-                  data-selected={selected}
-                  {...(mobilePlatform ? {} : { 'aria-pressed': selected })}
-                  onClick={() => openEntry(entry.id)}
-                >
-                  <span className="history-list-title">
-                    <strong>
-                      {formatGenerationTitle(entry.pattern.name, entry.result.draft.title)}
-                    </strong>
-                    <time dateTime={entry.createdAt}>{formatHistoryDate(entry.createdAt)}</time>
-                  </span>
-                  <span className="history-list-meta">
-                    <span>{entry.pattern.variant}</span>
-                    <span>{generationHistoryVersions(entry).length} 个版本</span>
-                  </span>
-                  <small className="history-list-theme">{entry.theme}</small>
-                  {mobilePlatform && (
-                    <span className="history-list-open" aria-hidden="true">
-                      查看作品
-                      <i>→</i>
+                <article key={entry.id} data-selected={selected} className="history-list-card">
+                  <button
+                    className="history-list-entry"
+                    type="button"
+                    {...(mobilePlatform ? {} : { 'aria-pressed': selected })}
+                    onClick={() => openEntry(entry.id)}
+                  >
+                    <span className="history-list-title">
+                      <strong>{title}</strong>
+                      <time dateTime={entry.createdAt}>{formatHistoryDate(entry.createdAt)}</time>
                     </span>
-                  )}
-                </button>
+                    <span className="history-list-meta">
+                      <span>{entry.pattern.variant}</span>
+                      <span>{generationHistoryVersions(entry).length} 个版本</span>
+                    </span>
+                    <small className="history-list-theme">{entry.theme}</small>
+                    {mobilePlatform && (
+                      <span className="history-list-open" aria-hidden="true">
+                        查看作品
+                        <i>→</i>
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    className="history-list-delete"
+                    type="button"
+                    title={`删除《${title}》`}
+                    aria-label={`删除生成记录《${title}》`}
+                    onClick={() => deleteEntry(entry)}
+                  >
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 7h16" />
+                      <path d="M9 7V4h6v3" />
+                      <path d="m6.5 7 1 13h9l1-13" />
+                      <path d="M10 11v5M14 11v5" />
+                    </svg>
+                  </button>
+                </article>
               );
             })}
             {visibleEntries.length === 0 && (

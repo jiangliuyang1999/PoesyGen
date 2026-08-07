@@ -38,6 +38,7 @@ import {
   addGenerationHistoryEntry,
   addGenerationHistoryVersion,
   loadGenerationHistory,
+  removeGenerationHistoryEntry,
   saveGenerationHistory,
   type GenerationHistoryEntry,
 } from './generation-history.js';
@@ -430,6 +431,13 @@ export function App({ client: providedClient }: AppProps = {}) {
     return result;
   };
 
+  const deleteHistoryEntry = (entryId: string): void => {
+    updateGenerationHistory((current) => removeGenerationHistoryEntry(current, entryId));
+    if (activeHistoryRecordId === entryId) {
+      setActiveHistoryRecordId(undefined);
+    }
+  };
+
   const selectResultVersion = (result: GenerationResult): void => {
     setSubmissionStatus((current) => ({
       ...current,
@@ -583,6 +591,7 @@ export function App({ client: providedClient }: AppProps = {}) {
             entries={generationHistory}
             onInspectCharacter={inspectCharacter}
             onRefine={refineHistoryResult}
+            onDelete={deleteHistoryEntry}
           />
         </main>
       ) : (
