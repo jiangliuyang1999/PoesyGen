@@ -47,9 +47,81 @@ const result: GenerationResult = {
   },
 };
 
+const failedResult: GenerationResult = {
+  ...result,
+  draft: {
+    ...result.draft,
+    id: 'draft-2',
+    lines: [{ id: 'line-1', text: '夜雪' }],
+  },
+  report: {
+    passed: false,
+    issues: [
+      {
+        lineId: 'line-1',
+        charIndex: 0,
+        rule: 'tone',
+        severity: 'error',
+        message: '“夜”不符合此处平仄要求',
+      },
+    ],
+  },
+};
+
 afterEach(cleanup);
 
 describe('generation result refinement progress', () => {
+  it('shows the current version prosody status only in the annotated view', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <GenerationResultPanel result={result} pattern={pattern} onInspectCharacter={vi.fn()} />,
+    );
+
+    expect(screen.queryByText('格律通过')).toBeNull();
+    await user.click(screen.getByRole('button', { name: '格律标注' }));
+
+    const status = screen.getByRole('status');
+    const versionSwitcher = screen.getByRole('group', { name: '作品版本' });
+    expect(status.textContent).toBe('格律通过');
+    expect(status.getAttribute('data-passed')).toBe('true');
+    expect(status.parentElement).toBe(versionSwitcher.parentElement);
+    expect(status.parentElement?.classList.contains('result-view-actions')).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: '正文' }));
+    expect(screen.queryByText('格律通过')).toBeNull();
+  });
+
+  it('marks failing and overflow characters in the annotated view', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <GenerationResultPanel
+        result={failedResult}
+        pattern={pattern}
+        onInspectCharacter={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: '格律标注' }));
+
+    const status = screen.getByRole('status');
+    expect(status.textContent).toBe('格律不通过');
+    expect(status.getAttribute('data-passed')).toBe('false');
+
+    const failingCharacter = screen.getByRole('button', {
+      name: /第1句第1字“夜”：平声位；不符合格律：“夜”不符合此处平仄要求/,
+    });
+    expect(failingCharacter.getAttribute('data-issue')).toBe('error');
+    expect(within(failingCharacter).getByText('错')).toBeTruthy();
+
+    const overflowCharacter = screen.getByRole('button', {
+      name: /第1句第2字“雪”：超出词谱句式；不符合格律：此字超出词谱规定字数/,
+    });
+    expect(overflowCharacter.getAttribute('data-issue')).toBe('error');
+    expect(within(overflowCharacter).getByText('错')).toBeTruthy();
+  });
+
   it('shows refinement progress directly below the regenerate button', async () => {
     let finishRefinement = (): void => {};
     const gate = new Promise<void>((resolve) => {

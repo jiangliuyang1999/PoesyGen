@@ -694,312 +694,321 @@ export function App({ client: providedClient }: AppProps = {}) {
         </header>
       )}
 
-      {view === 'dictionary' ? (
-        <DictionaryWorkspace
-          client={client}
-          rhymeGroups={rhymeGroups}
-          {...(dictionaryCharacter === undefined ? {} : { initialCharacter: dictionaryCharacter })}
-          onInitialCharacterHandled={() => setDictionaryCharacter(undefined)}
-        />
-      ) : patterns.length === 0 || creationPattern === undefined || catalogPattern === undefined ? (
-        <LoadingState message={catalogStatus} />
-      ) : view === 'patterns' ? (
-        <main className="page-workspace" key="patterns">
-          <header className="workspace-header">
-            <div>
-              <p className="section-kicker">词谱</p>
-              <h1>格律词谱</h1>
-              <p>浏览词牌与体式，查看逐句字数、平仄和韵位。</p>
-            </div>
-          </header>
-          {mobilePlatform ? (
-            <MobilePatternWorkspace
-              patterns={patterns}
-              query={patternQuery}
-              selectedPattern={catalogPattern}
-              onQueryChange={setPatternQuery}
-              onSelect={(patternId) => {
-                logWebEvent('catalog', '移动端选择词牌体式', { patternId });
-                setCatalogPatternId(patternId);
-              }}
-              onInspectCharacter={inspectCharacter}
-              onCreate={useCatalogPatternForCreation}
-            />
-          ) : (
-            <div className="workspace-grid pattern-catalog-layout">
-              <PatternBrowser
+      <DictionaryWorkspace
+        client={client}
+        rhymeGroups={rhymeGroups}
+        {...(dictionaryCharacter === undefined ? {} : { initialCharacter: dictionaryCharacter })}
+        hidden={view !== 'dictionary'}
+        onInitialCharacterHandled={() => setDictionaryCharacter(undefined)}
+      />
+
+      {patterns.length === 0 || creationPattern === undefined || catalogPattern === undefined ? (
+        view === 'dictionary' ? null : (
+          <LoadingState message={catalogStatus} />
+        )
+      ) : (
+        <>
+          <main className="page-workspace" key="patterns" hidden={view !== 'patterns'}>
+            <header className="workspace-header">
+              <div>
+                <p className="section-kicker">词谱</p>
+                <h1>格律词谱</h1>
+                <p>浏览词牌与体式，查看逐句字数、平仄和韵位。</p>
+              </div>
+            </header>
+            {mobilePlatform ? (
+              <MobilePatternWorkspace
                 patterns={patterns}
                 query={patternQuery}
-                selectedPatternId={catalogPattern.id}
+                selectedPattern={catalogPattern}
                 onQueryChange={setPatternQuery}
                 onSelect={(patternId) => {
-                  logWebEvent('catalog', '桌面端选择词牌', { patternId });
+                  logWebEvent('catalog', '移动端选择词牌体式', { patternId });
                   setCatalogPatternId(patternId);
                 }}
+                onInspectCharacter={inspectCharacter}
+                onCreate={useCatalogPatternForCreation}
               />
-              <section className="pattern-detail-panel" aria-label="词牌格律详情">
-                {catalogPatternFamily !== undefined && catalogPatternFamily.patterns.length > 1 && (
-                  <label className="pattern-detail-variant">
-                    <span>选择体式</span>
-                    <select
-                      aria-label={`${catalogPatternFamily.name}体式`}
-                      value={catalogPattern.id}
-                      onChange={(event) => {
-                        logWebEvent('catalog', '桌面端切换词牌体式', {
-                          patternId: event.target.value,
-                        });
-                        setCatalogPatternId(event.target.value);
-                      }}
-                    >
-                      {catalogPatternFamily.patterns.map((pattern) => (
-                        <option key={pattern.id} value={pattern.id}>
-                          {formatPatternVariantSummary(pattern)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-                <PatternPreview
-                  pattern={catalogPattern}
-                  onInspectCharacter={inspectCharacter}
-                  onCreate={useCatalogPatternForCreation}
+            ) : (
+              <div className="workspace-grid pattern-catalog-layout">
+                <PatternBrowser
+                  patterns={patterns}
+                  query={patternQuery}
+                  selectedPatternId={catalogPattern.id}
+                  onQueryChange={setPatternQuery}
+                  onSelect={(patternId) => {
+                    logWebEvent('catalog', '桌面端选择词牌', { patternId });
+                    setCatalogPatternId(patternId);
+                  }}
                 />
-              </section>
-            </div>
-          )}
-        </main>
-      ) : view === 'history' ? (
-        <main className="page-workspace" key="history">
-          <header className="workspace-header">
-            <div>
-              <p className="section-kicker">历史</p>
-              <h1>历史记录</h1>
-              <p>查询本地保存的生成记录。</p>
-            </div>
-          </header>
-          <GenerationHistoryWorkspace
-            entries={generationHistory}
-            onInspectCharacter={inspectCharacter}
-            onRefine={refineHistoryResult}
-            onDelete={deleteHistoryEntry}
-          />
-        </main>
-      ) : (
-        <main className="page-workspace" key="create">
-          <header className="workspace-header">
-            <div>
-              <p className="section-kicker">创作</p>
-              <h1>依谱填词</h1>
-              <p>选择主题与韵部，生成后由程序逐字校验。</p>
-            </div>
-          </header>
-
-          <form
-            className="creation-form"
-            aria-busy={creationLocked}
-            onSubmit={(event) => void submit(event)}
-          >
-            <div className="creation-workspace-grid" aria-label="创作工作区">
-              <section className="creation-controls-panel" aria-label="创作设置">
-                <section
-                  className="creation-pattern-panel"
-                  aria-labelledby="pattern-settings-title"
-                >
-                  <div className="creation-section-title">
-                    <span className="creation-step">01</span>
-                    <h2 className="creation-panel-title" id="pattern-settings-title">
-                      词牌设置
-                    </h2>
-                  </div>
-                  <div className="selected-pattern-bar">
-                    <div className="selected-pattern-controls">
-                      <label>
-                        <span>选择词牌</span>
-                        <select
-                          aria-label="创作词牌"
-                          value={creationPattern.name}
-                          disabled={creationLocked}
-                          onChange={(event) => {
-                            const family = patternFamilies.find(
-                              ({ name }) => name === event.target.value,
-                            );
-                            const standard =
-                              family?.patterns.find(({ variant }) => variant === '正体') ??
-                              family?.patterns[0];
-                            if (standard !== undefined) selectCreationPattern(standard.id);
-                          }}
-                        >
-                          {patternFamilies.map((family) => (
-                            <option key={family.name} value={family.name}>
-                              {family.name} · {family.patterns.length}体
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
+                <section className="pattern-detail-panel" aria-label="词牌格律详情">
+                  {catalogPatternFamily !== undefined &&
+                    catalogPatternFamily.patterns.length > 1 && (
+                      <label className="pattern-detail-variant">
                         <span>选择体式</span>
                         <select
-                          aria-label="创作体式"
-                          value={creationPattern.id}
-                          disabled={creationLocked}
-                          onChange={(event) => selectCreationPattern(event.target.value)}
+                          aria-label={`${catalogPatternFamily.name}体式`}
+                          value={catalogPattern.id}
+                          onChange={(event) => {
+                            logWebEvent('catalog', '桌面端切换词牌体式', {
+                              patternId: event.target.value,
+                            });
+                            setCatalogPatternId(event.target.value);
+                          }}
                         >
-                          {creationPatternFamily?.patterns.map((pattern) => (
+                          {catalogPatternFamily.patterns.map((pattern) => (
                             <option key={pattern.id} value={pattern.id}>
                               {formatPatternVariantSummary(pattern)}
                             </option>
                           ))}
                         </select>
                       </label>
-                    </div>
-                  </div>
-                  <RhymeSettings
-                    pattern={creationPattern}
-                    rhymeGroups={rhymeGroups}
-                    rhymeAssignments={rhymeAssignments}
-                    disabled={creationLocked}
-                    onChange={(label, groupId) => {
-                      logWebEvent('creation', '更新韵部设置', {
-                        patternId: creationPattern.id,
-                        rhymeLabel: label,
-                        groupId: groupId === '' ? undefined : groupId,
-                      });
-                      setRhymeAssignments((current) => {
-                        const next = { ...current };
-                        if (groupId === '') delete next[label];
-                        else next[label] = groupId;
-                        const labels = patternRhymeLabels(creationPattern);
-                        for (let index = 1; index < labels.length; index += 1) {
-                          const previousLabel = labels[index - 1]!;
-                          const currentLabel = labels[index]!;
-                          if (
-                            next[currentLabel.id] !== undefined &&
-                            next[currentLabel.id] === next[previousLabel.id]
-                          ) {
-                            delete next[currentLabel.id];
-                          }
-                        }
-                        return next;
-                      });
-                    }}
+                    )}
+                  <PatternPreview
+                    pattern={catalogPattern}
+                    onInspectCharacter={inspectCharacter}
+                    onCreate={useCatalogPatternForCreation}
+                    titleId="catalog-pattern-title"
                   />
                 </section>
+              </div>
+            )}
+          </main>
 
-                <section className="theme-editor" aria-labelledby="theme-title">
-                  <div className="theme-heading">
+          <main className="page-workspace" key="history" hidden={view !== 'history'}>
+            <header className="workspace-header">
+              <div>
+                <p className="section-kicker">历史</p>
+                <h1>历史记录</h1>
+                <p>查询本地保存的生成记录。</p>
+              </div>
+            </header>
+            <GenerationHistoryWorkspace
+              entries={generationHistory}
+              onInspectCharacter={inspectCharacter}
+              onRefine={refineHistoryResult}
+              onDelete={deleteHistoryEntry}
+            />
+          </main>
+
+          <main className="page-workspace" key="create" hidden={view !== 'create'}>
+            <header className="workspace-header">
+              <div>
+                <p className="section-kicker">创作</p>
+                <h1>依谱填词</h1>
+                <p>选择主题与韵部，生成后由程序逐字校验。</p>
+              </div>
+            </header>
+
+            <form
+              className="creation-form"
+              aria-busy={creationLocked}
+              onSubmit={(event) => void submit(event)}
+            >
+              <div className="creation-workspace-grid" aria-label="创作工作区">
+                <section className="creation-controls-panel" aria-label="创作设置">
+                  <section
+                    className="creation-pattern-panel"
+                    aria-labelledby="pattern-settings-title"
+                  >
                     <div className="creation-section-title">
-                      <span className="creation-step">02</span>
-                      <h2 className="creation-panel-title" id="theme-title">
-                        创作主题
+                      <span className="creation-step">01</span>
+                      <h2 className="creation-panel-title" id="pattern-settings-title">
+                        词牌设置
                       </h2>
                     </div>
-                    <span>{theme.length}/2000</span>
-                  </div>
-                  <div className="theme-input-shell">
-                    <label>
-                      <span className="sr-only">作品主题</span>
-                      <AutoResizeTextarea
-                        value={theme}
-                        disabled={themeEditingLocked}
-                        onChange={(event) => updateTheme(event.target.value)}
-                        placeholder="暮春江上归舟，忽忆多年未见的故友。希望词意含蓄，以江风、残照和远帆寄托惆怅。"
-                        minRows={3}
-                        maxRows={10}
-                        maxLength={2_000}
-                        required
-                      />
-                    </label>
-                    <button
-                      className="theme-polish-action"
-                      type="button"
-                      aria-label={themePolishLabel}
-                      title={themePolishLabel}
-                      data-state={themePolishStatus}
-                      disabled={
-                        themeEditingLocked || theme.trim() === '' || !creationServiceAvailable
-                      }
-                      onClick={() => void polishTheme()}
-                    >
-                      <svg aria-hidden="true" viewBox="0 0 24 24">
-                        <path d="m14.5 4.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1 1-2.5Z" />
-                        <path d="m6.5 12.5.75 1.75L9 15l-1.75.75L6.5 17.5l-.75-1.75L4 15l1.75-.75.75-1.75Z" />
-                        <path d="m11 15 6 6" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div className="theme-ideas" aria-label="大模型灵感推荐" aria-live="polite">
-                    <div className="theme-ideas-header">
-                      <span>灵感推荐</span>
+                    <div className="selected-pattern-bar">
+                      <div className="selected-pattern-controls">
+                        <label>
+                          <span>选择词牌</span>
+                          <select
+                            aria-label="创作词牌"
+                            value={creationPattern.name}
+                            disabled={creationLocked}
+                            onChange={(event) => {
+                              const family = patternFamilies.find(
+                                ({ name }) => name === event.target.value,
+                              );
+                              const standard =
+                                family?.patterns.find(({ variant }) => variant === '正体') ??
+                                family?.patterns[0];
+                              if (standard !== undefined) selectCreationPattern(standard.id);
+                            }}
+                          >
+                            {patternFamilies.map((family) => (
+                              <option key={family.name} value={family.name}>
+                                {family.name} · {family.patterns.length}体
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span>选择体式</span>
+                          <select
+                            aria-label="创作体式"
+                            value={creationPattern.id}
+                            disabled={creationLocked}
+                            onChange={(event) => selectCreationPattern(event.target.value)}
+                          >
+                            {creationPatternFamily?.patterns.map((pattern) => (
+                              <option key={pattern.id} value={pattern.id}>
+                                {formatPatternVariantSummary(pattern)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
+                    <RhymeSettings
+                      pattern={creationPattern}
+                      rhymeGroups={rhymeGroups}
+                      rhymeAssignments={rhymeAssignments}
+                      disabled={creationLocked}
+                      onChange={(label, groupId) => {
+                        logWebEvent('creation', '更新韵部设置', {
+                          patternId: creationPattern.id,
+                          rhymeLabel: label,
+                          groupId: groupId === '' ? undefined : groupId,
+                        });
+                        setRhymeAssignments((current) => {
+                          const next = { ...current };
+                          if (groupId === '') delete next[label];
+                          else next[label] = groupId;
+                          const labels = patternRhymeLabels(creationPattern);
+                          for (let index = 1; index < labels.length; index += 1) {
+                            const previousLabel = labels[index - 1]!;
+                            const currentLabel = labels[index]!;
+                            if (
+                              next[currentLabel.id] !== undefined &&
+                              next[currentLabel.id] === next[previousLabel.id]
+                            ) {
+                              delete next[currentLabel.id];
+                            }
+                          }
+                          return next;
+                        });
+                      }}
+                    />
+                  </section>
+
+                  <section className="theme-editor" aria-labelledby="theme-title">
+                    <div className="theme-heading">
+                      <div className="creation-section-title">
+                        <span className="creation-step">02</span>
+                        <h2 className="creation-panel-title" id="theme-title">
+                          创作主题
+                        </h2>
+                      </div>
+                      <span>{theme.length}/2000</span>
+                    </div>
+                    <div className="theme-input-shell">
+                      <label>
+                        <span className="sr-only">作品主题</span>
+                        <AutoResizeTextarea
+                          value={theme}
+                          disabled={themeEditingLocked}
+                          onChange={(event) => updateTheme(event.target.value)}
+                          placeholder="暮春江上归舟，忽忆多年未见的故友。希望词意含蓄，以江风、残照和远帆寄托惆怅。"
+                          minRows={3}
+                          maxRows={10}
+                          maxLength={2_000}
+                          required
+                        />
+                      </label>
                       <button
+                        className="theme-polish-action"
                         type="button"
-                        disabled={themeEditingLocked || ideaSuggestions.status === 'loading'}
-                        onClick={() => requestIdeaSuggestions(true)}
+                        aria-label={themePolishLabel}
+                        title={themePolishLabel}
+                        data-state={themePolishStatus}
+                        disabled={
+                          themeEditingLocked || theme.trim() === '' || !creationServiceAvailable
+                        }
+                        onClick={() => void polishTheme()}
                       >
-                        {ideaSuggestions.status === 'loading'
-                          ? '构思中…'
-                          : ideaSuggestions.status === 'error'
-                            ? '重新获取'
-                            : '换一组'}
+                        <svg aria-hidden="true" viewBox="0 0 24 24">
+                          <path d="m14.5 4.5 1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1 1-2.5Z" />
+                          <path d="m6.5 12.5.75 1.75L9 15l-1.75.75L6.5 17.5l-.75-1.75L4 15l1.75-.75.75-1.75Z" />
+                          <path d="m11 15 6 6" />
+                        </svg>
                       </button>
                     </div>
-                    <div className="theme-prompts">
-                      {ideaSuggestions.suggestions.map((prompt) => (
+                    <div className="theme-ideas" aria-label="大模型灵感推荐" aria-live="polite">
+                      <div className="theme-ideas-header">
+                        <span>灵感推荐</span>
                         <button
-                          key={prompt}
                           type="button"
-                          disabled={themeEditingLocked}
-                          onClick={() => {
-                            logWebEvent('ideas', '用户采用灵感推荐', { prompt });
-                            updateTheme(prompt);
-                          }}
+                          disabled={themeEditingLocked || ideaSuggestions.status === 'loading'}
+                          onClick={() => requestIdeaSuggestions(true)}
                         >
-                          {prompt}
+                          {ideaSuggestions.status === 'loading'
+                            ? '构思中…'
+                            : ideaSuggestions.status === 'error'
+                              ? '重新获取'
+                              : '换一组'}
                         </button>
-                      ))}
-                      {ideaSuggestions.status === 'loading' &&
-                        ideaSuggestions.suggestions.length === 0 && (
-                          <span className="theme-ideas-status">大模型正在整理创作主题…</span>
-                        )}
-                      {ideaSuggestions.status === 'error' &&
-                        ideaSuggestions.suggestions.length === 0 && (
-                          <span className="theme-ideas-status" data-error="true">
-                            暂时无法获取灵感，请稍后重试。
-                          </span>
-                        )}
+                      </div>
+                      <div className="theme-prompts">
+                        {ideaSuggestions.suggestions.map((prompt) => (
+                          <button
+                            key={prompt}
+                            type="button"
+                            disabled={themeEditingLocked}
+                            onClick={() => {
+                              logWebEvent('ideas', '用户采用灵感推荐', { prompt });
+                              updateTheme(prompt);
+                            }}
+                          >
+                            {prompt}
+                          </button>
+                        ))}
+                        {ideaSuggestions.status === 'loading' &&
+                          ideaSuggestions.suggestions.length === 0 && (
+                            <span className="theme-ideas-status">大模型正在整理创作主题…</span>
+                          )}
+                        {ideaSuggestions.status === 'error' &&
+                          ideaSuggestions.suggestions.length === 0 && (
+                            <span className="theme-ideas-status" data-error="true">
+                              暂时无法获取灵感，请稍后重试。
+                            </span>
+                          )}
+                      </div>
                     </div>
-                  </div>
+                  </section>
+
+                  <GenerationSettings
+                    rounds={rounds}
+                    requirements={requirements}
+                    status={submissionStatus}
+                    canSubmit={theme.trim() !== '' && creationServiceAvailable && !themePolishing}
+                    onRoundsChange={setRounds}
+                    onRequirementsChange={setRequirements}
+                  />
                 </section>
 
-                <GenerationSettings
-                  rounds={rounds}
-                  requirements={requirements}
-                  status={submissionStatus}
-                  canSubmit={theme.trim() !== '' && creationServiceAvailable && !themePolishing}
-                  onRoundsChange={setRounds}
-                  onRequirementsChange={setRequirements}
-                />
-              </section>
-
-              <section className="creation-preview-panel" aria-label="当前词牌预览">
-                <PatternPreview
-                  pattern={creationPattern}
-                  onInspectCharacter={inspectCharacter}
-                  titleLevel={2}
-                />
-                {submissionStatus.result !== undefined && (
-                  <GenerationResultPanel
-                    result={submissionStatus.result}
+                <section className="creation-preview-panel" aria-label="当前词牌预览">
+                  <PatternPreview
                     pattern={creationPattern}
                     onInspectCharacter={inspectCharacter}
-                    onRefine={refineCurrentResult}
-                    versions={resultVersions}
-                    onSelectVersion={selectResultVersion}
+                    titleId="creation-pattern-title"
+                    titleLevel={2}
                   />
-                )}
-              </section>
-            </div>
-          </form>
-        </main>
+                  {submissionStatus.result !== undefined && (
+                    <GenerationResultPanel
+                      result={submissionStatus.result}
+                      pattern={creationPattern}
+                      onInspectCharacter={inspectCharacter}
+                      onRefine={refineCurrentResult}
+                      versions={resultVersions}
+                      onSelectVersion={selectResultVersion}
+                      titleId="creation-result-title"
+                    />
+                  )}
+                </section>
+              </div>
+            </form>
+          </main>
+        </>
       )}
 
       <LlmConfigDialog

@@ -322,6 +322,27 @@ describe('web creation workspace', () => {
     ).toBe(true);
   });
 
+  it('preserves dictionary content across page navigation', async () => {
+    const client = createClient();
+    const user = userEvent.setup();
+    render(<App client={client} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    const navigation = screen.getByRole('navigation', { name: '主导航' });
+    await user.click(within(navigation).getByRole('button', { name: '字典' }));
+    const input = screen.getByRole<HTMLInputElement>('textbox', { name: '输入一个汉字' });
+    await user.type(input, '春{Enter}');
+    expect(await screen.findByText('chūn')).toBeTruthy();
+
+    await user.click(within(navigation).getByRole('button', { name: '创作' }));
+    await user.click(within(navigation).getByRole('button', { name: '字典' }));
+
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: '输入一个汉字' }).value).toBe(
+      '春',
+    );
+    expect(screen.getByText('chūn')).toBeTruthy();
+  });
+
   it('keeps catalog browsing separate from the creation pattern', async () => {
     const client = createClient([pattern, alternatePattern, otherPattern]);
     const user = userEvent.setup();
@@ -403,8 +424,8 @@ describe('web creation workspace', () => {
     expect(createHeading.closest('main')).not.toBe(historyPage);
 
     await user.click(within(navigation).getByRole('button', { name: '历史' }));
-    expect(screen.getByLabelText('生成历史列表')).toBeTruthy();
-    expect(screen.queryByLabelText('历史记录信息')).toBeNull();
+    expect(screen.queryByLabelText('生成历史列表')).toBeNull();
+    expect(screen.getByLabelText('历史记录信息')).toBeTruthy();
 
     await user.click(within(navigation).getByRole('button', { name: '词谱' }));
 
@@ -555,11 +576,13 @@ describe('web creation workspace', () => {
       alternatePattern.id,
     );
 
-    expect(screen.getByLabelText('词牌信息').textContent).toBe('格二 · 3字 · 单调 · 1句 · 1韵位');
+    const creationPreview = screen.getByLabelText('当前词牌预览');
+    expect(within(creationPreview).getByLabelText('词牌信息').textContent).toBe(
+      '格二 · 3字 · 单调 · 1句 · 1韵位',
+    );
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上晚归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
     await screen.findByText('词作已完成');
-    const creationPreview = screen.getByLabelText('当前词牌预览');
     const generatedResult = screen
       .getByRole('heading', { name: '测试令·春归' })
       .closest('.generation-result');
@@ -743,8 +766,9 @@ describe('web creation workspace', () => {
       expect.any(Object),
     );
     expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
+    const creationPreview = screen.getByLabelText('当前词牌预览');
     expect(
-      within(screen.getByLabelText('词作内容')).getByRole('heading', {
+      within(within(creationPreview).getByLabelText('词作内容')).getByRole('heading', {
         name: '测试令·春归',
       }),
     ).toBeTruthy();
@@ -814,7 +838,7 @@ describe('web creation workspace', () => {
     );
     await user.click(screen.getByRole('button', { name: '根据全部意见重新生成' }));
 
-    await screen.findByText('版本 2/2');
+    await within(creationPreview).findByText('版本 2/2');
     expect(runDirectGeneration).toHaveBeenNthCalledWith(
       2,
       expect.any(Object),
@@ -843,7 +867,7 @@ describe('web creation workspace', () => {
     expect(refinementView.getAttribute('aria-pressed')).toBe('false');
     expect(screen.queryByRole('textbox', { name: '当前修改意见' })).toBeNull();
     expect(screen.queryByLabelText('修改清单')).toBeNull();
-    expect(screen.getByTitle('查询“秋”')).toBeTruthy();
+    expect(within(creationPreview).getByTitle('查询“秋”')).toBeTruthy();
     const currentVersion = screen.getByRole('group', { name: '作品版本' });
     expect(within(currentVersion).getByText('版本 2/2')).toBeTruthy();
     const currentViewSwitcher = screen.getByRole('group', { name: '结果视图' });
@@ -854,20 +878,23 @@ describe('web creation workspace', () => {
 
     await user.click(screen.getByRole('button', { name: '格律标注' }));
     await user.click(screen.getByRole('button', { name: '上一版本' }));
-    expect(screen.getByText('版本 1/2')).toBeTruthy();
+    expect(within(currentVersion).getByText('版本 1/2')).toBeTruthy();
     expect(screen.getByRole('button', { name: '格律标注' }).getAttribute('aria-pressed')).toBe(
       'true',
     );
     expect(screen.getByLabelText('平仄韵脚标注')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '下一版本' }));
-    expect(screen.getByText('版本 2/2')).toBeTruthy();
+    expect(within(currentVersion).getByText('版本 2/2')).toBeTruthy();
     expect(screen.getByLabelText('平仄韵脚标注')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '正文' }));
-    expect(screen.getByTitle('查询“秋”')).toBeTruthy();
+    expect(within(creationPreview).getByTitle('查询“秋”')).toBeTruthy();
 
     expect(window.localStorage.getItem(generationHistoryStorageKey)).toContain('draft-2');
     await user.click(screen.getByRole('button', { name: /历史记录/ }));
     expect(await screen.findByLabelText('生成历史列表')).toBeTruthy();
+    const historyPage = screen
+      .getByRole('heading', { name: '历史记录', level: 1 })
+      .closest('main')!;
     expect(screen.getByLabelText('历史记录总数').textContent).toBe('共 1 条记录');
     expect(screen.getByRole('heading', { name: '测试令·春归' })).toBeTruthy();
     const historyOverview = screen.getByLabelText('历史记录信息');
@@ -889,7 +916,7 @@ describe('web creation workspace', () => {
     expect(within(historyOverview).getByLabelText('格律内容')).toBeTruthy();
     const historyList = screen.getByLabelText('生成历史列表');
     expect(within(historyList).getByText('2 个版本')).toBeTruthy();
-    expect(screen.getByText('版本 2/2')).toBeTruthy();
+    expect(within(historyPage).getByText('版本 2/2')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: '局部修改' }));
     await user.click(screen.getByRole('button', { name: '选择第1句第1字“秋”' }));
@@ -897,13 +924,13 @@ describe('web creation workspace', () => {
     await user.click(screen.getByRole('button', { name: '加入修改清单' }));
     await user.click(screen.getByRole('button', { name: '根据全部意见重新生成' }));
 
-    expect(await screen.findByText('版本 3/3')).toBeTruthy();
+    expect(await within(historyPage).findByText('版本 3/3')).toBeTruthy();
     const historyRefinementView = screen.getByRole('button', { name: '局部修改' });
     expect(screen.getByRole('button', { name: '正文' }).getAttribute('aria-pressed')).toBe('true');
     expect(historyRefinementView.getAttribute('aria-pressed')).toBe('false');
     expect(screen.queryByRole('textbox', { name: '当前修改意见' })).toBeNull();
     expect(screen.queryByLabelText('修改清单')).toBeNull();
-    expect(screen.getByTitle('查询“雪”')).toBeTruthy();
+    expect(within(historyPage).getByTitle('查询“雪”')).toBeTruthy();
     expect(runDirectGeneration).toHaveBeenLastCalledWith(
       expect.any(Object),
       expect.objectContaining({
@@ -933,7 +960,7 @@ describe('web creation workspace', () => {
     expect(screen.getByLabelText('修改清单')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: '上一版本' }));
-    expect(screen.getByText('版本 2/3')).toBeTruthy();
+    expect(within(historyPage).getByText('版本 2/3')).toBeTruthy();
     expect(historyRefinementView.getAttribute('aria-pressed')).toBe('true');
     await waitFor(() => {
       expect(screen.getByRole<HTMLInputElement>('textbox', { name: '当前修改意见' }).value).toBe(
@@ -947,7 +974,7 @@ describe('web creation workspace', () => {
       }),
     ).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '上一版本' }));
-    expect(screen.getByText('版本 1/3')).toBeTruthy();
+    expect(within(historyPage).getByText('版本 1/3')).toBeTruthy();
     expect(historyRefinementView.getAttribute('aria-pressed')).toBe('true');
     expect(
       screen.getByRole('button', {
@@ -1010,8 +1037,13 @@ describe('web creation workspace', () => {
     render(<App client={client} />);
     await screen.findByRole('heading', { name: '测试令', level: 2 });
 
-    await user.click(screen.getByRole('heading', { name: '测试令', level: 2 }).closest('summary')!);
-    await user.click(screen.getByTitle('平声位'));
+    const creationPreview = screen.getByLabelText('当前词牌预览');
+    await user.click(
+      within(creationPreview)
+        .getByRole('heading', { name: '测试令', level: 2 })
+        .closest('summary')!,
+    );
+    await user.click(within(creationPreview).getByTitle('平声位'));
 
     await screen.findByLabelText('单字查询');
     await waitFor(() => {

@@ -323,6 +323,7 @@ export function GenerationHistoryWorkspace({
                 }}
                 versions={versions}
                 onSelectVersion={(result) => setSelectedVersionId(result.draft.id)}
+                titleId="history-result-title"
               />
             </>
           )}

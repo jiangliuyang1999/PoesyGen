@@ -16,6 +16,7 @@ interface DictionaryWorkspaceProps {
   readonly client: DictionaryClient;
   readonly rhymeGroups: ReadonlyArray<RhymeGroupSummary>;
   readonly initialCharacter?: string;
+  readonly hidden?: boolean;
   readonly onInitialCharacterHandled: () => void;
 }
 
@@ -23,6 +24,7 @@ export function DictionaryWorkspace({
   client,
   rhymeGroups,
   initialCharacter,
+  hidden = false,
   onInitialCharacterHandled,
 }: DictionaryWorkspaceProps) {
   const [query, setQuery] = useState('');
@@ -93,7 +95,7 @@ export function DictionaryWorkspace({
   };
 
   return (
-    <main className="page-workspace">
+    <main className="page-workspace" hidden={hidden}>
       <header className="workspace-header">
         <div>
           <p className="section-kicker">字典</p>

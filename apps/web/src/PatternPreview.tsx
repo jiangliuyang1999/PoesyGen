@@ -9,6 +9,7 @@ interface PatternPreviewProps {
   readonly onInspectCharacter: (character: string) => void;
   readonly onCreate?: () => void;
   readonly showHeader?: boolean;
+  readonly titleId?: string;
   readonly titleLevel?: 1 | 2;
 }
 
@@ -42,6 +43,7 @@ export function PatternPreview({
   onInspectCharacter,
   onCreate,
   showHeader = true,
+  titleId = 'pattern-title',
   titleLevel = 1,
 }: PatternPreviewProps) {
   const [exampleScript, setExampleScript] = useState<'traditional' | 'simplified'>('traditional');
@@ -55,11 +57,11 @@ export function PatternPreview({
   return (
     <section
       className="pattern-preview"
-      {...(showHeader ? { 'aria-labelledby': 'pattern-title' } : { 'aria-label': '格律内容' })}
+      {...(showHeader ? { 'aria-labelledby': titleId } : { 'aria-label': '格律内容' })}
     >
       {showHeader && (
         <header className="pattern-header">
-          <PatternPreviewTitle pattern={pattern} level={titleLevel} id="pattern-title" />
+          <PatternPreviewTitle pattern={pattern} level={titleLevel} id={titleId} />
           <div className="pattern-header-actions">
             {pattern.reviewStatus === 'verified' && <span className="review-badge">已校勘</span>}
             {onCreate !== undefined && (

@@ -82,6 +82,7 @@ export function MobilePatternWorkspace({
             pattern={selectedPattern}
             onInspectCharacter={onInspectCharacter}
             onCreate={onCreate}
+            titleId="mobile-catalog-pattern-title"
           />
         </>
       ) : (

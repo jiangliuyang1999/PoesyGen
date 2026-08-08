@@ -16,6 +16,7 @@ interface GenerationResultPanelProps {
   ) => Promise<void>;
   readonly versions?: ReadonlyArray<GenerationResult>;
   readonly onSelectVersion?: (result: GenerationResult) => void;
+  readonly titleId?: string;
 }
 
 type ResultView = 'poem' | 'prosody' | 'refinement';
@@ -43,6 +44,7 @@ export function GenerationResultPanel({
   onRefine,
   versions,
   onSelectVersion,
+  titleId = 'result-title',
 }: GenerationResultPanelProps) {
   const [view, setView] = useState<ResultView>('poem');
   const refinementMode = view === 'refinement';
@@ -123,25 +125,38 @@ export function GenerationResultPanel({
         {Array.from(line.text).map((character, characterIndex) => {
           const position = patternLines[lineIndex]?.positions[characterIndex];
           const issue = issuesByPosition.get(line.id)?.get(characterIndex);
+          const issueSeverity =
+            issue?.severity ?? (position === undefined ? ('error' as const) : undefined);
+          const issueMessage =
+            issue?.message ?? (position === undefined ? '此字超出词谱规定字数' : undefined);
           const tone = position?.tone;
           const toneLabel = tone === undefined ? '?' : toneLabels[tone];
           const rhyme = position?.rhyme !== undefined;
           const positionLabel =
             tone === undefined ? '超出词谱句式' : `${toneLabel}声${rhyme ? '韵脚' : '位'}`;
+          const issueLabel =
+            issueSeverity === undefined
+              ? ''
+              : `；${issueSeverity === 'error' ? '不符合格律' : '需确认'}：${issueMessage}`;
           return (
             <button
               className="annotated-character"
-              data-issue={issue?.severity}
+              data-issue={issueSeverity}
               data-rhyme={rhyme}
               data-tone={tone ?? 'unknown'}
               key={`${line.id}-${characterIndex}`}
               type="button"
               onClick={() => onInspectCharacter(character)}
-              aria-label={`第${lineIndex + 1}句第${characterIndex + 1}字“${character}”：${positionLabel}`}
-              title={`${positionLabel}；点击查询“${character}”${issue === undefined ? '' : `；${issue.message}`}`}
+              aria-label={`第${lineIndex + 1}句第${characterIndex + 1}字“${character}”：${positionLabel}${issueLabel}`}
+              title={`${positionLabel}；点击查询“${character}”${issueMessage === undefined ? '' : `；${issueMessage}`}`}
             >
               <span className="annotated-tone">{toneLabel}</span>
               <span>{character}</span>
+              {issueSeverity !== undefined && (
+                <span className="annotated-issue-mark" aria-hidden="true">
+                  {issueSeverity === 'error' ? '错' : '疑'}
+                </span>
+              )}
               {rhyme && <small>韵</small>}
             </button>
           );
@@ -341,7 +356,7 @@ export function GenerationResultPanel({
   );
 
   return (
-    <section className="generation-result" aria-labelledby="result-title">
+    <section className="generation-result" aria-labelledby={titleId}>
       <header>
         <p className="section-kicker">生成结果</p>
         <div className="result-view-switcher" role="group" aria-label="结果视图">
@@ -397,10 +412,15 @@ export function GenerationResultPanel({
             </button>
           )}
         </div>
+        {view === 'prosody' && (
+          <span className="prosody-status-badge" data-passed={result.report.passed} role="status">
+            {result.report.passed ? '格律通过' : '格律不通过'}
+          </span>
+        )}
       </div>
 
       <div className="result-content" aria-label="词作内容">
-        <h2 id="result-title">{formatGenerationTitle(pattern.name, result.draft.title)}</h2>
+        <h2 id={titleId}>{formatGenerationTitle(pattern.name, result.draft.title)}</h2>
 
         {view !== 'prosody' ? (
           <div className="generated-poem" aria-label="词作正文">
