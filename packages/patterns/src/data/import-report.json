@@ -3,123 +3,17 @@
   "candidateTunes": 36,
   "candidateVariants": 245,
   "importedTunes": 36,
-  "importedVariants": 245,
-  "validatedVariants": 231,
-  "draftVariants": 14,
+  "importedVariants": 244,
+  "validatedVariants": 244,
+  "draftVariants": 0,
   "importedStandardPatterns": 36,
-  "retainedWithIssues": [
-    {
-      "name": "临江仙",
-      "variant": "格三",
-      "id": "lin-jiang-xian-variant-03",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "满江红",
-      "variant": "格八",
-      "id": "man-jiang-hong-variant-08",
-      "issues": [
-        "例词未能逐句回查《御定词谱》",
-        "无法唯一推定 上阕 韵位"
-      ]
-    },
-    {
-      "name": "沁园春",
-      "variant": "格五",
-      "id": "qin-yuan-chun-variant-05",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "念奴娇",
-      "variant": "格九",
-      "id": "nian-nu-jiao-variant-09",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "满庭芳",
-      "variant": "格五",
-      "id": "man-ting-fang-variant-05",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "西江月",
-      "variant": "格二",
-      "id": "xi-jiang-yue-variant-02",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "西江月",
-      "variant": "格三",
-      "id": "xi-jiang-yue-variant-03",
-      "issues": [
-        "无法唯一推定 下阕 韵位"
-      ]
-    },
+  "retainedWithIssues": [],
+  "excludedCandidates": [
     {
       "name": "减字木兰花",
       "variant": "格二",
       "id": "jian-zi-mu-lan-hua-variant-02",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "水龙吟",
-      "variant": "格十一",
-      "id": "shui-long-yin-variant-11",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "摸鱼儿",
-      "variant": "格八",
-      "id": "mo-yu-er-variant-08",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "忆秦娥",
-      "variant": "格七",
-      "id": "yi-qin-e-variant-07",
-      "issues": [
-        "无法解析词牌字数：双调四十一句，前后段各四句、四仄韵"
-      ]
-    },
-    {
-      "name": "一剪梅",
-      "variant": "格二",
-      "id": "yi-jian-mei-variant-02",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "一剪梅",
-      "variant": "格三",
-      "id": "yi-jian-mei-variant-03",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
-    },
-    {
-      "name": "一剪梅",
-      "variant": "格四",
-      "id": "yi-jian-mei-variant-04",
-      "issues": [
-        "例词未能逐句回查《御定词谱》"
-      ]
+      "reason": "与正体句数、字数、平仄和换韵结构相同，且例词未收录于《御定词谱》"
     }
   ],
   "rejected": []

@@ -671,6 +671,35 @@ button:disabled {
   font-size: 0.72rem;
 }
 
+.example-script-switcher {
+  display: flex;
+  width: max-content;
+  margin: 18px 0 -8px auto;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+  background: #fffdf8;
+}
+
+.example-script-switcher button {
+  min-width: 52px;
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.example-script-switcher button + button {
+  border-left: 1px solid var(--line);
+}
+
+.example-script-switcher button[aria-pressed='true'] {
+  background: var(--ink);
+  color: #fffaf3;
+}
+
 .stanza-list {
   display: grid;
   gap: 28px;
@@ -3039,6 +3068,16 @@ html[data-platform='mobile'] .creation-preview-panel > .pattern-preview {
   order: 2;
   min-height: 0;
   padding: 20px 14px 22px;
+}
+
+html[data-platform='mobile'] .example-script-switcher {
+  margin-top: 14px;
+  border-radius: 7px;
+}
+
+html[data-platform='mobile'] .example-script-switcher button {
+  min-width: 50px;
+  padding: 6px 10px;
 }
 
 html[data-platform='mobile'] .pattern-preview .stanza {

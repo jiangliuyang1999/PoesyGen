@@ -1,0 +1,778 @@
+{
+  "schemaVersion": 1,
+  "description": "经锁定版《御定词谱》与 CCiV 逐字核对确认、但 Unihan 17.0 未完整关联的古籍字形到简体字映射。",
+  "mappings": [
+    {
+      "source": "䕃",
+      "simplified": "荫"
+    },
+    {
+      "source": "桞",
+      "simplified": "柳"
+    },
+    {
+      "source": "㾗",
+      "simplified": "痕"
+    },
+    {
+      "source": "遊",
+      "simplified": "游"
+    },
+    {
+      "source": "玊",
+      "simplified": "玉"
+    },
+    {
+      "source": "㡬",
+      "simplified": "几"
+    },
+    {
+      "source": "髙",
+      "simplified": "高"
+    },
+    {
+      "source": "㸃",
+      "simplified": "点"
+    },
+    {
+      "source": "栁",
+      "simplified": "柳"
+    },
+    {
+      "source": "逺",
+      "simplified": "远"
+    },
+    {
+      "source": "巻",
+      "simplified": "卷"
+    },
+    {
+      "source": "鴈",
+      "simplified": "雁"
+    },
+    {
+      "source": "疎",
+      "simplified": "疏"
+    },
+    {
+      "source": "豔",
+      "simplified": "艳"
+    },
+    {
+      "source": "晩",
+      "simplified": "晚"
+    },
+    {
+      "source": "䦨",
+      "simplified": "阑"
+    },
+    {
+      "source": "隂",
+      "simplified": "阴"
+    },
+    {
+      "source": "逰",
+      "simplified": "游"
+    },
+    {
+      "source": "牕",
+      "simplified": "窗"
+    },
+    {
+      "source": "徧",
+      "simplified": "遍"
+    },
+    {
+      "source": "揺",
+      "simplified": "摇"
+    },
+    {
+      "source": "箇",
+      "simplified": "个"
+    },
+    {
+      "source": "㟁",
+      "simplified": "岸"
+    },
+    {
+      "source": "幙",
+      "simplified": "幕"
+    },
+    {
+      "source": "㑹",
+      "simplified": "会"
+    },
+    {
+      "source": "寳",
+      "simplified": "宝"
+    },
+    {
+      "source": "翦",
+      "simplified": "剪"
+    },
+    {
+      "source": "乗",
+      "simplified": "乘"
+    },
+    {
+      "source": "穏",
+      "simplified": "稳"
+    },
+    {
+      "source": "棃",
+      "simplified": "梨"
+    },
+    {
+      "source": "隠",
+      "simplified": "隐"
+    },
+    {
+      "source": "簷",
+      "simplified": "檐"
+    },
+    {
+      "source": "睂",
+      "simplified": "眉"
+    },
+    {
+      "source": "歎",
+      "simplified": "叹"
+    },
+    {
+      "source": "痩",
+      "simplified": "瘦"
+    },
+    {
+      "source": "堦",
+      "simplified": "阶"
+    },
+    {
+      "source": "竚",
+      "simplified": "伫"
+    },
+    {
+      "source": "曽",
+      "simplified": "曾"
+    },
+    {
+      "source": "朶",
+      "simplified": "朵"
+    },
+    {
+      "source": "氷",
+      "simplified": "冰"
+    },
+    {
+      "source": "闗",
+      "simplified": "关"
+    },
+    {
+      "source": "鳯",
+      "simplified": "凤"
+    },
+    {
+      "source": "㺯",
+      "simplified": "弄"
+    },
+    {
+      "source": "聴",
+      "simplified": "听"
+    },
+    {
+      "source": "孃",
+      "simplified": "娘"
+    },
+    {
+      "source": "濵",
+      "simplified": "滨"
+    },
+    {
+      "source": "韤",
+      "simplified": "袜"
+    },
+    {
+      "source": "蓞",
+      "simplified": "萏"
+    },
+    {
+      "source": "埀",
+      "simplified": "垂"
+    },
+    {
+      "source": "㣲",
+      "simplified": "微"
+    },
+    {
+      "source": "𬬻",
+      "simplified": "炉"
+    },
+    {
+      "source": "窓",
+      "simplified": "窗"
+    },
+    {
+      "source": "釭",
+      "simplified": "釭"
+    },
+    {
+      "source": "镫",
+      "simplified": "灯"
+    },
+    {
+      "source": "㴱",
+      "simplified": "深"
+    },
+    {
+      "source": "厎",
+      "simplified": "底"
+    },
+    {
+      "source": "牀",
+      "simplified": "床"
+    },
+    {
+      "source": "煖",
+      "simplified": "暖"
+    },
+    {
+      "source": "譁",
+      "simplified": "哗"
+    },
+    {
+      "source": "淒",
+      "simplified": "凄"
+    },
+    {
+      "source": "呑",
+      "simplified": "吞"
+    },
+    {
+      "source": "肻",
+      "simplified": "肯"
+    },
+    {
+      "source": "呌",
+      "simplified": "叫"
+    },
+    {
+      "source": "厯",
+      "simplified": "历"
+    },
+    {
+      "source": "騐",
+      "simplified": "验"
+    },
+    {
+      "source": "䔩",
+      "simplified": "簌"
+    },
+    {
+      "source": "㝠",
+      "simplified": "冥"
+    },
+    {
+      "source": "竒",
+      "simplified": "奇"
+    },
+    {
+      "source": "䕶",
+      "simplified": "护"
+    },
+    {
+      "source": "癡",
+      "simplified": "痴"
+    },
+    {
+      "source": "邨",
+      "simplified": "村"
+    },
+    {
+      "source": "髪",
+      "simplified": "发"
+    },
+    {
+      "source": "臯",
+      "simplified": "皋"
+    },
+    {
+      "source": "戸",
+      "simplified": "户"
+    },
+    {
+      "source": "囘",
+      "simplified": "回"
+    },
+    {
+      "source": "敎",
+      "simplified": "教"
+    },
+    {
+      "source": "崑",
+      "simplified": "昆"
+    },
+    {
+      "source": "濶",
+      "simplified": "阔"
+    },
+    {
+      "source": "匳",
+      "simplified": "奁"
+    },
+    {
+      "source": "醿",
+      "simplified": "醾"
+    },
+    {
+      "source": "嫋",
+      "simplified": "袅"
+    },
+    {
+      "source": "嵗",
+      "simplified": "岁"
+    },
+    {
+      "source": "徃",
+      "simplified": "往"
+    },
+    {
+      "source": "纎",
+      "simplified": "纤"
+    },
+    {
+      "source": "羨",
+      "simplified": "羡"
+    },
+    {
+      "source": "様",
+      "simplified": "样"
+    },
+    {
+      "source": "㡌",
+      "simplified": "帽"
+    },
+    {
+      "source": "邉",
+      "simplified": "边"
+    },
+    {
+      "source": "賔",
+      "simplified": "宾"
+    },
+    {
+      "source": "歩",
+      "simplified": "步"
+    },
+    {
+      "source": "蔕",
+      "simplified": "蒂"
+    },
+    {
+      "source": "鬬",
+      "simplified": "斗"
+    },
+    {
+      "source": "妬",
+      "simplified": "妒"
+    },
+    {
+      "source": "葢",
+      "simplified": "盖"
+    },
+    {
+      "source": "羮",
+      "simplified": "羹"
+    },
+    {
+      "source": "榖",
+      "simplified": "谷"
+    },
+    {
+      "source": "糓",
+      "simplified": "谷"
+    },
+    {
+      "source": "淨",
+      "simplified": "净"
+    },
+    {
+      "source": "乆",
+      "simplified": "久"
+    },
+    {
+      "source": "渇",
+      "simplified": "渴"
+    },
+    {
+      "source": "袴",
+      "simplified": "裤"
+    },
+    {
+      "source": "稜",
+      "simplified": "棱"
+    },
+    {
+      "source": "歴",
+      "simplified": "历"
+    },
+    {
+      "source": "畧",
+      "simplified": "略"
+    },
+    {
+      "source": "羣",
+      "simplified": "群"
+    },
+    {
+      "source": "踈",
+      "simplified": "疏"
+    },
+    {
+      "source": "歳",
+      "simplified": "岁"
+    },
+    {
+      "source": "悮",
+      "simplified": "误"
+    },
+    {
+      "source": "胷",
+      "simplified": "胸"
+    },
+    {
+      "source": "欝",
+      "simplified": "郁"
+    },
+    {
+      "source": "蔵",
+      "simplified": "藏"
+    },
+    {
+      "source": "㡳",
+      "simplified": "底"
+    },
+    {
+      "source": "鼇",
+      "simplified": "鳌"
+    },
+    {
+      "source": "軰",
+      "simplified": "辈"
+    },
+    {
+      "source": "箆",
+      "simplified": "篦"
+    },
+    {
+      "source": "筞",
+      "simplified": "策"
+    },
+    {
+      "source": "甞",
+      "simplified": "尝"
+    },
+    {
+      "source": "脣",
+      "simplified": "唇"
+    },
+    {
+      "source": "徳",
+      "simplified": "德"
+    },
+    {
+      "source": "弔",
+      "simplified": "吊"
+    },
+    {
+      "source": "闘",
+      "simplified": "斗"
+    },
+    {
+      "source": "峯",
+      "simplified": "峰"
+    },
+    {
+      "source": "鼔",
+      "simplified": "鼓"
+    },
+    {
+      "source": "戯",
+      "simplified": "戏"
+    },
+    {
+      "source": "羇",
+      "simplified": "羁"
+    },
+    {
+      "source": "繋",
+      "simplified": "系"
+    },
+    {
+      "source": "劒",
+      "simplified": "剑"
+    },
+    {
+      "source": "掲",
+      "simplified": "揭"
+    },
+    {
+      "source": "觧",
+      "simplified": "解"
+    },
+    {
+      "source": "寛",
+      "simplified": "宽"
+    },
+    {
+      "source": "茘",
+      "simplified": "荔"
+    },
+    {
+      "source": "亷",
+      "simplified": "廉"
+    },
+    {
+      "source": "聫",
+      "simplified": "联"
+    },
+    {
+      "source": "隣",
+      "simplified": "邻"
+    },
+    {
+      "source": "艣",
+      "simplified": "橹"
+    },
+    {
+      "source": "靣",
+      "simplified": "面"
+    },
+    {
+      "source": "拏",
+      "simplified": "拿"
+    },
+    {
+      "source": "斾",
+      "simplified": "旆"
+    },
+    {
+      "source": "蒱",
+      "simplified": "蒲"
+    },
+    {
+      "source": "噐",
+      "simplified": "器"
+    },
+    {
+      "source": "笻",
+      "simplified": "筇"
+    },
+    {
+      "source": "舎",
+      "simplified": "舍"
+    },
+    {
+      "source": "昇",
+      "simplified": "升"
+    },
+    {
+      "source": "夀",
+      "simplified": "寿"
+    },
+    {
+      "source": "擡",
+      "simplified": "抬"
+    },
+    {
+      "source": "翫",
+      "simplified": "玩"
+    },
+    {
+      "source": "椀",
+      "simplified": "碗"
+    },
+    {
+      "source": "呉",
+      "simplified": "吴"
+    },
+    {
+      "source": "郷",
+      "simplified": "乡"
+    },
+    {
+      "source": "擕",
+      "simplified": "携"
+    },
+    {
+      "source": "鞵",
+      "simplified": "鞋"
+    },
+    {
+      "source": "倖",
+      "simplified": "幸"
+    },
+    {
+      "source": "勲",
+      "simplified": "勋"
+    },
+    {
+      "source": "熖",
+      "simplified": "焰"
+    },
+    {
+      "source": "吚",
+      "simplified": "咿"
+    },
+    {
+      "source": "茰",
+      "simplified": "萸"
+    },
+    {
+      "source": "娯",
+      "simplified": "娱"
+    },
+    {
+      "source": "縁",
+      "simplified": "缘"
+    },
+    {
+      "source": "皁",
+      "simplified": "皂"
+    },
+    {
+      "source": "増",
+      "simplified": "增"
+    },
+    {
+      "source": "眞",
+      "simplified": "真"
+    },
+    {
+      "source": "扺",
+      "simplified": "抵"
+    },
+    {
+      "source": "㨗",
+      "simplified": "捷"
+    },
+    {
+      "source": "㬉",
+      "simplified": "暖"
+    },
+    {
+      "source": "㳺",
+      "simplified": "游"
+    },
+    {
+      "source": "䄂",
+      "simplified": "袖"
+    },
+    {
+      "source": "斚",
+      "simplified": "斝"
+    },
+    {
+      "source": "盻",
+      "simplified": "盼"
+    },
+    {
+      "source": "絃",
+      "simplified": "弦"
+    },
+    {
+      "source": "遶",
+      "simplified": "绕"
+    },
+    {
+      "source": "鑑",
+      "simplified": "鉴"
+    },
+    {
+      "source": "醆",
+      "simplified": "盏"
+    },
+    {
+      "source": "嬾",
+      "simplified": "懒"
+    },
+    {
+      "source": "巖",
+      "simplified": "岩"
+    },
+    {
+      "source": "賸",
+      "simplified": "剩"
+    },
+    {
+      "source": "牋",
+      "simplified": "笺"
+    },
+    {
+      "source": "嶽",
+      "simplified": "岳"
+    },
+    {
+      "source": "綘",
+      "simplified": "绛"
+    },
+    {
+      "source": "檥",
+      "simplified": "舣"
+    },
+    {
+      "source": "顦",
+      "simplified": "憔"
+    },
+    {
+      "source": "顇",
+      "simplified": "悴"
+    },
+    {
+      "source": "褭",
+      "simplified": "袅"
+    },
+    {
+      "source": "鍼",
+      "simplified": "针"
+    },
+    {
+      "source": "灩",
+      "simplified": "滟"
+    },
+    {
+      "source": "篸",
+      "simplified": "篸"
+    },
+    {
+      "source": "漙",
+      "simplified": "漙"
+    },
+    {
+      "source": "圞",
+      "simplified": "圞"
+    },
+    {
+      "source": "閟",
+      "simplified": "閟"
+    },
+    {
+      "source": "剰",
+      "simplified": "剩"
+    },
+    {
+      "source": "帯",
+      "simplified": "带"
+    },
+    {
+      "source": "韈",
+      "simplified": "袜"
+    },
+    {
+      "source": "懐",
+      "simplified": "怀"
+    },
+    {
+      "source": "䌽",
+      "simplified": "彩"
+    }
+  ]
+}

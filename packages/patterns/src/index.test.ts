@@ -14,11 +14,11 @@ describe('authoritative Ci pattern catalog', () => {
   it('loads authoritative variants with stable IDs', () => {
     const patterns = listPatterns();
 
-    expect(patterns).toHaveLength(245);
+    expect(patterns).toHaveLength(244);
     expect(new Set(patterns.map(({ id }) => id)).size).toBe(patterns.length);
     expect(new Set(patterns.map(({ name }) => name)).size).toBe(36);
-    expect(patterns.filter(({ reviewStatus }) => reviewStatus === 'imported')).toHaveLength(231);
-    expect(patterns.filter(({ reviewStatus }) => reviewStatus === 'draft')).toHaveLength(14);
+    expect(patterns.filter(({ reviewStatus }) => reviewStatus === 'imported')).toHaveLength(244);
+    expect(patterns.filter(({ reviewStatus }) => reviewStatus === 'draft')).toHaveLength(0);
     expect(findPattern('huan-xi-sha-standard')?.name).toBe('浣溪沙');
   });
 
@@ -57,14 +57,93 @@ describe('authoritative Ci pattern catalog', () => {
       ({ sourceValidation }) => sourceValidation.status === 'unverified',
     );
 
-    expect(validated).toHaveLength(231);
+    expect(validated).toHaveLength(244);
     expect(validated.every(({ sourceValidation }) => sourceValidation.editDistance >= 0)).toBe(
       true,
     );
-    expect(unverified).toHaveLength(14);
+    expect(unverified).toHaveLength(0);
+  });
+
+  it('normalizes confirmed historical variants during source validation', () => {
+    const linJiangXian = patternData.patterns.find(({ id }) => id === 'lin-jiang-xian-variant-03');
+    const qinYuanChun = patternData.patterns.find(({ id }) => id === 'qin-yuan-chun-variant-05');
+
+    expect(linJiangXian?.reviewStatus).toBe('imported');
+    expect(linJiangXian?.sourceValidation).toEqual({
+      status: 'validated',
+      editDistance: 0,
+      matchedMarkers: 10,
+    });
+    expect(linJiangXian?.example.lines[0]).toBe('桞帶搖風漢水濵');
+    expect(linJiangXian?.example.simplifiedLines?.[0]).toBe('柳带摇风汉水滨');
+    expect(qinYuanChun?.reviewStatus).toBe('imported');
+    expect(qinYuanChun?.sourceValidation).toEqual({
+      status: 'validated',
+      editDistance: 0,
+      matchedMarkers: 26,
+    });
+    expect(qinYuanChun?.example.lines[0]).toBe('玊露迎寒');
+    expect(qinYuanChun?.example.simplifiedLines?.[0]).toBe('玉露迎寒');
+  });
+
+  it('generates readable simplified examples from authoritative source text', () => {
+    const switchable = patternData.patterns.filter(({ example }) => 'simplifiedLines' in example);
+    const simplifiedLines = switchable.flatMap(({ example }) => example.simplifiedLines ?? []);
+
+    expect(switchable).toHaveLength(225);
     expect(
-      unverified.every(({ sourceValidation }) => (sourceValidation.issues?.length ?? 0) > 0),
+      simplifiedLines
+        .flatMap((line) => Array.from(line))
+        .every((character) => character.codePointAt(0)! <= 0xffff),
     ).toBe(true);
+    expect(
+      patternData.patterns.find(({ id }) => id === 'huan-xi-sha-variant-04')?.example
+        .simplifiedLines?.[5],
+    ).toBe('宝帐玉炉残麝冷');
+    expect(
+      patternData.patterns.find(({ id }) => id === 'pu-sa-man-variant-02')?.example
+        .simplifiedLines?.[2],
+    ).toBe('敧枕背灯眠');
+    expect(
+      patternData.patterns.find(({ id }) => id === 'nian-nu-jiao-variant-02')?.example
+        .simplifiedLines?.[16],
+    ).toBe('樯橹灰飞烟灭');
+    expect(
+      patternData.patterns.find(({ id }) => id === 'qin-yuan-chun-variant-05')?.example
+        .simplifiedLines?.[8],
+    ).toBe('申生谷旦');
+    expect(
+      patternData.patterns.find(({ id }) => id === 'zhe-gu-tian-standard')?.example
+        .simplifiedLines?.[7],
+    ).toBe('今宵剩把银釭照');
+  });
+
+  it('resolves all retained draft candidates against the locked source', () => {
+    const nianNuJiao = patternData.patterns.find(({ id }) => id === 'nian-nu-jiao-variant-09');
+    const xiJiangYue = patternData.patterns.find(({ id }) => id === 'xi-jiang-yue-variant-03');
+    const shuiLongYin = patternData.patterns.find(({ id }) => id === 'shui-long-yin-variant-11');
+    const yiQinE = patternData.patterns.find(({ id }) => id === 'yi-qin-e-variant-07');
+    const yiJianMei = patternData.patterns.find(({ id }) => id === 'yi-jian-mei-variant-04');
+
+    expect(nianNuJiao?.example.lines[0]).toBe('江漢露冷');
+    expect(nianNuJiao?.example.simplifiedLines?.[0]).toBe('江汉露冷');
+    expect(
+      xiJiangYue?.sections.map(({ lines }) =>
+        lines
+          .map(({ positions }, index) =>
+            positions.at(-1)?.rhyme === undefined ? undefined : index,
+          )
+          .filter((index) => index !== undefined),
+      ),
+    ).toEqual([
+      [1, 2, 3],
+      [1, 2, 3],
+    ]);
+    expect(shuiLongYin?.example.lines[0]).toBe('清江滾滾東流');
+    expect(yiQinE?.specification).toBe('双调四十一字，前后段各四句、四仄韵');
+    expect(yiJianMei?.example.simplifiedLines?.[0]).toBe('剩蕊惊寒减艳痕');
+    expect(findPattern('jian-zi-mu-lan-hua-variant-02')).toBeUndefined();
+    expect(listPatternsByName('减字木兰花').map(({ variant }) => variant)).toEqual(['正体']);
   });
 
   it('keeps the third and fourth Jiang Cheng Zi forms single-stanza', () => {

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import type { CiPattern } from '@poesygen/domain';
 
 import { formatPatternVariantSummary } from './model.js';
@@ -42,6 +44,12 @@ export function PatternPreview({
   showHeader = true,
   titleLevel = 1,
 }: PatternPreviewProps) {
+  const [exampleScript, setExampleScript] = useState<'traditional' | 'simplified'>('traditional');
+  const simplifiedExamples = pattern.example?.simplifiedLines;
+  const exampleLines =
+    exampleScript === 'simplified' && simplifiedExamples !== undefined
+      ? simplifiedExamples
+      : pattern.example?.lines;
   let exampleIndex = 0;
 
   return (
@@ -63,6 +71,25 @@ export function PatternPreview({
         </header>
       )}
 
+      {simplifiedExamples !== undefined && (
+        <div className="example-script-switcher" role="group" aria-label="例词文字">
+          <button
+            type="button"
+            aria-pressed={exampleScript === 'traditional'}
+            onClick={() => setExampleScript('traditional')}
+          >
+            繁体
+          </button>
+          <button
+            type="button"
+            aria-pressed={exampleScript === 'simplified'}
+            onClick={() => setExampleScript('simplified')}
+          >
+            简体
+          </button>
+        </div>
+      )}
+
       <div className="stanza-list">
         {pattern.sections.map((section) => (
           <section className="stanza" key={section.id} aria-label={section.name}>
@@ -71,7 +98,7 @@ export function PatternPreview({
             </div>
             <div className="line-list">
               {section.lines.map((line) => {
-                const example = Array.from(pattern.example?.lines[exampleIndex] ?? '');
+                const example = Array.from(exampleLines?.[exampleIndex] ?? '');
                 const currentIndex = exampleIndex;
                 exampleIndex += 1;
                 return (

@@ -31,6 +31,7 @@ export interface CiPattern {
   readonly example?: {
     readonly author: string;
     readonly lines: ReadonlyArray<string>;
+    readonly simplifiedLines?: ReadonlyArray<string>;
   };
   readonly sections: ReadonlyArray<PatternSection>;
 }

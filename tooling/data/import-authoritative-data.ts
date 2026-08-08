@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 
 import { unzipSync } from 'fflate';
 
+import manualCharacterMappingsData from './manual-character-mappings.json' with { type: 'json' };
+
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const lockPath = resolve(root, 'tooling/data/sources.lock.json');
 const patternsPath = resolve(root, 'packages/patterns/src/data/qinding-cipu.json');
@@ -77,6 +79,11 @@ interface CilinMembership {
   readonly tang?: ReadonlyArray<string>;
 }
 
+interface ManualCharacterMapping {
+  readonly source: string;
+  readonly simplified: string;
+}
+
 interface CandidateTemplate {
   readonly name: string;
   readonly gelv: string;
@@ -100,6 +107,7 @@ interface SourceNote {
 
 interface RenderedQinding {
   readonly text: string;
+  readonly originalText: string;
   readonly notes: ReadonlyMap<number, ReadonlyArray<string>>;
 }
 
@@ -153,6 +161,21 @@ const patternIds: Readonly<Record<string, string>> = {
   醉花阴: 'zui-hua-yin',
 };
 
+const candidateCorrections: Readonly<
+  Record<string, { readonly specification?: string; readonly excludeReason?: string }>
+> = {
+  'jian-zi-mu-lan-hua-variant-02': {
+    excludeReason: '与正体句数、字数、平仄和换韵结构相同，且例词未收录于《御定词谱》',
+  },
+  'yi-qin-e-variant-07': {
+    specification: '双调四十一字，前后段各四句、四仄韵',
+  },
+};
+
+const qindingSpecialCharacters: Readonly<Record<string, string>> = {
+  '1866': '渺',
+};
+
 const lock = JSON.parse(await readFile(lockPath, 'utf8')) as SourceLock;
 const [qindingResponse, cilinResponse, unihanArchive, ccivArchive] = await Promise.all([
   downloadJson<WikiResponse>(lock.sources.qindingCipu.apiUrl),
@@ -177,7 +200,9 @@ const unihanFiles = unzipSync(unihanArchive);
 const readingsText = decodeZipFile(unihanFiles, 'Unihan_Readings.txt');
 const variantsText = decodeZipFile(unihanFiles, 'Unihan_Variants.txt');
 const readings = parseUnihan(readingsText, variantsText);
-const matcher = createVariantMatcher(variantsText);
+const manualCharacterMappings = parseManualCharacterMappings(manualCharacterMappingsData);
+const matcher = createVariantMatcher(variantsText, manualCharacterMappings);
+const simplify = createCharacterSimplifier(readings, manualCharacterMappings);
 
 const cilin = parseCilinZhengyun(cilinRevision.slots.main.content, readings);
 const renderedQinding = renderQinding(qindingPages, matcher);
@@ -186,7 +211,13 @@ const ccivFiles = unzipSync(ccivArchive);
 const candidateData = JSON.parse(
   decodeZipFileBySuffix(ccivFiles, '/src/cipai2info.json'),
 ) as CandidateData;
-const patternsResult = compilePatterns(candidateData, renderedQinding, matcher, cilin.characters);
+const patternsResult = compilePatterns(
+  candidateData,
+  renderedQinding,
+  matcher,
+  cilin.characters,
+  simplify,
+);
 
 const provenance = {
   generatedAt: lock.retrievedAt,
@@ -219,6 +250,7 @@ const patternsReport = {
   importedStandardPatterns: patternsResult.patterns.filter(({ variant }) => variant === '正体')
     .length,
   retainedWithIssues: patternsResult.retainedWithIssues,
+  excludedCandidates: patternsResult.excludedCandidates,
   rejected: patternsResult.rejected,
 };
 const rhymeOutput = {
@@ -351,6 +383,32 @@ function decodeZipFileBySuffix(
   return new TextDecoder().decode(entry[1]);
 }
 
+function parseManualCharacterMappings(data: {
+  readonly schemaVersion: number;
+  readonly mappings: ReadonlyArray<ManualCharacterMapping>;
+}): ReadonlyArray<ManualCharacterMapping> {
+  if (data.schemaVersion !== 1) {
+    throw new Error(`不支持的手工字符映射版本：${data.schemaVersion}`);
+  }
+
+  const sources = new Set<string>();
+  for (const mapping of data.mappings) {
+    if (
+      extractHanCharacters(mapping.source).join('') !== mapping.source ||
+      extractHanCharacters(mapping.simplified).join('') !== mapping.simplified ||
+      Array.from(mapping.source).length !== 1 ||
+      Array.from(mapping.simplified).length !== 1
+    ) {
+      throw new Error(`手工字符映射必须为单个汉字：${mapping.source} -> ${mapping.simplified}`);
+    }
+    if (sources.has(mapping.source)) {
+      throw new Error(`手工字符映射重复：${mapping.source}`);
+    }
+    sources.add(mapping.source);
+  }
+  return data.mappings;
+}
+
 function parseUnihan(
   readingsText: string,
   variantsText: string,
@@ -427,6 +485,25 @@ function parseUnihan(
         }) as UnihanReadingRecord,
       ]),
   );
+}
+
+function createCharacterSimplifier(
+  readings: Readonly<Record<string, UnihanReadingRecord>>,
+  manualMappings: ReadonlyArray<ManualCharacterMapping>,
+): (value: string) => string {
+  const manual = new Map(
+    manualMappings.map(({ source, simplified }) => [source, simplified] as const),
+  );
+  return (value) =>
+    Array.from(value)
+      .map((character) => {
+        const manuallySimplified = manual.get(character);
+        if (manuallySimplified !== undefined) return manuallySimplified;
+
+        const unihanSimplified = readings[character]?.simplifiedVariants?.[0] ?? character;
+        return manual.get(unihanSimplified) ?? unihanSimplified;
+      })
+      .join('');
 }
 
 function parseCilinZhengyun(
@@ -566,7 +643,10 @@ function addMembership(
   memberships.set(character, existing);
 }
 
-function createVariantMatcher(variantsText: string) {
+function createVariantMatcher(
+  variantsText: string,
+  manualMappings: ReadonlyArray<ManualCharacterMapping>,
+) {
   const parents = new Map<string, string>();
   const find = (character: string): string => {
     const parent = parents.get(character);
@@ -609,9 +689,9 @@ function createVariantMatcher(variantsText: string) {
     for (const variant of parseCodePoints(value)) union(character, variant);
   }
 
-  // The Siku transcription uses this historical glyph, which Unihan 17.0
-  // does not connect to its modern semantic equivalent.
-  union('䕃', '蔭');
+  for (const { source, simplified } of manualMappings) {
+    union(source, simplified);
+  }
 
   return {
     normalize(value: string): string {
@@ -627,29 +707,38 @@ function renderQinding(
   matcher: ReturnType<typeof createVariantMatcher>,
 ): RenderedQinding {
   const source = pages.map((page) => page.revisions[0]!.slots.main.content).join('\n');
-  const token = /\{\{(SK anchor|SK notes)\|([^{}]*)\}\}/gu;
+  const token = /\{\{(SK anchor|SK notes|SKchar)\|([^{}]*)\}\}/gu;
   const chunks: string[] = [];
+  const originalChunks: string[] = [];
   const sourceNotes: SourceNote[] = [];
   let sourceOffset = 0;
   let outputOffset = 0;
+  const appendText = (value: string): void => {
+    const normalized = matcher.normalize(value);
+    const original = extractHanCharacters(value).join('');
+    if (normalized.length !== original.length) {
+      throw new Error('《御定词谱》异体字归一化改变了文本长度');
+    }
+    chunks.push(normalized);
+    originalChunks.push(original);
+    outputOffset += normalized.length;
+  };
 
   for (const match of source.matchAll(token)) {
     const index = match.index;
     if (index === undefined) continue;
-    const plain = matcher.normalize(source.slice(sourceOffset, index));
-    chunks.push(plain);
-    outputOffset += plain.length;
+    appendText(source.slice(sourceOffset, index));
 
     if (match[1] === 'SK anchor') {
-      const anchor = matcher.normalize(match[2] ?? '');
-      chunks.push(anchor);
-      outputOffset += anchor.length;
+      appendText(match[2] ?? '');
+    } else if (match[1] === 'SKchar') {
+      appendText(qindingSpecialCharacters[match[2] ?? ''] ?? '');
     } else {
       sourceNotes.push({ offset: outputOffset, value: match[2] ?? '' });
     }
     sourceOffset = index + match[0].length;
   }
-  chunks.push(matcher.normalize(source.slice(sourceOffset)));
+  appendText(source.slice(sourceOffset));
 
   const notes = new Map<number, string[]>();
   for (const note of sourceNotes) {
@@ -658,7 +747,11 @@ function renderQinding(
     notes.set(note.offset, atOffset);
   }
 
-  return { text: chunks.join(''), notes };
+  return {
+    text: chunks.join(''),
+    originalText: originalChunks.join(''),
+    notes,
+  };
 }
 
 function compilePatterns(
@@ -666,6 +759,7 @@ function compilePatterns(
   qinding: RenderedQinding,
   matcher: ReturnType<typeof createVariantMatcher>,
   cilin: Readonly<Record<string, ReadonlyArray<CilinMembership>>>,
+  simplify: (value: string) => string,
 ) {
   const patterns: Array<{
     readonly id: string;
@@ -679,6 +773,12 @@ function compilePatterns(
     variant: string;
     id: string;
     issues: ReadonlyArray<string>;
+  }> = [];
+  const excludedCandidates: Array<{
+    name: string;
+    variant: string;
+    id: string;
+    reason: string;
   }> = [];
   const rejected: Array<{ name: string; variant?: string; reason: string }> = [];
 
@@ -695,12 +795,23 @@ function compilePatterns(
         variantIndex === 0
           ? `${idPrefix}-standard`
           : `${idPrefix}-variant-${String(variantIndex + 1).padStart(2, '0')}`;
+      const correction = candidateCorrections[patternId];
+      if (correction?.excludeReason !== undefined) {
+        excludedCandidates.push({
+          name,
+          variant,
+          id: patternId,
+          reason: correction.excludeReason,
+        });
+        continue;
+      }
+      const specification = correction?.specification ?? candidate.gelv;
 
       try {
         const sourceSections = splitPatternSections(
           candidate.example,
           candidate.template,
-          candidate.gelv,
+          specification,
         );
         const flattenedExamples = sourceSections.flatMap((section) =>
           section.lines.map((line) => line.example),
@@ -714,19 +825,29 @@ function compilePatterns(
               editDistance: -1,
               markerCount: 0,
               markers: flattenedExamples.map(() => ''),
+              sourceLines: [],
             };
           }
         })();
         if (sourceMatch.editDistance < 0) {
           issues.push('例词未能逐句回查《御定词谱》');
         }
-        const expectedRhymes = parseExpectedRhymeCount(candidate.gelv);
+        const authoritativeExamples =
+          sourceMatch.editDistance >= 0 &&
+          sourceMatch.sourceLines.length === flattenedExamples.length &&
+          sourceMatch.sourceLines.every(
+            (line, index) =>
+              Array.from(line).length === Array.from(flattenedExamples[index] ?? '').length,
+          )
+            ? sourceMatch.sourceLines
+            : undefined;
+        const expectedRhymes = parseExpectedRhymeCount(specification);
         let rhymeMarkers: ReadonlyArray<boolean> = sourceMatch.markers.map(isRhymeMarker);
 
         if (rhymeMarkers.filter(Boolean).length !== expectedRhymes) {
           const inferredRhymes = inferRhymeMarkers(
             sourceSections,
-            candidate.gelv,
+            specification,
             cilin,
             variantIndex === 0 ? idPrefix : patternId,
           );
@@ -749,7 +870,7 @@ function compilePatterns(
           .flatMap((section) => section.lines)
           .reduce((sum, line) => sum + Array.from(line.tones).length, 0);
         try {
-          const declaredCharacters = parseDeclaredCharacterCount(candidate.gelv);
+          const declaredCharacters = parseDeclaredCharacterCount(specification);
           if (totalCharacters !== declaredCharacters) {
             issues.push(`总字数应为 ${declaredCharacters}，模板实际为 ${totalCharacters}`);
           }
@@ -799,10 +920,13 @@ function compilePatterns(
           ],
           example: {
             author: candidate.poet,
-            lines: flattenedExamples,
+            lines: authoritativeExamples ?? flattenedExamples,
+            ...(authoritativeExamples === undefined
+              ? {}
+              : { simplifiedLines: authoritativeExamples.map(simplify) }),
           },
           description: tune.qinding_desc,
-          specification: candidate.gelv,
+          specification,
           sourceValidation: compactRecord({
             status: issues.length === 0 ? 'validated' : 'unverified',
             editDistance: sourceMatch.editDistance,
@@ -843,7 +967,7 @@ function compilePatterns(
         .join('\n')}`,
     );
   }
-  return { patterns, retainedWithIssues, rejected };
+  return { patterns, retainedWithIssues, excludedCandidates, rejected };
 }
 
 function splitPatternSections(
@@ -921,6 +1045,7 @@ function alignExampleToQinding(
         editDistance: number;
         markers: string[];
         markerCount: number;
+        sourceLines: string[];
       }
     | undefined;
 
@@ -928,9 +1053,11 @@ function alignExampleToQinding(
     let offset = start;
     let editDistance = 0;
     const markers: string[] = [];
+    const sourceLines: string[] = [];
     for (const phrase of normalized) {
       const aligned = bestPrefix(qinding.text, phrase, offset);
       editDistance += aligned.distance;
+      sourceLines.push(qinding.originalText.slice(offset, offset + aligned.length));
       offset += aligned.length;
       markers.push(nearestNote(qinding.notes, offset));
     }
@@ -938,6 +1065,7 @@ function alignExampleToQinding(
       editDistance,
       markers,
       markerCount: markers.filter((marker) => marker !== '').length,
+      sourceLines,
     };
     if (
       best === undefined ||
@@ -966,18 +1094,25 @@ function findApproximateStarts(text: string, target: string): ReadonlyArray<numb
   }
   if (exact.length > 0) return exact;
 
-  for (const prefixLength of [Math.min(4, target.length), Math.min(3, target.length), 2]) {
-    const prefix = target.slice(0, prefixLength);
-    const candidates: number[] = [];
-    for (let from = 0; candidates.length < 200;) {
-      const index = text.indexOf(prefix, from);
-      if (index < 0) break;
-      if (levenshtein(target, text.slice(index, index + target.length)) <= 2) {
-        candidates.push(index);
+  for (const fragmentLength of [Math.min(4, target.length), Math.min(3, target.length), 2]) {
+    const candidates = new Set<number>();
+    for (
+      let targetOffset = 0;
+      targetOffset <= target.length - fragmentLength && candidates.size < 200;
+      targetOffset += 1
+    ) {
+      const fragment = target.slice(targetOffset, targetOffset + fragmentLength);
+      for (let from = 0; candidates.size < 200;) {
+        const index = text.indexOf(fragment, from);
+        if (index < 0) break;
+        const start = index - targetOffset;
+        if (start >= 0 && levenshtein(target, text.slice(start, start + target.length)) <= 2) {
+          candidates.add(start);
+        }
+        from = index + 1;
       }
-      from = index + 1;
     }
-    if (candidates.length > 0) return candidates;
+    if (candidates.size > 0) return [...candidates].sort((left, right) => left - right);
   }
   return [];
 }
@@ -1011,7 +1146,7 @@ function isRhymeMarker(marker: string): boolean {
   const prefix = marker.slice(0, 8);
   return (
     /^(?:[一二三四五六七八九十]*換)?(?:平|仄)?韻/u.test(prefix) ||
-    /^(?:叶|疊)/u.test(prefix) ||
+    /^(?:換)?(?:叶|疊)/u.test(prefix) ||
     /^[^，。]{0,4}韻/u.test(prefix)
   );
 }
