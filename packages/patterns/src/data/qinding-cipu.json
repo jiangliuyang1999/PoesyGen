@@ -80405,8 +80405,8 @@
       },
       "sections": [
         {
-          "id": "stanza-1",
-          "name": "上阕",
+          "id": "single-stanza",
+          "name": "单调",
           "lines": [
             {
               "id": "line-1-1",
@@ -80558,16 +80558,10 @@
                   "tone": "oblique"
                 }
               ],
-              "punctuation": "。"
-            }
-          ]
-        },
-        {
-          "id": "stanza-2",
-          "name": "下阕",
-          "lines": [
+              "punctuation": "，"
+            },
             {
-              "id": "line-2-1",
+              "id": "line-1-8",
               "positions": [
                 {
                   "tone": "oblique"
@@ -80635,8 +80629,8 @@
       },
       "sections": [
         {
-          "id": "stanza-1",
-          "name": "上阕",
+          "id": "single-stanza",
+          "name": "单调",
           "lines": [
             {
               "id": "line-1-1",
@@ -80791,16 +80785,10 @@
                   "tone": "oblique"
                 }
               ],
-              "punctuation": "。"
-            }
-          ]
-        },
-        {
-          "id": "stanza-2",
-          "name": "下阕",
-          "lines": [
+              "punctuation": "，"
+            },
             {
-              "id": "line-2-1",
+              "id": "line-1-9",
               "positions": [
                 {
                   "tone": "oblique"

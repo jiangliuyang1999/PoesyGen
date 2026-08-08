@@ -211,8 +211,14 @@ const patternsReport = {
   ),
   importedTunes: new Set(patternsResult.patterns.map(({ name }) => name)).size,
   importedVariants: patternsResult.patterns.length,
+  validatedVariants: patternsResult.patterns.filter(
+    ({ reviewStatus }) => reviewStatus === 'imported',
+  ).length,
+  draftVariants: patternsResult.patterns.filter(({ reviewStatus }) => reviewStatus === 'draft')
+    .length,
   importedStandardPatterns: patternsResult.patterns.filter(({ variant }) => variant === '正体')
     .length,
+  retainedWithIssues: patternsResult.retainedWithIssues,
   rejected: patternsResult.rejected,
 };
 const rhymeOutput = {
@@ -665,7 +671,14 @@ function compilePatterns(
     readonly id: string;
     readonly name: string;
     readonly variant: string;
+    readonly reviewStatus: 'draft' | 'imported';
     readonly [key: string]: unknown;
+  }> = [];
+  const retainedWithIssues: Array<{
+    name: string;
+    variant: string;
+    id: string;
+    issues: ReadonlyArray<string>;
   }> = [];
   const rejected: Array<{ name: string; variant?: string; reason: string }> = [];
 
@@ -684,10 +697,15 @@ function compilePatterns(
           : `${idPrefix}-variant-${String(variantIndex + 1).padStart(2, '0')}`;
 
       try {
-        const sourceSections = splitPatternSections(candidate.example, candidate.template);
+        const sourceSections = splitPatternSections(
+          candidate.example,
+          candidate.template,
+          candidate.gelv,
+        );
         const flattenedExamples = sourceSections.flatMap((section) =>
           section.lines.map((line) => line.example),
         );
+        const issues: string[] = [];
         const sourceMatch = (() => {
           try {
             return alignExampleToQinding(flattenedExamples, qinding, matcher);
@@ -700,21 +718,23 @@ function compilePatterns(
           }
         })();
         if (sourceMatch.editDistance < 0) {
-          throw new Error('例词未能逐句回查《御定词谱》');
+          issues.push('例词未能逐句回查《御定词谱》');
         }
         const expectedRhymes = parseExpectedRhymeCount(candidate.gelv);
         let rhymeMarkers: ReadonlyArray<boolean> = sourceMatch.markers.map(isRhymeMarker);
 
         if (rhymeMarkers.filter(Boolean).length !== expectedRhymes) {
-          rhymeMarkers = inferRhymeMarkers(
+          const inferredRhymes = inferRhymeMarkers(
             sourceSections,
             candidate.gelv,
             cilin,
             variantIndex === 0 ? idPrefix : patternId,
           );
+          rhymeMarkers = inferredRhymes.markers;
+          issues.push(...inferredRhymes.issues);
         }
         if (rhymeMarkers.filter(Boolean).length !== expectedRhymes) {
-          throw new Error(
+          issues.push(
             `韵位数量不匹配：词谱记载 ${expectedRhymes}，解析为 ${rhymeMarkers.filter(Boolean).length}`,
           );
         }
@@ -728,9 +748,13 @@ function compilePatterns(
         const totalCharacters = sourceSections
           .flatMap((section) => section.lines)
           .reduce((sum, line) => sum + Array.from(line.tones).length, 0);
-        const declaredCharacters = parseDeclaredCharacterCount(candidate.gelv);
-        if (totalCharacters !== declaredCharacters) {
-          throw new Error(`总字数应为 ${declaredCharacters}，模板实际为 ${totalCharacters}`);
+        try {
+          const declaredCharacters = parseDeclaredCharacterCount(candidate.gelv);
+          if (totalCharacters !== declaredCharacters) {
+            issues.push(`总字数应为 ${declaredCharacters}，模板实际为 ${totalCharacters}`);
+          }
+        } catch (error) {
+          issues.push(error instanceof Error ? error.message : String(error));
         }
 
         let flatIndex = 0;
@@ -761,13 +785,14 @@ function compilePatterns(
           }),
         }));
 
+        const reviewStatus = issues.length === 0 ? 'imported' : 'draft';
         patterns.push({
           id: patternId,
           name,
           variant,
           source: `《御定词谱》；CCiV 结构化转录 ${lock.sources.cciv.revision.slice(0, 12)}`,
           dataVersion: `${lock.retrievedAt}.qinding-cipu`,
-          reviewStatus: 'imported',
+          reviewStatus,
           provenance: [
             toProvenance(lock.sources.qindingCipu, lock.retrievedAt),
             toProvenance(lock.sources.cciv, lock.retrievedAt),
@@ -778,12 +803,22 @@ function compilePatterns(
           },
           description: tune.qinding_desc,
           specification: candidate.gelv,
-          sourceValidation: {
+          sourceValidation: compactRecord({
+            status: issues.length === 0 ? 'validated' : 'unverified',
             editDistance: sourceMatch.editDistance,
             matchedMarkers: sourceMatch.markers.filter((marker) => marker !== '').length,
-          },
+            issues,
+          }),
           sections,
         });
+        if (issues.length > 0) {
+          retainedWithIssues.push({
+            name,
+            variant,
+            id: patternId,
+            issues,
+          });
+        }
       } catch (error) {
         rejected.push({
           name,
@@ -808,25 +843,40 @@ function compilePatterns(
         .join('\n')}`,
     );
   }
-  return { patterns, rejected };
+  return { patterns, retainedWithIssues, rejected };
 }
 
 function splitPatternSections(
   example: string,
   template: string,
+  specification: string,
 ): ReadonlyArray<PatternSourceSection> {
   const exampleBlocks = example.split('\n');
   const templateBlocks = template.split('\n');
-  if (exampleBlocks.length !== templateBlocks.length || ![1, 2, 4].includes(exampleBlocks.length)) {
+  if (exampleBlocks.length !== templateBlocks.length || exampleBlocks.length === 0) {
     throw new Error('例词和模板分块不一致');
   }
 
-  const sectionCount = exampleBlocks.length === 1 ? 1 : 2;
+  const conciseSpecification = specification.trim();
+  const sectionCount = conciseSpecification.startsWith('单调')
+    ? 1
+    : conciseSpecification.startsWith('双调')
+      ? 2
+      : undefined;
+  if (sectionCount === undefined) {
+    throw new Error(`无法解析词牌调式：${specification}`);
+  }
+  if (exampleBlocks.length % sectionCount !== 0) {
+    throw new Error(
+      `${conciseSpecification.slice(0, 2)}模板无法平均分为 ${sectionCount} 段：共 ${exampleBlocks.length} 个排版块`,
+    );
+  }
+
   const blocksPerSection = exampleBlocks.length / sectionCount;
   const sections: PatternSourceSection[] = [];
 
   for (let sectionIndex = 0; sectionIndex < sectionCount; sectionIndex += 1) {
-    const lines: PatternSourceLine[] = [];
+    const sectionLines: PatternSourceLine[] = [];
     for (let blockIndex = 0; blockIndex < blocksPerSection; blockIndex += 1) {
       const sourceBlockIndex = sectionIndex * blocksPerSection + blockIndex;
       const examples = exampleBlocks[sourceBlockIndex]!.split(/\t+/u).filter(Boolean);
@@ -834,13 +884,20 @@ function splitPatternSections(
       if (examples.length !== tones.length) throw new Error('例词与模板句数不一致');
 
       examples.forEach((line, lineIndex) => {
-        lines.push({
+        sectionLines.push({
           example: line,
           tones: tones[lineIndex]!,
           punctuation: lineIndex === examples.length - 1 ? '。' : '，',
         });
       });
     }
+    const lines =
+      sectionCount === 1
+        ? sectionLines.map((line, lineIndex) => ({
+            ...line,
+            punctuation: lineIndex === sectionLines.length - 1 ? '。' : '，',
+          }))
+        : sectionLines;
     sections.push({
       name: sectionCount === 1 ? '单调' : sectionIndex === 0 ? '上阕' : '下阕',
       lines,
@@ -1018,7 +1075,10 @@ function inferRhymeMarkers(
   specification: string,
   cilin: Readonly<Record<string, ReadonlyArray<CilinMembership>>>,
   patternId: string,
-): ReadonlyArray<boolean> {
+): {
+  markers: ReadonlyArray<boolean>;
+  issues: ReadonlyArray<string>;
+} {
   const manual: Readonly<Record<string, ReadonlyArray<ReadonlyArray<number>>>> = {
     'nian-nu-jiao': [
       [2, 4, 7, 9],
@@ -1031,13 +1091,17 @@ function inferRhymeMarkers(
   };
   const overrides = manual[patternId];
   if (overrides !== undefined) {
-    return sections.flatMap((section, sectionIndex) =>
-      section.lines.map((_, lineIndex) => overrides[sectionIndex]?.includes(lineIndex) === true),
-    );
+    return {
+      markers: sections.flatMap((section, sectionIndex) =>
+        section.lines.map((_, lineIndex) => overrides[sectionIndex]?.includes(lineIndex) === true),
+      ),
+      issues: [],
+    };
   }
 
+  const issues: string[] = [];
   const sectionSpecs = parseSectionRhymeSpecifications(specification, sections.length);
-  return sections.flatMap((section, sectionIndex) => {
+  const markers = sections.flatMap((section, sectionIndex) => {
     const requirements = parseToneRequirements(sectionSpecs[sectionIndex] ?? '');
     const needed = requirements.level + requirements.oblique;
     const candidates: Array<{
@@ -1094,11 +1158,16 @@ function inferRhymeMarkers(
     candidates.sort((left, right) => right.score - left.score);
     const best = candidates[0];
     const tied = candidates.filter(({ score }) => score === best?.score);
-    if (best === undefined || tied.length !== 1) {
-      throw new Error(`无法唯一推定 ${section.name} 韵位`);
+    if (best === undefined) {
+      issues.push(`无法推定 ${section.name} 韵位`);
+      return section.lines.map(() => false);
+    }
+    if (tied.length !== 1) {
+      issues.push(`无法唯一推定 ${section.name} 韵位`);
     }
     return section.lines.map((_, lineIndex) => best.indices.includes(lineIndex));
   });
+  return { markers, issues };
 }
 
 function parseSectionRhymeSpecifications(

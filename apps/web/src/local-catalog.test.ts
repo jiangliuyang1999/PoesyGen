@@ -10,7 +10,7 @@ describe('local web catalog', () => {
       client.listCilinRhymeGroups(),
     ]);
 
-    expect(patterns).toHaveLength(231);
+    expect(patterns).toHaveLength(245);
     expect(new Set(patterns.map(({ name }) => name)).size).toBe(36);
     expect(groups).toHaveLength(19);
   });
