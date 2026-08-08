@@ -33,12 +33,13 @@ export function DictionaryWorkspace({
 
   const lookup = useCallback(
     async (character: string): Promise<void> => {
-      const normalized = character.trim();
-      if (splitGraphemes(normalized).length !== 1) {
+      const normalized = normalizeDictionaryCharacter(character);
+      setCharacterResult(undefined);
+      if (normalized === undefined) {
         setCharacterStatus('请输入一个汉字。');
         return;
       }
-      setCharacterResult(undefined);
+      setQuery(normalized);
       setCharacterStatus('正在查询…');
       try {
         const result = await client.getCharacterPronunciations(normalized);
@@ -113,9 +114,12 @@ export function DictionaryWorkspace({
               <span className="sr-only">输入一个汉字</span>
               <input
                 value={query}
-                onChange={(event) => setQuery(splitGraphemes(event.target.value)[0] ?? '')}
+                onChange={(event) => setQuery(event.target.value)}
                 placeholder="字"
                 aria-label="输入一个汉字"
+                autoComplete="off"
+                enterKeyHint="search"
+                spellCheck={false}
               />
             </label>
             <button type="submit">查询</button>
@@ -187,6 +191,18 @@ const graphemeSegmenter = new Intl.Segmenter('zh-CN', {
 
 export function splitGraphemes(value: string): ReadonlyArray<string> {
   return [...graphemeSegmenter.segment(value)].map(({ segment }) => segment);
+}
+
+const dictionaryCharacterPattern = /^\p{Script=Han}\p{Variation_Selector}?$/u;
+
+function normalizeDictionaryCharacter(value: string): string | undefined {
+  const graphemes = splitGraphemes(value.trim());
+  const character = graphemes[0];
+  return graphemes.length === 1 &&
+    character !== undefined &&
+    dictionaryCharacterPattern.test(character)
+    ? character
+    : undefined;
 }
 
 function CharacterCard({ result }: { readonly result: CharacterPronunciationResponse }) {
