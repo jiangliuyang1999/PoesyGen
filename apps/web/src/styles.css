@@ -3546,6 +3546,14 @@ html[data-platform='mobile'] .history-pattern-preview > .pattern-preview {
   padding: 18px 12px;
 }
 
+html[data-platform='mobile'] .history-pattern-preview .example-script-switcher {
+  margin: 0 0 12px auto;
+}
+
+html[data-platform='mobile'] .history-pattern-preview .stanza-list {
+  padding-top: 0;
+}
+
 html[data-platform='mobile'] .generation-result {
   padding: 21px 14px;
 }

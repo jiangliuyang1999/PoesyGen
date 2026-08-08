@@ -126,6 +126,7 @@ export function App({ client: providedClient }: AppProps = {}) {
       source,
     });
     setView(nextView);
+    scrollToPageTop();
   };
   const updateGenerationHistory = (
     update: (
@@ -618,8 +619,6 @@ export function App({ client: providedClient }: AppProps = {}) {
 
   const selectMobileView = (nextView: ApplicationView): void => {
     changeView(nextView, 'mobile-tabbar');
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
   };
   const mobilePlatform = document.documentElement.dataset['platform'] === 'mobile';
   const generationConnectionLabel = creationServiceAvailable ? 'LLM 已配置' : 'LLM 未配置';
@@ -1034,4 +1033,9 @@ function LoadingState({ message }: { readonly message: string }) {
       <p>{message}</p>
     </main>
   );
+}
+
+function scrollToPageTop(): void {
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
 }

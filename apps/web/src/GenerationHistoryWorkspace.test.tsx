@@ -16,6 +16,11 @@ const pattern: CiPattern = {
   source: '测试',
   dataVersion: '1',
   reviewStatus: 'imported',
+  example: {
+    author: '李清照',
+    lines: ['夢'],
+    simplifiedLines: ['梦'],
+  },
   sections: [
     {
       id: 'single',
@@ -78,6 +83,17 @@ describe('generation history pagination', () => {
 
     expect(screen.queryByLabelText('生成历史列表')).toBeNull();
     expect(screen.getByLabelText('历史记录信息')).toBeTruthy();
+    const patternIdentity = screen.getByLabelText('词牌信息');
+    await user.click(
+      within(patternIdentity).getByRole('button', {
+        name: '预览《如梦令》词谱',
+      }),
+    );
+    const patternPreview = screen.getByLabelText('格律内容');
+    const scriptSwitcher = within(patternPreview).getByRole('group', {
+      name: '例词文字',
+    });
+    expect(scriptSwitcher.nextElementSibling?.classList.contains('stanza-list')).toBe(true);
 
     await user.click(screen.getByRole('button', { name: '全部生成记录' }));
 

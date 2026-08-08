@@ -150,6 +150,8 @@ const ideaSuggestions = [
 
 beforeEach(() => {
   delete document.documentElement.dataset['platform'];
+  document.documentElement.scrollTop = 0;
+  document.body.scrollTop = 0;
   const localStorage = createTestStorage();
   const sessionStorage = createTestStorage();
   Object.defineProperty(window, 'localStorage', {
@@ -297,7 +299,11 @@ describe('web creation workspace', () => {
         ?.classList.contains('page-workspace'),
     ).toBe(true);
 
+    document.documentElement.scrollTop = 320;
+    document.body.scrollTop = 320;
     await user.click(within(navigation).getByRole('button', { name: '历史记录' }));
+    expect(document.documentElement.scrollTop).toBe(0);
+    expect(document.body.scrollTop).toBe(0);
     expect(
       screen
         .getByRole('heading', { name: '历史记录', level: 1 })
@@ -305,7 +311,11 @@ describe('web creation workspace', () => {
         ?.classList.contains('page-workspace'),
     ).toBe(true);
 
+    document.documentElement.scrollTop = 320;
+    document.body.scrollTop = 320;
     await user.click(within(navigation).getByRole('button', { name: '词谱' }));
+    expect(document.documentElement.scrollTop).toBe(0);
+    expect(document.body.scrollTop).toBe(0);
     expect(
       screen
         .getByRole('heading', { name: '格律词谱', level: 1 })
@@ -313,7 +323,11 @@ describe('web creation workspace', () => {
         ?.classList.contains('page-workspace'),
     ).toBe(true);
 
+    document.documentElement.scrollTop = 320;
+    document.body.scrollTop = 320;
     await user.click(within(navigation).getByRole('button', { name: '字典' }));
+    expect(document.documentElement.scrollTop).toBe(0);
+    expect(document.body.scrollTop).toBe(0);
     expect(
       screen
         .getByRole('heading', { name: '音韵字典', level: 1 })
@@ -398,7 +412,11 @@ describe('web creation workspace', () => {
     await user.type(screen.getByRole('textbox', { name: '作品主题' }), '江上春归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
     await screen.findByText('词作已完成');
+    document.documentElement.scrollTop = 320;
+    document.body.scrollTop = 320;
     await user.click(within(navigation).getByRole('button', { name: '历史' }));
+    expect(document.documentElement.scrollTop).toBe(0);
+    expect(document.body.scrollTop).toBe(0);
 
     expect(screen.getByRole('heading', { name: '历史记录', level: 1 })).toBeTruthy();
     expect(
