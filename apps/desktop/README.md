@@ -43,6 +43,9 @@ LLM 配置和生成历史保存在桌面应用自己的 Web 存储中，不与�
 `release/desktop/`。
 
 ```bash
+# 在系统 Terminal 中一键构建桌面和移动端全部测试包
+pnpm package:all
+
 # macOS 通用 ZIP，包含 arm64 和 x86_64
 pnpm package:mac
 
@@ -52,6 +55,9 @@ pnpm package:mac:dmg
 # Windows x64 NSIS 安装器和 ZIP，可在 macOS 交叉构建
 pnpm package:win
 ```
+
+一键命令默认包含 macOS ZIP/DMG 和 Windows EXE/ZIP，并在完成全部平台构建后更新根目录
+`release/SHA256SUMS`。只需要 ZIP 时可执行 `pnpm package:all -- --skip-dmg`。
 
 未配置证书时仍可生成测试包，但 macOS Gatekeeper 或 Windows SmartScreen 会提示来源
 未知。公开分发前应配置：

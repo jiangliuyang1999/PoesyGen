@@ -24,6 +24,8 @@
     "package:ios:adhoc": "pnpm --filter @poesygen/mobile package:ios:adhoc",
     "package:ios:simulator": "pnpm --filter @poesygen/mobile package:ios:simulator",
     "package:ios:testflight": "pnpm --filter @poesygen/mobile package:ios:testflight",
+    "package:all": "bash tooling/package-all.sh",
+    "package:all:signed": "bash tooling/package-all.sh --signed",
     "package:mac": "pnpm --filter @poesygen/desktop package:mac",
     "package:mac:dmg": "pnpm --filter @poesygen/desktop package:mac:dmg",
     "package:win": "pnpm --filter @poesygen/desktop package:win",

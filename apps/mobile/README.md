@@ -57,6 +57,9 @@ iOS 发布通过 Xcode Archive；Android 发布通过 Android Studio 生成签�
 产物输出到 `release/android/`：
 
 ```bash
+# 在系统 Terminal 中一键构建桌面和移动端全部测试包
+pnpm package:all
+
 # 使用 Android debug key 签名，可直接安装测试
 pnpm package:android:test
 
@@ -64,6 +67,10 @@ pnpm package:android:test
 pnpm package:android:apk
 pnpm package:android:aab
 ```
+
+一键命令默认生成 Android debug APK 和 iOS Simulator ZIP；配置下述 Android 与 Apple
+签名环境后，`pnpm package:all:signed` 会追加生成 Android release APK/AAB 和 iOS
+TestFlight 包。
 
 正式 APK/AAB 必须通过环境变量提供长期保存的签名密钥：
 

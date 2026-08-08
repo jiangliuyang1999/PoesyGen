@@ -127,6 +127,9 @@ pnpm --filter @poesygen/mobile open:android
 所有发布产物统一输出到仓库根目录的 `release/`：
 
 ```bash
+# 一键检查并构建全部可测试安装包
+pnpm package:all
+
 # macOS 通用应用 ZIP（Apple Silicon + Intel）
 pnpm package:mac
 
@@ -138,6 +141,29 @@ pnpm package:android:test
 
 # iOS Simulator 应用 ZIP
 pnpm package:ios:simulator
+```
+
+`pnpm package:all` 会依次执行依赖冻结安装、数据/格式/类型/测试/生产构建检查，生成统一
+图标，然后构建 macOS ZIP/DMG、Windows EXE/ZIP、Android debug APK 和 iOS Simulator
+ZIP，最后生成并验证 `release/SHA256SUMS`。该命令涉及 `hdiutil` 和 Swift Package
+Manager，必须在 macOS 系统 Terminal 中运行。
+
+```bash
+# 跳过 DMG
+pnpm package:all -- --skip-dmg
+
+# 跳过重复质量检查
+pnpm package:all -- --skip-checks
+
+# 预览将执行的命令，不改动文件
+pnpm package:all -- --dry-run
+```
+
+配置 Android keystore、`APPLE_TEAM_ID` 和有效 Apple 签名身份后，可追加生成 Android
+release APK/AAB 与 iOS TestFlight 包：
+
+```bash
+pnpm package:all:signed
 ```
 
 macOS DMG、iOS 真机 IPA/TestFlight、Android 正式 APK/AAB 需要对应平台签名条件，命令与

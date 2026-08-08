@@ -181,9 +181,7 @@ export function GenerationHistoryWorkspace({
             })}
             {visibleEntries.length === 0 && (
               <p className="empty-copy">
-                {entries.length === 0
-                  ? '您还没有生成记录，快去创作吧！'
-                  : '没有匹配的历史记录。'}
+                {entries.length === 0 ? '您还没有生成记录，快去创作吧！' : '没有匹配的历史记录。'}
               </p>
             )}
           </div>
