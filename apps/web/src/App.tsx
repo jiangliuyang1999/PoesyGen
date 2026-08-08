@@ -51,7 +51,8 @@ import {
 import { runGenerationSession, type GenerationSessionResult } from './generation-session.js';
 import { LocalCatalogClient } from './local-catalog.js';
 import { randomLocalCreationIdeas } from './local-ideas.js';
-import { formatPatternVariantSummary, listPatternFamilies } from './model.js';
+import { formatPatternVariantSummary, listPatternFamilies, patternRhymeLabels } from './model.js';
+import { logConfigSummary, logWebError, logWebEvent } from './web-logger.js';
 
 export interface AppClient {
   listPatterns(): Promise<ReadonlyArray<CiPattern>>;
@@ -118,6 +119,14 @@ export function App({ client: providedClient }: AppProps = {}) {
         : theme.trim() === ''
           ? '输入主题后润色'
           : '润色主题描述';
+  const changeView = (nextView: ApplicationView, source: string): void => {
+    logWebEvent('navigation', '切换页面', {
+      from: view,
+      to: nextView,
+      source,
+    });
+    setView(nextView);
+  };
   const updateGenerationHistory = (
     update: (
       entries: ReadonlyArray<GenerationHistoryEntry>,
@@ -125,10 +134,27 @@ export function App({ client: providedClient }: AppProps = {}) {
   ): void => {
     setGenerationHistory((current) => {
       const next = update(current);
-      saveGenerationHistory(next);
+      const saved = saveGenerationHistory(next);
+      logWebEvent('history', '应用状态中的生成记录已更新', {
+        previousCount: current.length,
+        totalCount: next.length,
+        saved,
+      });
       return next;
     });
   };
+
+  useEffect(() => {
+    logWebEvent('app', 'React 应用已挂载', {
+      providedClient: providedClient !== undefined,
+      initialView: view,
+      historyCount: generationHistory.length,
+      config: logConfigSummary(directLlmConfig),
+    });
+    return () => {
+      logWebEvent('app', 'React 应用已卸载');
+    };
+  }, []);
 
   useEffect(() => {
     saveDirectLlmConfig(directLlmConfig);
@@ -138,6 +164,8 @@ export function App({ client: providedClient }: AppProps = {}) {
     let active = true;
 
     const loadInitialData = async (): Promise<void> => {
+      const startedAt = performance.now();
+      logWebEvent('app', '开始初始化本地目录');
       try {
         const [loadedPatterns, loadedGroups] = await Promise.all([
           client.listPatterns(),
@@ -151,7 +179,17 @@ export function App({ client: providedClient }: AppProps = {}) {
         setCreationPatternId(initialPatternId);
         setCatalogPatternId(initialPatternId);
         setCatalogStatus(`已载入 ${tuneCount} 个词牌、${loadedPatterns.length} 种体式`);
+        logWebEvent('app', '本地目录初始化完成', {
+          durationMs: Math.round(performance.now() - startedAt),
+          tuneCount,
+          patternCount: loadedPatterns.length,
+          rhymeGroupCount: loadedGroups.length,
+          initialPatternId,
+        });
       } catch (error) {
+        logWebError('app', '本地目录初始化失败', error, {
+          durationMs: Math.round(performance.now() - startedAt),
+        });
         if (active) setCatalogStatus(toUserMessage(error));
       }
     };
@@ -174,7 +212,17 @@ export function App({ client: providedClient }: AppProps = {}) {
   const catalogPatternFamily = patternFamilies.find(({ name }) => name === catalogPattern?.name);
 
   const selectCreationPattern = (patternId: string): void => {
-    if (creationLocked) return;
+    if (creationLocked) {
+      logWebEvent('creation', '生成期间忽略词牌切换', { requestedPatternId: patternId });
+      return;
+    }
+    const selected = patterns.find(({ id }) => id === patternId);
+    logWebEvent('creation', '切换创作词牌体式', {
+      previousPatternId: creationPatternId,
+      patternId,
+      patternName: selected?.name,
+      variant: selected?.variant,
+    });
     setCreationPatternId(patternId);
     setRhymeAssignments({});
     setSubmissionStatus(idleStatus);
@@ -184,36 +232,73 @@ export function App({ client: providedClient }: AppProps = {}) {
 
   const useCatalogPatternForCreation = (): void => {
     if (catalogPattern === undefined) return;
+    logWebEvent('catalog', '从词谱页使用当前体式创作', {
+      patternId: catalogPattern.id,
+      patternName: catalogPattern.name,
+      variant: catalogPattern.variant,
+      creationLocked,
+    });
     if (!creationLocked) selectCreationPattern(catalogPattern.id);
-    setView('create');
+    changeView('create', 'catalog-pattern-create');
   };
 
   const inspectCharacter = (character: string): void => {
+    logWebEvent('dictionary', '从内容进入单字查询', { character, sourceView: view });
     setDictionaryCharacter(character);
-    setView('dictionary');
+    changeView('dictionary', 'inspect-character');
   };
 
   function requestIdeaSuggestions(preserveCurrent = false): void {
     const requestSequence = ++ideaRequestSequence.current;
     if (!isDirectLlmConfigReady(directLlmConfig)) {
+      const suggestions = randomLocalCreationIdeas();
+      logWebEvent('ideas', 'LLM 未配置，使用本地灵感推荐', {
+        requestSequence,
+        suggestions,
+      });
       setIdeaSuggestions({
         status: 'ready',
-        suggestions: randomLocalCreationIdeas(),
+        suggestions,
       });
       return;
     }
 
+    logWebEvent('ideas', '提交远程灵感推荐请求', {
+      requestSequence,
+      preserveCurrent,
+      config: logConfigSummary(directLlmConfig),
+    });
     setIdeaSuggestions((current) => ({
       status: 'loading',
       suggestions: preserveCurrent ? current.suggestions : [],
     }));
     void runDirectIdeaSuggestions(directLlmConfig)
       .then((suggestions) => {
-        if (requestSequence !== ideaRequestSequence.current) return;
+        if (requestSequence !== ideaRequestSequence.current) {
+          logWebEvent('ideas', '忽略已过期的灵感推荐响应', {
+            requestSequence,
+            currentSequence: ideaRequestSequence.current,
+          });
+          return;
+        }
+        logWebEvent('ideas', '灵感推荐已更新到页面', {
+          requestSequence,
+          suggestions,
+        });
         setIdeaSuggestions({ status: 'ready', suggestions });
       })
-      .catch(() => {
-        if (requestSequence !== ideaRequestSequence.current) return;
+      .catch((error: unknown) => {
+        if (requestSequence !== ideaRequestSequence.current) {
+          logWebEvent('ideas', '忽略已过期的灵感推荐错误', {
+            requestSequence,
+            currentSequence: ideaRequestSequence.current,
+          });
+          return;
+        }
+        logWebError('ideas', '灵感推荐更新失败', error, {
+          requestSequence,
+          preserveCurrent,
+        });
         setIdeaSuggestions((current) => ({
           status: 'error',
           suggestions: preserveCurrent ? current.suggestions : [],
@@ -229,14 +314,23 @@ export function App({ client: providedClient }: AppProps = {}) {
   const polishTheme = async (): Promise<void> => {
     const sourceTheme = theme.trim();
     if (sourceTheme === '' || themeEditingLocked || !isDirectLlmConfigReady(directLlmConfig)) {
+      logWebEvent('theme', '忽略主题润色请求', {
+        emptyTheme: sourceTheme === '',
+        themeEditingLocked,
+        configReady: isDirectLlmConfigReady(directLlmConfig),
+      });
       return;
     }
 
+    logWebEvent('theme', '提交主题润色', { sourceTheme });
     setThemePolishStatus('loading');
     try {
-      setTheme(await runDirectThemePolish(directLlmConfig, sourceTheme));
+      const polishedTheme = await runDirectThemePolish(directLlmConfig, sourceTheme);
+      setTheme(polishedTheme);
       setThemePolishStatus('idle');
-    } catch {
+      logWebEvent('theme', '主题润色已应用', { sourceTheme, polishedTheme });
+    } catch (error) {
+      logWebError('theme', '主题润色未能应用', error, { sourceTheme });
       setThemePolishStatus('error');
     }
   };
@@ -250,6 +344,13 @@ export function App({ client: providedClient }: AppProps = {}) {
       creationPattern === undefined ||
       theme.trim() === ''
     ) {
+      logWebEvent('creation', '忽略生成提交', {
+        creationLocked,
+        themePolishing,
+        creationServiceAvailable,
+        patternReady: creationPattern !== undefined,
+        themeReady: theme.trim() !== '',
+      });
       return;
     }
 
@@ -266,11 +367,27 @@ export function App({ client: providedClient }: AppProps = {}) {
       maxRounds: rounds,
       preferences,
     });
+    logWebEvent('creation', '已组装首次生成请求', {
+      patternId: creationPattern.id,
+      patternName: creationPattern.name,
+      variant: creationPattern.variant,
+      generationRequest,
+      preferences,
+    });
 
     const completeGeneration = (
       { result, progress }: GenerationSessionResult,
       recordId: string,
     ): void => {
+      logWebEvent('creation', '首次生成结果已应用', {
+        recordId,
+        draftId: result.draft.id,
+        resultVersion: result.draft.version,
+        rounds: result.rounds,
+        passed: result.report.passed,
+        issues: result.report.issues,
+        progress,
+      });
       setSubmissionStatus({
         kind: 'completed',
         message: result.report.passed
@@ -295,6 +412,10 @@ export function App({ client: providedClient }: AppProps = {}) {
 
     try {
       const recordId = globalThis.crypto.randomUUID();
+      logWebEvent('creation', '首次生成会话已创建', {
+        recordId,
+        patternId: creationPattern.id,
+      });
       const session = await runGenerationSession({
         config: directLlmConfig,
         request: generationRequest,
@@ -307,7 +428,10 @@ export function App({ client: providedClient }: AppProps = {}) {
         onStatus: setSubmissionStatus,
       });
       completeGeneration(session, recordId);
-    } catch {
+    } catch (error) {
+      logWebError('creation', '首次生成流程结束于错误', error, {
+        patternId: creationPattern.id,
+      });
       return;
     }
   };
@@ -322,9 +446,17 @@ export function App({ client: providedClient }: AppProps = {}) {
     readonly recordId: string;
   }> => {
     if (!isDirectLlmConfigReady(directLlmConfig)) {
+      logWebEvent('refinement', 'LLM 未配置，拒绝局部修改');
       throw new Error('请先完成 LLM 配置');
     }
     const recordId = globalThis.crypto.randomUUID();
+    logWebEvent('refinement', '局部修改会话开始', {
+      recordId,
+      sourceDraftId: sourceResult.draft.id,
+      sourceVersion: sourceResult.draft.version,
+      patternId: pattern.id,
+      request,
+    });
     const { result, progress } = await runGenerationSession({
       config: directLlmConfig,
       request,
@@ -345,6 +477,12 @@ export function App({ client: providedClient }: AppProps = {}) {
       result,
       progress,
     });
+    logWebEvent('refinement', '局部修改会话完成', {
+      recordId,
+      sourceDraftId: sourceResult.draft.id,
+      result,
+      progress,
+    });
     return { result, recordId };
   };
 
@@ -354,8 +492,17 @@ export function App({ client: providedClient }: AppProps = {}) {
   ): Promise<void> => {
     const sourceResult = submissionStatus.result;
     if (creationPattern === undefined || sourceResult === undefined) {
+      logWebEvent('refinement', '当前创作结果不可修改', {
+        patternReady: creationPattern !== undefined,
+        resultReady: sourceResult !== undefined,
+      });
       throw new Error('当前没有可修改的词稿');
     }
+    logWebEvent('refinement', '从创作页提交局部修改', {
+      activeHistoryRecordId,
+      sourceDraftId: sourceResult.draft.id,
+      selections,
+    });
 
     const preferences = createGenerationPreferences({
       pattern: creationPattern,
@@ -405,6 +552,12 @@ export function App({ client: providedClient }: AppProps = {}) {
           })
         : addGenerationHistoryVersion(current, historyRecordId, result),
     );
+    logWebEvent('refinement', '创作页局部修改结果已归档', {
+      historyRecordId,
+      createdHistoryRecord: activeHistoryRecordId === undefined,
+      draftId: result.draft.id,
+      resultVersion: result.draft.version,
+    });
   };
 
   const refineHistoryResult = async (
@@ -413,6 +566,11 @@ export function App({ client: providedClient }: AppProps = {}) {
     selections: ReadonlyArray<TextSelection>,
     onProgress?: (status: SubmissionStatus) => void,
   ): Promise<GenerationResult> => {
+    logWebEvent('refinement', '从历史详情提交局部修改', {
+      recordId: entry.id,
+      sourceDraftId: sourceResult.draft.id,
+      selections,
+    });
     const preferences = historyRefinementPreferences(entry, sourceResult);
     const { result } = await runRefinementSession(
       createRefinementRequest({
@@ -428,10 +586,16 @@ export function App({ client: providedClient }: AppProps = {}) {
       onProgress,
     );
     updateGenerationHistory((current) => addGenerationHistoryVersion(current, entry.id, result));
+    logWebEvent('refinement', '历史详情局部修改结果已归档', {
+      recordId: entry.id,
+      draftId: result.draft.id,
+      resultVersion: result.draft.version,
+    });
     return result;
   };
 
   const deleteHistoryEntry = (entryId: string): void => {
+    logWebEvent('history', '应用请求删除生成记录', { entryId });
     updateGenerationHistory((current) => removeGenerationHistoryEntry(current, entryId));
     if (activeHistoryRecordId === entryId) {
       setActiveHistoryRecordId(undefined);
@@ -439,6 +603,11 @@ export function App({ client: providedClient }: AppProps = {}) {
   };
 
   const selectResultVersion = (result: GenerationResult): void => {
+    logWebEvent('result', '切换作品版本', {
+      draftId: result.draft.id,
+      resultVersion: result.draft.version,
+      patternId: result.draft.patternId,
+    });
     setSubmissionStatus((current) => ({
       ...current,
       kind: 'completed',
@@ -448,7 +617,7 @@ export function App({ client: providedClient }: AppProps = {}) {
   };
 
   const selectMobileView = (nextView: ApplicationView): void => {
-    setView(nextView);
+    changeView(nextView, 'mobile-tabbar');
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   };
@@ -463,11 +632,14 @@ export function App({ client: providedClient }: AppProps = {}) {
           serviceReady={creationServiceAvailable}
           serviceLabel={generationConnectionLabel}
           onSelectView={selectMobileView}
-          onOpenConfig={() => setLlmConfigOpen(true)}
+          onOpenConfig={() => {
+            logWebEvent('config', '打开 LLM 配置弹窗', { source: 'mobile-header' });
+            setLlmConfigOpen(true);
+          }}
         />
       ) : (
         <header className="topbar">
-          <button className="brand" type="button" onClick={() => setView('create')}>
+          <button className="brand" type="button" onClick={() => changeView('create', 'brand')}>
             <span className="brand-seal">词</span>
             <span>
               <strong>PoesyGen</strong>
@@ -476,27 +648,31 @@ export function App({ client: providedClient }: AppProps = {}) {
           </button>
 
           <nav aria-label="主导航">
-            <button type="button" data-active={view === 'create'} onClick={() => setView('create')}>
+            <button
+              type="button"
+              data-active={view === 'create'}
+              onClick={() => changeView('create', 'desktop-navigation')}
+            >
               创作
             </button>
             <button
               type="button"
               data-active={view === 'history'}
-              onClick={() => setView('history')}
+              onClick={() => changeView('history', 'desktop-navigation')}
             >
               历史记录
             </button>
             <button
               type="button"
               data-active={view === 'patterns'}
-              onClick={() => setView('patterns')}
+              onClick={() => changeView('patterns', 'desktop-navigation')}
             >
               词谱
             </button>
             <button
               type="button"
               data-active={view === 'dictionary'}
-              onClick={() => setView('dictionary')}
+              onClick={() => changeView('dictionary', 'desktop-navigation')}
             >
               字典
             </button>
@@ -507,7 +683,10 @@ export function App({ client: providedClient }: AppProps = {}) {
             type="button"
             title={generationConnectionLabel}
             aria-label={`生成配置：${generationConnectionLabel}`}
-            onClick={() => setLlmConfigOpen(true)}
+            onClick={() => {
+              logWebEvent('config', '打开 LLM 配置弹窗', { source: 'desktop-header' });
+              setLlmConfigOpen(true);
+            }}
           >
             <span data-ready={creationServiceAvailable} />
             {generationConnectionLabel}
@@ -539,7 +718,10 @@ export function App({ client: providedClient }: AppProps = {}) {
               query={patternQuery}
               selectedPattern={catalogPattern}
               onQueryChange={setPatternQuery}
-              onSelect={setCatalogPatternId}
+              onSelect={(patternId) => {
+                logWebEvent('catalog', '移动端选择词牌体式', { patternId });
+                setCatalogPatternId(patternId);
+              }}
               onInspectCharacter={inspectCharacter}
               onCreate={useCatalogPatternForCreation}
             />
@@ -550,7 +732,10 @@ export function App({ client: providedClient }: AppProps = {}) {
                 query={patternQuery}
                 selectedPatternId={catalogPattern.id}
                 onQueryChange={setPatternQuery}
-                onSelect={setCatalogPatternId}
+                onSelect={(patternId) => {
+                  logWebEvent('catalog', '桌面端选择词牌', { patternId });
+                  setCatalogPatternId(patternId);
+                }}
               />
               <section className="pattern-detail-panel" aria-label="词牌格律详情">
                 {catalogPatternFamily !== undefined && catalogPatternFamily.patterns.length > 1 && (
@@ -559,7 +744,12 @@ export function App({ client: providedClient }: AppProps = {}) {
                     <select
                       aria-label={`${catalogPatternFamily.name}体式`}
                       value={catalogPattern.id}
-                      onChange={(event) => setCatalogPatternId(event.target.value)}
+                      onChange={(event) => {
+                        logWebEvent('catalog', '桌面端切换词牌体式', {
+                          patternId: event.target.value,
+                        });
+                        setCatalogPatternId(event.target.value);
+                      }}
                     >
                       {catalogPatternFamily.patterns.map((pattern) => (
                         <option key={pattern.id} value={pattern.id}>
@@ -668,14 +858,30 @@ export function App({ client: providedClient }: AppProps = {}) {
                     rhymeGroups={rhymeGroups}
                     rhymeAssignments={rhymeAssignments}
                     disabled={creationLocked}
-                    onChange={(label, groupId) =>
+                    onChange={(label, groupId) => {
+                      logWebEvent('creation', '更新韵部设置', {
+                        patternId: creationPattern.id,
+                        rhymeLabel: label,
+                        groupId: groupId === '' ? undefined : groupId,
+                      });
                       setRhymeAssignments((current) => {
                         const next = { ...current };
                         if (groupId === '') delete next[label];
                         else next[label] = groupId;
+                        const labels = patternRhymeLabels(creationPattern);
+                        for (let index = 1; index < labels.length; index += 1) {
+                          const previousLabel = labels[index - 1]!;
+                          const currentLabel = labels[index]!;
+                          if (
+                            next[currentLabel.id] !== undefined &&
+                            next[currentLabel.id] === next[previousLabel.id]
+                          ) {
+                            delete next[currentLabel.id];
+                          }
+                        }
                         return next;
-                      })
-                    }
+                      });
+                    }}
                   />
                 </section>
 
@@ -742,7 +948,10 @@ export function App({ client: providedClient }: AppProps = {}) {
                           key={prompt}
                           type="button"
                           disabled={themeEditingLocked}
-                          onClick={() => updateTheme(prompt)}
+                          onClick={() => {
+                            logWebEvent('ideas', '用户采用灵感推荐', { prompt });
+                            updateTheme(prompt);
+                          }}
                         >
                           {prompt}
                         </button>
@@ -799,7 +1008,10 @@ export function App({ client: providedClient }: AppProps = {}) {
         disabled={creationLocked}
         directReady={isDirectLlmConfigReady(directLlmConfig)}
         onChange={setDirectLlmConfig}
-        onClose={() => setLlmConfigOpen(false)}
+        onClose={() => {
+          logWebEvent('config', '关闭 LLM 配置弹窗');
+          setLlmConfigOpen(false);
+        }}
       />
     </div>
   );

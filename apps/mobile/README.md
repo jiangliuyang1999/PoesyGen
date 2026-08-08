@@ -10,6 +10,9 @@ Capacitor iOS / Android 应用壳。应用直接打包 `apps/web/dist`，创作�
 移动端词谱列表按词牌拼音排序并一次显示全部词牌；创作页词牌选项也使用相同顺序，两个
 页面首次载入时均默认选择第一个词牌的第一个体式。
 
+移动端复用共享格律校验：多韵组词牌要求相邻韵组使用不同《词林正韵》韵部，非相邻
+韵组可以复用先前韵部；非韵句句尾还须避开本词正在使用的押韵韵部。
+
 iOS、Android 应用图标和启动画面与 Web、桌面端共用“词”字印章设计。修改
 `apps/desktop/build/icon.svg` 后，在仓库根目录执行 `pnpm icons:generate` 可同步生成
 全部平台图标资源。
@@ -23,6 +26,9 @@ iOS、Android 应用图标和启动画面与 Web、桌面端共用“词”字�
 OpenAI-compatible Base URL、Model 和 API Key 后，应用通过 Capacitor 原生 HTTP
 直接调用模型。API Key 默认只保留在当前会话，只有用户明确启用持久保存后才写入应用
 WebView 的本地存储。
+
+移动端复用 Web 的结构化 `console.log` 日志；可通过 Xcode 或 Android Studio 查看
+`[PoesyGen][模块]` 事件。LLM 凭据会脱敏，但主题、提示词和生成正文会保留在设备日志中。
 
 ## 同步 Web 代码
 

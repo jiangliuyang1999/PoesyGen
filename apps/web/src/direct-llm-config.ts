@@ -1,3 +1,5 @@
+import { logConfigSummary, logWebError, logWebEvent } from './web-logger.js';
+
 export interface DirectLlmConfig {
   readonly baseUrl: string;
   readonly endpoint: string;
@@ -45,19 +47,27 @@ export function loadDirectLlmConfig(
   localStorage: StorageLike | undefined = browserStorage('localStorage'),
   sessionStorage: StorageLike | undefined = browserStorage('sessionStorage'),
 ): DirectLlmConfig {
-  if (localStorage === undefined) return defaultDirectLlmConfig;
+  if (localStorage === undefined) {
+    logWebEvent('config', '无法访问本地存储，使用默认 LLM 配置');
+    return defaultDirectLlmConfig;
+  }
 
   try {
     const raw = localStorage.getItem(directLlmConfigStorageKey);
     if (raw === null) {
-      return {
+      const config = {
         ...defaultDirectLlmConfig,
         apiKey: sessionStorage?.getItem(directLlmSessionKey) ?? '',
       };
+      logWebEvent('config', '未找到持久配置，使用默认配置', logConfigSummary(config));
+      return config;
     }
     const stored = JSON.parse(raw) as unknown;
-    if (!isStoredDirectLlmConfig(stored)) return defaultDirectLlmConfig;
-    return {
+    if (!isStoredDirectLlmConfig(stored)) {
+      logWebEvent('config', '本地 LLM 配置格式无效，使用默认配置');
+      return defaultDirectLlmConfig;
+    }
+    const config = {
       baseUrl: stored.baseUrl,
       endpoint: stored.endpoint,
       model: stored.model,
@@ -69,7 +79,10 @@ export function loadDirectLlmConfig(
         ? (stored.apiKey ?? '')
         : (sessionStorage?.getItem(directLlmSessionKey) ?? ''),
     };
-  } catch {
+    logWebEvent('config', '已加载 LLM 配置', logConfigSummary(config));
+    return config;
+  } catch (error) {
+    logWebError('config', '加载 LLM 配置失败，使用默认配置', error);
     return defaultDirectLlmConfig;
   }
 }
@@ -79,7 +92,10 @@ export function saveDirectLlmConfig(
   localStorage: StorageLike | undefined = browserStorage('localStorage'),
   sessionStorage: StorageLike | undefined = browserStorage('sessionStorage'),
 ): boolean {
-  if (localStorage === undefined) return false;
+  if (localStorage === undefined) {
+    logWebEvent('config', '无法访问本地存储，未保存 LLM 配置');
+    return false;
+  }
 
   const stored: StoredDirectLlmConfig = {
     version: 1,
@@ -102,8 +118,10 @@ export function saveDirectLlmConfig(
     } else {
       sessionStorage?.setItem(directLlmSessionKey, config.apiKey);
     }
+    logWebEvent('config', '已保存 LLM 配置', logConfigSummary(config));
     return true;
-  } catch {
+  } catch (error) {
+    logWebError('config', '保存 LLM 配置失败', error, logConfigSummary(config));
     return false;
   }
 }

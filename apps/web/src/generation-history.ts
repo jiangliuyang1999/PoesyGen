@@ -1,5 +1,7 @@
 import type { CiPattern, GenerationResult } from '@poesygen/domain';
 
+import { logWebError, logWebEvent } from './web-logger.js';
+
 export const generationHistoryStorageKey = 'poesygen:generation-history:v1';
 
 const historyVersion = 1;
@@ -42,20 +44,33 @@ export interface GenerationHistoryRhymeSetting {
 export function loadGenerationHistory(
   storage: HistoryStorage | undefined = browserStorage(),
 ): ReadonlyArray<GenerationHistoryEntry> {
-  if (storage === undefined) return [];
+  if (storage === undefined) {
+    logWebEvent('history', '无法访问本地存储，历史记录为空');
+    return [];
+  }
   try {
     const raw = storage.getItem(generationHistoryStorageKey);
-    if (raw === null) return [];
+    if (raw === null) {
+      logWebEvent('history', '本地暂无生成记录');
+      return [];
+    }
     const stored = JSON.parse(raw) as unknown;
     if (
       !isRecord(stored) ||
       stored['version'] !== historyVersion ||
       !Array.isArray(stored['entries'])
     ) {
+      logWebEvent('history', '本地历史记录格式无效，已忽略');
       return [];
     }
-    return stored['entries'].filter(isGenerationHistoryEntry).slice(0, maxHistoryEntries);
-  } catch {
+    const entries = stored['entries'].filter(isGenerationHistoryEntry).slice(0, maxHistoryEntries);
+    logWebEvent('history', '已加载生成记录', {
+      count: entries.length,
+      recordIds: entries.map(({ id }) => id),
+    });
+    return entries;
+  } catch (error) {
+    logWebError('history', '加载生成记录失败', error);
     return [];
   }
 }
@@ -64,7 +79,15 @@ export function addGenerationHistoryEntry(
   entries: ReadonlyArray<GenerationHistoryEntry>,
   entry: GenerationHistoryEntry,
 ): ReadonlyArray<GenerationHistoryEntry> {
-  return [entry, ...entries.filter(({ id }) => id !== entry.id)].slice(0, maxHistoryEntries);
+  const next = [entry, ...entries.filter(({ id }) => id !== entry.id)].slice(0, maxHistoryEntries);
+  logWebEvent('history', '已添加生成记录', {
+    recordId: entry.id,
+    patternId: entry.pattern.id,
+    patternName: entry.pattern.name,
+    resultVersion: entry.result.draft.version,
+    totalCount: next.length,
+  });
+  return next;
 }
 
 export function generationHistoryVersions(
@@ -81,7 +104,10 @@ export function addGenerationHistoryVersion(
   result: GenerationResult,
 ): ReadonlyArray<GenerationHistoryEntry> {
   const entry = entries.find(({ id }) => id === entryId);
-  if (entry === undefined) return entries;
+  if (entry === undefined) {
+    logWebEvent('history', '追加版本时未找到生成记录', { recordId: entryId });
+    return entries;
+  }
   const versions = [
     ...generationHistoryVersions(entry).filter(({ draft }) => draft.id !== result.draft.id),
     result,
@@ -91,29 +117,54 @@ export function addGenerationHistoryVersion(
     result,
     versions,
   };
-  return [updated, ...entries.filter(({ id }) => id !== entryId)].slice(0, maxHistoryEntries);
+  const next = [updated, ...entries.filter(({ id }) => id !== entryId)].slice(0, maxHistoryEntries);
+  logWebEvent('history', '已追加作品版本', {
+    recordId: entryId,
+    draftId: result.draft.id,
+    resultVersion: result.draft.version,
+    versionCount: versions.length,
+  });
+  return next;
 }
 
 export function removeGenerationHistoryEntry(
   entries: ReadonlyArray<GenerationHistoryEntry>,
   entryId: string,
 ): ReadonlyArray<GenerationHistoryEntry> {
-  return entries.filter(({ id }) => id !== entryId);
+  const next = entries.filter(({ id }) => id !== entryId);
+  logWebEvent('history', '已删除生成记录', {
+    recordId: entryId,
+    previousCount: entries.length,
+    totalCount: next.length,
+  });
+  return next;
 }
 
 export function saveGenerationHistory(
   entries: ReadonlyArray<GenerationHistoryEntry>,
   storage: HistoryStorage | undefined = browserStorage(),
 ): boolean {
-  if (storage === undefined) return false;
+  if (storage === undefined) {
+    logWebEvent('history', '无法访问本地存储，未保存生成记录', {
+      count: entries.length,
+    });
+    return false;
+  }
   const stored: StoredHistory = {
     version: historyVersion,
     entries: entries.slice(0, maxHistoryEntries),
   };
   try {
     storage.setItem(generationHistoryStorageKey, JSON.stringify(stored));
+    logWebEvent('history', '已持久化生成记录', {
+      count: stored.entries.length,
+      recordIds: stored.entries.map(({ id }) => id),
+    });
     return true;
-  } catch {
+  } catch (error) {
+    logWebError('history', '持久化生成记录失败', error, {
+      count: stored.entries.length,
+    });
     return false;
   }
 }

@@ -57,23 +57,28 @@ export function RhymeSettings({
   return (
     <div className="creation-rhyme-settings" aria-label="韵部设置">
       <div className="rhyme-selects">
-        {rhymeLabels.map((label, index) => (
-          <label key={label.id}>
-            <span>{displayRhymeLabel(label, index)}</span>
-            <select
-              value={rhymeAssignments[label.id] ?? ''}
-              disabled={disabled}
-              onChange={(event) => onChange(label.id, event.target.value)}
-            >
-              <option value="">自动择韵</option>
-              {compatibleRhymeGroups(rhymeGroups, label.tone).map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name} · {group.sections.map(({ name }) => name).join('、')}
-                </option>
-              ))}
-            </select>
-          </label>
-        ))}
+        {rhymeLabels.map((label, index) => {
+          const previousLabel = rhymeLabels[index - 1];
+          const previousGroupId =
+            previousLabel === undefined ? undefined : rhymeAssignments[previousLabel.id];
+          return (
+            <label key={label.id}>
+              <span>{displayRhymeLabel(label, index)}</span>
+              <select
+                value={rhymeAssignments[label.id] ?? ''}
+                disabled={disabled}
+                onChange={(event) => onChange(label.id, event.target.value)}
+              >
+                <option value="">自动择韵</option>
+                {compatibleRhymeGroups(rhymeGroups, label.tone).map((group) => (
+                  <option key={group.id} value={group.id} disabled={group.id === previousGroupId}>
+                    {group.name} · {group.sections.map(({ name }) => name).join('、')}
+                  </option>
+                ))}
+              </select>
+            </label>
+          );
+        })}
       </div>
     </div>
   );

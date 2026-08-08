@@ -4,6 +4,7 @@ import type { CiPattern, GenerationResult, TextSelection } from '@poesygen/domai
 
 import { GenerationProgress, type SubmissionStatus } from './GenerationSettings.js';
 import { formatGenerationTitle } from './model.js';
+import { logWebError, logWebEvent } from './web-logger.js';
 
 interface GenerationResultPanelProps {
   readonly result: GenerationResult;
@@ -81,6 +82,14 @@ export function GenerationResultPanel({
   }, [result.report.issues]);
 
   useEffect(() => {
+    logWebEvent('result', '加载作品结果', {
+      draftId: result.draft.id,
+      resultVersion: result.draft.version,
+      patternId: pattern.id,
+      passed: result.report.passed,
+      issues: result.report.issues,
+      availableVersionCount: availableVersions.length,
+    });
     setSelection(undefined);
     setInstruction('');
     setRefinementItems([]);
@@ -90,6 +99,11 @@ export function GenerationResultPanel({
   }, [result.draft.id]);
 
   const selectResultView = (nextView: ResultView): void => {
+    logWebEvent('result', '切换结果视图', {
+      draftId: result.draft.id,
+      from: view,
+      to: nextView,
+    });
     setView(nextView);
     setSelection(undefined);
     setInstruction('');
@@ -151,13 +165,15 @@ export function GenerationResultPanel({
       const end = continuingSingleSelection
         ? Math.max(current.end, characterIndex + 1)
         : characterIndex + 1;
-      return {
+      const next = {
         lineId: line.id,
         lineIndex,
         start,
         end,
         text: characters.slice(start, end).join(''),
       };
+      logWebEvent('refinement', '选择局部修改文本', next);
+      return next;
     });
     setRefinementStatus('idle');
     setRefinementError('');
@@ -167,23 +183,32 @@ export function GenerationResultPanel({
     line: GenerationResult['draft']['lines'][number],
     lineIndex: number,
   ): void => {
-    setSelection({
+    const next = {
       lineId: line.id,
       lineIndex,
       start: 0,
       end: Array.from(line.text).length,
       text: line.text,
-    });
+    };
+    logWebEvent('refinement', '选择整句修改', next);
+    setSelection(next);
     setRefinementStatus('idle');
     setRefinementError('');
   };
 
   const addRefinementItem = (): void => {
-    if (selection === undefined || instruction.trim() === '') return;
+    if (selection === undefined || instruction.trim() === '') {
+      logWebEvent('refinement', '忽略无效修改项', {
+        selectionReady: selection !== undefined,
+        instructionReady: instruction.trim() !== '',
+      });
+      return;
+    }
     const item: RefinementItem = {
       ...selection,
       instruction: instruction.trim(),
     };
+    logWebEvent('refinement', '加入修改清单', { ...item });
     setRefinementItems((current) => [
       ...current.filter(
         ({ lineId, start, end }) =>
@@ -206,6 +231,10 @@ export function GenerationResultPanel({
   };
 
   const removeRefinementItem = (itemIndex: number): void => {
+    logWebEvent('refinement', '删除修改清单项', {
+      itemIndex,
+      item: refinementItems[itemIndex],
+    });
     setRefinementItems((current) => current.filter((_, index) => index !== itemIndex));
     setRefinementStatus('idle');
     setRefinementError('');
@@ -217,21 +246,34 @@ export function GenerationResultPanel({
       refinementItems.length === 0 ||
       refinementItems.some((item) => item.instruction.trim() === '')
     ) {
+      logWebEvent('refinement', '忽略无效的局部修改提交', {
+        handlerReady: onRefine !== undefined,
+        itemCount: refinementItems.length,
+        allInstructionsReady: refinementItems.every((item) => item.instruction.trim() !== ''),
+      });
       return;
     }
+    const selections = refinementItems.map(
+      ({ lineId, start, end, instruction: itemInstruction }) => ({
+        lineId,
+        start,
+        end,
+        instruction: itemInstruction.trim(),
+      }),
+    );
+    logWebEvent('refinement', '提交全部局部修改意见', {
+      draftId: result.draft.id,
+      selections,
+    });
     setRefinementStatus('submitting');
     setRefinementError('');
     setRefinementProgressStatus(undefined);
     try {
-      await onRefine(
-        refinementItems.map(({ lineId, start, end, instruction: itemInstruction }) => ({
-          lineId,
-          start,
-          end,
-          instruction: itemInstruction.trim(),
-        })),
-        setRefinementProgressStatus,
-      );
+      await onRefine(selections, setRefinementProgressStatus);
+      logWebEvent('refinement', '全部局部修改意见处理完成', {
+        sourceDraftId: result.draft.id,
+        selectionCount: selections.length,
+      });
       setView('poem');
       setSelection(undefined);
       setInstruction('');
@@ -240,6 +282,10 @@ export function GenerationResultPanel({
       setRefinementError('');
       setRefinementProgressStatus(undefined);
     } catch (error) {
+      logWebError('refinement', '局部修改提交失败', error, {
+        sourceDraftId: result.draft.id,
+        selections,
+      });
       setRefinementStatus('error');
       setRefinementError(error instanceof Error ? error.message : '局部修改失败');
     }

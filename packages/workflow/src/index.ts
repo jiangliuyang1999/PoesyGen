@@ -62,6 +62,8 @@ export class LlmDraftEngine implements DraftEngine {
               '只输出 JSON 对象：{"title":"可选题目","lines":["逐句文本"]}。',
               'lines 必须严格按模板顺序，每个数组元素只含一句正文，不含序号、标点或解释。',
               '“中”表示可平可仄；韵脚须遵守指定词林正韵韵部。',
+              '标记韵脚的句尾必须押韵；未标记韵脚的句尾须避开本词各押韵组使用的韵部。',
+              '相邻韵组必须换用不同韵部；非相邻韵组可以重新使用更早的韵部。',
             ].join('\n'),
           },
           {
@@ -100,6 +102,8 @@ export class LlmDraftEngine implements DraftEngine {
               'lines 必须包含修改后的完整词稿，不含序号、标点或解释。',
               '未被选中的内容尽量保持不变；仅在语义衔接、平仄或押韵确有必要时做最小联动修改。',
               '修改后仍须满足给定词牌的字数、平仄和押韵约束。',
+              '未标记韵脚的句尾不得使用本词各押韵组使用的韵部。',
+              '相邻韵组必须换用不同韵部；非相邻韵组允许复用。',
             ].join('\n'),
           },
           {
@@ -137,6 +141,8 @@ export class LlmDraftEngine implements DraftEngine {
               '只输出 JSON 对象：{"title":"可选题目","lines":["逐句文本"]}。',
               'lines 必须包含完整词稿，不含序号、标点或解释。',
               '优先只修改报错位置；若为押韵冲突，可联动修改同组韵脚。',
+              '若非韵句句尾误用了押韵韵部，应替换句尾并保持该句不押该韵。',
+              '若相邻韵组使用了同一韵部，应将后一组整体换到不同韵部。',
             ].join('\n'),
           },
           {
@@ -453,6 +459,18 @@ function formatSelections(
 
 function formatPatternConstraints(pattern: CiPattern, request: GenerationRequest): string {
   let lineNumber = 0;
+  const rhymeLabels = [
+    ...new Set(
+      pattern.sections.flatMap((section) =>
+        section.lines.flatMap((line) =>
+          line.positions.flatMap((position) =>
+            position.rhyme === undefined ? [] : [position.rhyme],
+          ),
+        ),
+      ),
+    ),
+  ];
+  const rhymeGroupNumbers = new Map(rhymeLabels.map((label, index) => [label, index + 1]));
   return pattern.sections
     .flatMap((section) => [
       `[${section.name}]`,
@@ -466,10 +484,15 @@ function formatPatternConstraints(pattern: CiPattern, request: GenerationRequest
               typeof request.preferredRhymeGroup === 'string'
                 ? request.preferredRhymeGroup
                 : request.preferredRhymeGroup?.[rhyme];
-            return `${marker}韵${requested === undefined ? '' : `(${requested})`}`;
+            return `${marker}韵组${rhymeGroupNumbers.get(rhyme) ?? '?'}${
+              requested === undefined ? '' : `(${requested})`
+            }`;
           })
           .join('');
-        return `${lineNumber}. ${line.positions.length}字：${tones}`;
+        const lineEnding = line.positions.at(-1);
+        const nonRhymeEndingRequirement =
+          lineEnding?.rhyme === undefined ? '（句尾不押韵，须避开本词各押韵组使用的韵部）' : '';
+        return `${lineNumber}. ${line.positions.length}字：${tones}${nonRhymeEndingRequirement}`;
       }),
     ])
     .join('\n');

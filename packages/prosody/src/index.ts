@@ -123,6 +123,24 @@ interface RhymeOccurrence {
   readonly groups: ReadonlySet<string>;
 }
 
+interface NonRhymeEnding {
+  readonly lineId: string;
+  readonly charIndex: number;
+  readonly character: string;
+  readonly pronunciations: ReadonlyArray<Pronunciation>;
+}
+
+interface RhymeCheckResult {
+  readonly issues: ReadonlyArray<ProsodyIssue>;
+  readonly activeGroups: ReadonlySet<string>;
+}
+
+interface ResolvedRhymeGroup {
+  readonly label: string;
+  readonly groups: ReadonlySet<string>;
+  readonly firstOccurrence?: RhymeOccurrence;
+}
+
 const ignoredCharacter = /[\p{P}\p{Z}\s]/u;
 
 export function extractContentCharacters(text: string): ReadonlyArray<string> {
@@ -137,7 +155,17 @@ export function checkProsody(
 ): ProsodyReport {
   const issues: ProsodyIssue[] = [];
   const rhymeOccurrences: RhymeOccurrence[] = [];
+  const nonRhymeEndings: NonRhymeEnding[] = [];
   const expectedLines = pattern.sections.flatMap((section) => section.lines);
+  const rhymeLabelOrder = [
+    ...new Set(
+      expectedLines.flatMap((line) =>
+        line.positions.flatMap((position) =>
+          position.rhyme === undefined ? [] : [position.rhyme],
+        ),
+      ),
+    ),
+  ];
   const unresolvedSeverity = options.unresolvedSeverity ?? 'error';
 
   if (draft.patternId !== pattern.id) {
@@ -241,11 +269,30 @@ export function checkProsody(
           character,
           groups: new Set(pronunciations.flatMap(({ rhymeGroups }) => rhymeGroups)),
         });
+      } else if (
+        charIndex === expectedLine.positions.length - 1 &&
+        characters.length === expectedLine.positions.length
+      ) {
+        nonRhymeEndings.push({
+          lineId: actualLine.id,
+          charIndex,
+          character,
+          pronunciations,
+        });
       }
     });
   });
 
-  issues.push(...checkRhymes(rhymeOccurrences, options.expectedRhymeGroup, unresolvedSeverity));
+  const rhymeCheck = checkRhymes(
+    rhymeOccurrences,
+    rhymeLabelOrder,
+    options.expectedRhymeGroup,
+    unresolvedSeverity,
+  );
+  issues.push(
+    ...rhymeCheck.issues,
+    ...checkNonRhymeEndings(nonRhymeEndings, rhymeCheck.activeGroups),
+  );
 
   return {
     passed: issues.every(({ severity }) => severity !== 'error'),
@@ -255,10 +302,13 @@ export function checkProsody(
 
 function checkRhymes(
   occurrences: ReadonlyArray<RhymeOccurrence>,
+  labelOrder: ReadonlyArray<string>,
   expectedRhymeGroup: string | Readonly<Record<string, string>> | undefined,
   unresolvedSeverity: 'error' | 'warning',
-): ReadonlyArray<ProsodyIssue> {
+): RhymeCheckResult {
   const issues: ProsodyIssue[] = [];
+  const activeGroups = new Set<string>();
+  const resolvedGroups: ResolvedRhymeGroup[] = [];
   const byLabel = new Map<string, RhymeOccurrence[]>();
   for (const occurrence of occurrences) {
     const group = byLabel.get(occurrence.label) ?? [];
@@ -266,10 +316,16 @@ function checkRhymes(
     byLabel.set(occurrence.label, group);
   }
 
-  for (const [label, groupOccurrences] of byLabel) {
+  for (const label of labelOrder) {
+    const groupOccurrences = byLabel.get(label) ?? [];
     const expectedGroup =
       typeof expectedRhymeGroup === 'string' ? expectedRhymeGroup : expectedRhymeGroup?.[label];
     const knownOccurrences = groupOccurrences.filter(({ groups }) => groups.size > 0);
+    let resolvedGroupCandidates = new Set<string>();
+    if (expectedGroup !== undefined) {
+      activeGroups.add(expectedGroup);
+      resolvedGroupCandidates.add(expectedGroup);
+    }
     for (const occurrence of groupOccurrences) {
       if (occurrence.groups.size === 0) {
         issues.push({
@@ -293,32 +349,135 @@ function checkRhymes(
       }
     }
 
-    if (expectedGroup !== undefined || knownOccurrences.length < 2) {
-      continue;
-    }
+    if (expectedGroup === undefined && knownOccurrences.length > 0) {
+      resolvedGroupCandidates = new Set(knownOccurrences[0]?.groups ?? []);
+      for (const occurrence of knownOccurrences.slice(1)) {
+        resolvedGroupCandidates = new Set(
+          [...resolvedGroupCandidates].filter((group) => occurrence.groups.has(group)),
+        );
+      }
+      for (const group of resolvedGroupCandidates) {
+        activeGroups.add(group);
+      }
 
-    let commonGroups = new Set(knownOccurrences[0]?.groups ?? []);
-    for (const occurrence of knownOccurrences.slice(1)) {
-      commonGroups = new Set([...commonGroups].filter((group) => occurrence.groups.has(group)));
-    }
-
-    if (commonGroups.size === 0) {
-      const lastOccurrence = knownOccurrences.at(-1);
-      if (lastOccurrence !== undefined) {
-        issues.push({
-          lineId: lastOccurrence.lineId,
-          charIndex: lastOccurrence.charIndex,
-          rule: 'rhyme',
-          severity: 'error',
-          message: `标记为“${label}”的韵脚没有共同韵部`,
-          expected: '同一韵部',
-          actual: knownOccurrences
-            .map(({ character, groups }) => `${character}:${[...groups].join('/')}`)
-            .join(', '),
-        });
+      if (knownOccurrences.length >= 2 && resolvedGroupCandidates.size === 0) {
+        const lastOccurrence = knownOccurrences.at(-1);
+        if (lastOccurrence !== undefined) {
+          issues.push({
+            lineId: lastOccurrence.lineId,
+            charIndex: lastOccurrence.charIndex,
+            rule: 'rhyme',
+            severity: 'error',
+            message: `标记为“${label}”的韵脚没有共同韵部`,
+            expected: '同一韵部',
+            actual: knownOccurrences
+              .map(({ character, groups }) => `${character}:${[...groups].join('/')}`)
+              .join(', '),
+          });
+        }
       }
     }
+
+    resolvedGroups.push({
+      label,
+      groups: resolvedGroupCandidates,
+      ...(groupOccurrences[0] === undefined ? {} : { firstOccurrence: groupOccurrences[0] }),
+    });
   }
 
+  issues.push(...checkAdjacentRhymeGroups(resolvedGroups));
+  return { issues, activeGroups };
+}
+
+function checkAdjacentRhymeGroups(
+  groups: ReadonlyArray<ResolvedRhymeGroup>,
+): ReadonlyArray<ProsodyIssue> {
+  const issues: ProsodyIssue[] = [];
+  for (let index = 1; index < groups.length; index += 1) {
+    const previous = groups[index - 1]!;
+    const current = groups[index]!;
+    if (
+      previous.groups.size === 0 ||
+      current.groups.size === 0 ||
+      current.firstOccurrence === undefined
+    ) {
+      continue;
+    }
+    const overlapping = [...current.groups].filter((group) => previous.groups.has(group));
+    if (overlapping.length === 0) continue;
+
+    const definitelySame = previous.groups.size === 1 && current.groups.size === 1;
+    issues.push({
+      lineId: current.firstOccurrence.lineId,
+      charIndex: current.firstOccurrence.charIndex,
+      rule: 'rhyme',
+      severity: definitelySame ? 'error' : 'warning',
+      message: definitelySame
+        ? `相邻韵组“${previous.label}”与“${current.label}”使用了同一韵部`
+        : `相邻韵组“${previous.label}”与“${current.label}”存在相同候选韵部，需确认已经换韵`,
+      expected: '与前一韵组使用不同韵部',
+      actual: overlapping.join('/'),
+      ...(definitelySame
+        ? {}
+        : {
+            candidates: [
+              `${previous.label}:${[...previous.groups].join('/')}`,
+              `${current.label}:${[...current.groups].join('/')}`,
+            ],
+          }),
+    });
+  }
   return issues;
+}
+
+function checkNonRhymeEndings(
+  endings: ReadonlyArray<NonRhymeEnding>,
+  activeGroups: ReadonlySet<string>,
+): ReadonlyArray<ProsodyIssue> {
+  if (activeGroups.size === 0) return [];
+
+  return endings.flatMap((ending): ReadonlyArray<ProsodyIssue> => {
+    const matching = ending.pronunciations.filter((pronunciation) =>
+      pronunciation.rhymeGroups.some((group) => activeGroups.has(group)),
+    );
+    if (matching.length === 0) return [];
+
+    const matchingGroups = [
+      ...new Set(
+        matching
+          .flatMap(({ rhymeGroups }) => rhymeGroups)
+          .filter((group) => activeGroups.has(group)),
+      ),
+    ];
+    if (matching.length === ending.pronunciations.length) {
+      return [
+        {
+          lineId: ending.lineId,
+          charIndex: ending.charIndex,
+          rule: 'rhyme',
+          severity: 'error',
+          message: `非韵句句尾“${ending.character}”使用了本词押韵韵部`,
+          expected: `避开 ${matchingGroups.join('/')}`,
+          actual: [
+            ...new Set(ending.pronunciations.flatMap(({ rhymeGroups }) => rhymeGroups)),
+          ].join('/'),
+        },
+      ];
+    }
+
+    return [
+      {
+        lineId: ending.lineId,
+        charIndex: ending.charIndex,
+        rule: 'rhyme',
+        severity: 'warning',
+        message: `非韵句句尾“${ending.character}”存在多音，可能误用本词押韵韵部`,
+        expected: `避开 ${matchingGroups.join('/')}`,
+        candidates: ending.pronunciations.map(
+          ({ reading, rhymeGroups }) =>
+            `${reading ?? ending.character}:${rhymeGroups.join('/') || '韵部未知'}`,
+        ),
+      },
+    ];
+  });
 }

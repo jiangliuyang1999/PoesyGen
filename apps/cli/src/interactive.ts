@@ -166,9 +166,14 @@ export async function promptGenerationRequest(
     assignedRhymes[rhymeLabels[0].id] = defaults.preferredRhymeGroup;
   } else if (shouldChooseRhyme) {
     for (const [index, label] of rhymeLabels.entries()) {
+      const previousLabel = rhymeLabels[index - 1];
+      const previousGroupId =
+        previousLabel === undefined ? undefined : assignedRhymes[previousLabel.id];
       const compatibleGroups = rhymeGroups.filter(
         (group) =>
-          label.tone === 'either' || group.sections.some((section) => section.tone === label.tone),
+          group.id !== previousGroupId &&
+          (label.tone === 'either' ||
+            group.sections.some((section) => section.tone === label.tone)),
       );
       const groupId = await select({
         message:

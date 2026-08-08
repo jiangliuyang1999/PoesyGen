@@ -103,9 +103,11 @@ describe('generation workflow', () => {
 
 describe('LlmDraftEngine', () => {
   it('normalizes structured model output into stable pattern lines', async () => {
+    const prompts: string[] = [];
     const provider: LlmProvider = {
       name: 'test',
       async generateStructured(generationRequest) {
+        prompts.push(...generationRequest.messages.map(({ content }) => content));
         const value = generationRequest.parse({
           title: '春归',
           lines: ['1. 春。'],
@@ -128,6 +130,13 @@ describe('LlmDraftEngine', () => {
         version: 1,
         lines: [{ id: 'expected-line', text: '春' }],
       }),
+    );
+    expect(prompts).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('未标记韵脚的句尾须避开本词各押韵组使用的韵部'),
+        expect.stringContaining('句尾不押韵，须避开本词各押韵组使用的韵部'),
+        expect.stringContaining('相邻韵组必须换用不同韵部'),
+      ]),
     );
   });
 
