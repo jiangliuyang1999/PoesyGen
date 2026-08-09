@@ -75,7 +75,8 @@ Web 地址为 `http://localhost:5173`。页面无需 LLM 配置即可浏览全�
 
 ## Web 生成配置
 
-点击页面右上角的 `LLM 未配置`，填写以下 OpenAI-compatible 参数：
+点击页面右上角的 `LLM 未配置`，填写以下 OpenAI-compatible 参数；手机浏览器的小屏
+布局会将该入口显示为紧凑的 `LLM` 按钮：
 
 - API Base URL，或完整 Endpoint
 - Model

@@ -3850,16 +3850,34 @@ html[data-platform='mobile'] .loading-state {
   }
 
   .topbar {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: auto minmax(0, 1fr) 44px;
+    gap: 12px;
     padding: 0 16px;
   }
 
   .topbar nav {
-    justify-self: end;
+    justify-self: center;
+  }
+
+  .topbar nav button {
+    min-width: 68px;
+    padding-inline: 10px;
   }
 
   .connection-status {
-    display: none;
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    min-width: 44px;
+    padding: 7px 5px;
+    border-color: var(--line);
+    background: var(--paper-deep);
+    font-size: 0;
+  }
+
+  .connection-status::after {
+    content: 'LLM';
+    font-size: 0.64rem;
   }
 
   .page-workspace {
@@ -3917,7 +3935,10 @@ html[data-platform='mobile'] .loading-state {
 
 @media (max-width: 560px) {
   .topbar {
+    grid-template-columns: 34px minmax(0, 1fr) 44px;
+    gap: 6px;
     min-height: 64px;
+    padding: 0 8px;
   }
 
   .brand > span:last-child {
@@ -3930,9 +3951,17 @@ html[data-platform='mobile'] .loading-state {
   }
 
   .topbar nav button {
-    min-width: 58px;
-    padding: 7px;
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 7px 2px;
     font-size: 0.76rem;
+    white-space: nowrap;
+  }
+
+  .topbar nav {
+    width: 100%;
+    gap: 0;
+    padding: 3px;
   }
 
   .pattern-preview,
