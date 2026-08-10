@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="PoesyGen 隐私政策，说明本地数据存储、第三方模型服务和用户权利。"
+    />
+    <meta name="theme-color" content="#9f3c2f" />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <title>隐私政策 | PoesyGen</title>
+    <style>
+      :root {
+        color: #292622;
+        background: #eeeae1;
+        font-family: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        --paper: #faf8f2;
+        --paper-deep: #f3efe6;
+        --ink: #292622;
+        --muted: #776f64;
+        --line: #d8d0c3;
+        --vermilion: #9f3c2f;
+        --vermilion-dark: #7e2c23;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        min-width: 320px;
+        min-height: 100%;
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-width: 320px;
+        min-height: 100vh;
+        margin: 0;
+        background:
+          linear-gradient(rgb(81 68 53 / 3%) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(81 68 53 / 2%) 1px, transparent 1px), #eeeae1;
+        background-size: 32px 32px;
+        line-height: 1.8;
+      }
+
+      a {
+        color: var(--vermilion-dark);
+        text-underline-offset: 3px;
+      }
+
+      a:focus-visible {
+        border-radius: 3px;
+        outline: 2px solid var(--vermilion);
+        outline-offset: 3px;
+      }
+
+      .page-header {
+        border-bottom: 1px solid var(--line);
+        background: rgb(250 248 242 / 94%);
+      }
+
+      .header-content,
+      main,
+      footer {
+        width: min(780px, calc(100% - 40px));
+        margin: 0 auto;
+      }
+
+      .header-content {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        min-height: 72px;
+      }
+
+      .brand-seal {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 auto;
+        border: 4px solid var(--vermilion);
+        border-radius: 9px;
+        place-items: center;
+        background: var(--paper);
+        color: var(--ink);
+        font-size: 1.3rem;
+        line-height: 1;
+      }
+
+      .brand-copy {
+        display: grid;
+        gap: 1px;
+      }
+
+      .brand-copy strong {
+        font-family: ui-monospace, 'SFMono-Regular', monospace;
+        font-size: 0.88rem;
+        letter-spacing: 0.08em;
+      }
+
+      .brand-copy small {
+        color: var(--muted);
+        font-size: 0.72rem;
+      }
+
+      main {
+        margin-top: 28px;
+        margin-bottom: 36px;
+        padding: 34px 40px 42px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--paper);
+        box-shadow: 0 12px 40px rgb(61 49 36 / 6%);
+      }
+
+      h1,
+      h2 {
+        line-height: 1.35;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.8rem, 5vw, 2.35rem);
+        font-weight: 650;
+        letter-spacing: 0.03em;
+      }
+
+      h2 {
+        margin: 34px 0 10px;
+        padding-top: 4px;
+        font-size: 1.12rem;
+      }
+
+      p,
+      li {
+        color: #4e4942;
+        font-size: 0.96rem;
+      }
+
+      p {
+        margin: 10px 0;
+      }
+
+      ul {
+        margin: 10px 0;
+        padding-left: 1.35rem;
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      .effective-date {
+        margin: 8px 0 24px;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .summary {
+        margin: 0;
+        padding: 16px 18px;
+        border-left: 3px solid var(--vermilion);
+        border-radius: 0 6px 6px 0;
+        background: var(--paper-deep);
+      }
+
+      footer {
+        padding: 0 0 32px;
+        color: var(--muted);
+        font-size: 0.8rem;
+        text-align: center;
+      }
+
+      @media (max-width: 600px) {
+        .header-content,
+        main,
+        footer {
+          width: min(100% - 28px, 780px);
+        }
+
+        .header-content {
+          min-height: 64px;
+        }
+
+        main {
+          margin-top: 14px;
+          padding: 26px 20px 32px;
+          border-radius: 10px;
+        }
+
+        h2 {
+          margin-top: 28px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-content">
+        <span class="brand-seal" aria-hidden="true">词</span>
+        <span class="brand-copy">
+          <strong>PoesyGen</strong>
+          <small>格律诗词作</small>
+        </span>
+      </div>
+    </header>
+
+    <main>
+      <h1>隐私政策</h1>
+      <p class="effective-date">生效日期：2026 年 8 月 10 日</p>
+
+      <p class="summary">
+        PoesyGen
+        不要求注册账号，不设置广告或用户追踪，也不向开发者运营的服务器上传你的创作记录。词谱、韵书、字典和格律校验均在当前设备上运行。只有当你主动使用生成、润色或灵感功能时，相关内容才会发送至你自行配置的模型服务。
+      </p>
+
+      <h2>一、适用范围</h2>
+      <p>
+        本政策适用于 PoesyGen 的
+        Web、桌面端及移动端应用，说明应用如何处理你的配置、创作内容和技术信息。你自行配置的第三方模型服务由相应服务商独立运营，其数据处理活动适用该服务商的隐私政策和服务条款。
+      </p>
+
+      <h2>二、我们处理的信息</h2>
+      <ul>
+        <li>
+          <strong>模型服务配置：</strong>包括 API Base URL 或
+          Endpoint、模型名称、请求超时、输出长度、JSON Mode 设置及 API Key。除 API Key
+          外的配置保存在当前设备；API Key
+          默认仅保留在当前会话中，只有你明确启用持久保存后才会写入应用的本地存储。
+        </li>
+        <li>
+          <strong>创作及历史记录：</strong
+          >包括创作主题、附加要求、所选词牌和韵部、生成内容、格律校验结果及修改版本。这些信息仅保存在当前设备的本地存储中，历史记录最多保留
+          40 条。
+        </li>
+        <li>
+          <strong>本地运行日志：</strong
+          >为便于排查问题，应用会在浏览器控制台或设备调试日志中记录运行事件，可能包括访问地址、浏览器或设备运行信息、创作主题、提示内容、模型请求正文、模型响应及生成结果。API
+          Key、Authorization、Token、Cookie、密码等凭据会被脱敏。日志不会由应用自动上传给开发者。
+        </li>
+        <li>
+          <strong>模型服务处理的信息：</strong
+          >使用生成、润色、灵感推荐或局部修改功能时，应用会将完成任务所需的提示词、创作内容、词谱约束和
+          API Key 直接发送至你配置的模型服务。服务商还可能根据其自身政策处理 IP
+          地址、请求时间等网络信息。
+        </li>
+      </ul>
+
+      <h2>三、处理目的</h2>
+      <p>
+        上述信息仅用于保存你的本地设置和创作历史、调用你指定的模型服务完成相关功能、执行本地格律校验，以及通过当前设备上的调试日志诊断故障。
+      </p>
+
+      <h2>四、本地存储和保留期限</h2>
+      <p>
+        PoesyGen
+        不提供开发者运营的云端账号或同步服务。模型配置和创作历史保存在当前浏览器、桌面应用或移动应用的本地存储中，直至你主动删除记录、清除应用或站点数据，或者卸载应用。未启用持久保存的
+        API Key 会在当前会话结束后失效。
+      </p>
+      <p>
+        本地存储不等同于操作系统钥匙串。请只在你信任的设备上启用 API Key
+        持久保存，并为模型账户设置合理的额度和访问限制。
+      </p>
+
+      <h2>五、信息共享和第三方服务</h2>
+      <p>
+        应用不出售个人信息，不接入广告、统计分析或跨应用追踪服务，也不会主动向开发者发送你的数据。为完成你主动发起的模型功能，应用仅向你配置的
+        OpenAI-compatible 模型服务传输必要信息。
+      </p>
+      <p>
+        模型服务的所在地、保留期限、训练用途和跨境传输规则由对应服务商决定。配置服务前，请阅读其隐私政策，不要在创作主题、附加要求或修改意见中提交身份证件、联系方式、账号凭据、商业秘密等敏感信息。
+      </p>
+
+      <h2>六、设备权限</h2>
+      <p>
+        PoesyGen
+        的现有功能不请求相机、麦克风、照片、通讯录、定位、蓝牙或健康数据权限。应用需要网络连接，且仅在你主动调用已配置的模型服务时使用网络完成模型请求。
+      </p>
+
+      <h2>七、你的选择和权利</h2>
+      <ul>
+        <li>你可以不配置模型服务，继续离线浏览词谱、韵书和字典，并使用本地格律能力。</li>
+        <li>你可以关闭 API Key 持久保存，或在模型配置中清除相关凭据。</li>
+        <li>你可以在历史记录中删除作品；清除应用或站点数据、卸载应用可删除全部本地数据。</li>
+        <li>你可以联系所选模型服务商，按其政策行使对模型服务所处理数据的相关权利。</li>
+      </ul>
+
+      <h2>八、未成年人保护</h2>
+      <p>
+        应用不以收集未成年人个人信息为目的。未成年人应在监护人指导下使用模型功能，不应向模型服务提交本人或他人的敏感个人信息。监护人可以通过清除应用数据或卸载应用删除设备上的本地记录。
+      </p>
+
+      <h2>九、安全措施</h2>
+      <p>
+        应用对日志中的常见凭据字段进行脱敏，并建议使用 HTTPS
+        模型接口。任何本地存储和网络传输都无法保证绝对安全；你应选择可信的模型服务商、妥善保护设备和
+        API Key，并及时撤销已经泄露的凭据。
+      </p>
+
+      <h2>十、政策更新</h2>
+      <p>
+        应用功能或数据处理方式发生重大变化时，本政策将相应更新，并在本页面公布新的内容和生效日期。重大变化将在适当情况下通过应用界面或发布说明提示。
+      </p>
+
+      <h2>十一、联系我们</h2>
+      <p>
+        如对本政策或 PoesyGen 的数据处理方式有疑问，请通过
+        <a href="https://github.com/jiangliuyang1999/PoesyGen/issues" rel="noopener noreferrer"
+          >PoesyGen 项目问题页面</a
+        >
+        联系开发者。请勿在公开问题中提交 API Key、创作隐私或其他敏感信息。
+      </p>
+    </main>
+
+    <footer>PoesyGen · 隐私政策</footer>
+  </body>
+</html>
