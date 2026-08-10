@@ -92,8 +92,9 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  min-height: 72px;
-  padding: 0 28px;
+  min-height: calc(72px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) calc(28px + env(safe-area-inset-right)) 0
+    calc(28px + env(safe-area-inset-left));
   border-bottom: 1px solid var(--line);
   background: rgb(250 248 242 / 94%);
   backdrop-filter: blur(16px);
@@ -2749,7 +2750,7 @@ button:disabled {
 
 .loading-state {
   display: grid;
-  min-height: calc(100vh - 72px);
+  min-height: calc(100vh - 72px - env(safe-area-inset-top));
   place-content: center;
   text-align: center;
 }
