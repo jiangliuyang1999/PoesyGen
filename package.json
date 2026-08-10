@@ -1,6 +1,6 @@
 {
   "name": "poesygen",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "description": "多端 AI 词作生成与韵律优化平台",
