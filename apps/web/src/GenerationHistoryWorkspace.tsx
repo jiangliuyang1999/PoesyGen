@@ -14,6 +14,7 @@ import { paginateItems, Pagination } from './Pagination.js';
 import { PatternPreview } from './PatternPreview.js';
 
 interface GenerationHistoryWorkspaceProps {
+  readonly compactLayout: boolean;
   readonly entries: ReadonlyArray<GenerationHistoryEntry>;
   readonly onInspectCharacter: (character: string) => void;
   readonly onDelete: (entryId: string) => void;
@@ -42,23 +43,23 @@ const historyPaginationLabels = {
 };
 
 export function GenerationHistoryWorkspace({
+  compactLayout,
   entries,
   onInspectCharacter,
   onDelete,
   onRefine,
 }: GenerationHistoryWorkspaceProps) {
-  const mobilePlatform = document.documentElement.dataset['platform'] === 'mobile';
   const [query, setQuery] = useState('');
   const [selectedEntryId, setSelectedEntryId] = useState(entries[0]?.id);
   const [selectedVersionId, setSelectedVersionId] = useState<string>();
   const [previewEntryId, setPreviewEntryId] = useState<string>();
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [compactDetailOpen, setCompactDetailOpen] = useState(false);
   const [pageIndex, setPageIndex] = useState(0);
   const visibleEntries = filterGenerationHistory(entries, query);
   const pagination = paginateItems(
     visibleEntries,
     pageIndex,
-    mobilePlatform ? undefined : historyPageSize,
+    compactLayout ? undefined : historyPageSize,
   );
   const selectedEntry =
     pagination.items.find(({ id }) => id === selectedEntryId) ?? pagination.items[0];
@@ -73,15 +74,15 @@ export function GenerationHistoryWorkspace({
     setSelectedEntryId(entryId);
     setSelectedVersionId(undefined);
     setPreviewEntryId(undefined);
-    if (mobilePlatform) {
-      setMobileDetailOpen(true);
+    if (compactLayout) {
+      setCompactDetailOpen(true);
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
     }
   };
 
-  const closeMobileDetail = (): void => {
-    setMobileDetailOpen(false);
+  const closeCompactDetail = (): void => {
+    setCompactDetailOpen(false);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
   };
@@ -114,9 +115,9 @@ export function GenerationHistoryWorkspace({
   return (
     <div
       className="generation-history-layout"
-      {...(mobilePlatform ? { 'data-mobile-view': mobileDetailOpen ? 'detail' : 'list' } : {})}
+      {...(compactLayout ? { 'data-mobile-view': compactDetailOpen ? 'detail' : 'list' } : {})}
     >
-      {(!mobilePlatform || !mobileDetailOpen) && (
+      {(!compactLayout || !compactDetailOpen) && (
         <aside className="history-browser" aria-label="生成历史列表">
           <label className="history-search">
             <span className="sr-only">搜索历史结果</span>
@@ -136,14 +137,14 @@ export function GenerationHistoryWorkspace({
 
           <div className="history-list">
             {pagination.items.map((entry) => {
-              const selected = !mobilePlatform && entry.id === selectedEntry?.id;
+              const selected = !compactLayout && entry.id === selectedEntry?.id;
               const title = formatGenerationTitle(entry.pattern.name, entry.result.draft.title);
               return (
                 <article key={entry.id} data-selected={selected} className="history-list-card">
                   <button
                     className="history-list-entry"
                     type="button"
-                    {...(mobilePlatform ? {} : { 'aria-pressed': selected })}
+                    {...(compactLayout ? {} : { 'aria-pressed': selected })}
                     onClick={() => openEntry(entry.id)}
                   >
                     <span className="history-list-title">
@@ -155,7 +156,7 @@ export function GenerationHistoryWorkspace({
                       <span>{generationHistoryVersions(entry).length} 个版本</span>
                     </span>
                     <small className="history-list-theme">{entry.theme}</small>
-                    {mobilePlatform && (
+                    {compactLayout && (
                       <span className="history-list-open" aria-hidden="true">
                         查看作品
                         <i>→</i>
@@ -186,7 +187,7 @@ export function GenerationHistoryWorkspace({
             )}
           </div>
 
-          {!mobilePlatform && (
+          {!compactLayout && (
             <Pagination
               className="history-pagination"
               pageIndex={pagination.pageIndex}
@@ -204,10 +205,10 @@ export function GenerationHistoryWorkspace({
         </aside>
       )}
 
-      {(!mobilePlatform || mobileDetailOpen) && (
+      {(!compactLayout || compactDetailOpen) && (
         <div className="history-detail">
-          {mobilePlatform && (
-            <button className="history-mobile-back" type="button" onClick={closeMobileDetail}>
+          {compactLayout && (
+            <button className="history-mobile-back" type="button" onClick={closeCompactDetail}>
               <span aria-hidden="true">←</span>
               全部生成记录
             </button>

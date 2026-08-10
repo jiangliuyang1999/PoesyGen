@@ -11,10 +11,9 @@ interface CapacitorBridge {
 
 const capacitor = (window as typeof window & { Capacitor?: CapacitorBridge }).Capacitor;
 const requestedPlatform = new URLSearchParams(window.location.search).get('platform');
-const runtimePlatform =
-  requestedPlatform ?? (capacitor?.isNativePlatform?.() === true ? 'mobile' : undefined);
+const runtimePlatform = requestedPlatform === 'desktop' ? 'desktop' : undefined;
 
-if (runtimePlatform === 'desktop' || runtimePlatform === 'mobile') {
+if (runtimePlatform === 'desktop') {
   document.documentElement.dataset['platform'] = runtimePlatform;
 }
 

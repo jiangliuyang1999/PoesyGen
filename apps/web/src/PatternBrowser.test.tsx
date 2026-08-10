@@ -36,7 +36,6 @@ const firstPageNames = [
 
 afterEach(() => {
   cleanup();
-  delete document.documentElement.dataset['platform'];
 });
 
 describe('pattern catalog pagination', () => {
@@ -74,8 +73,7 @@ describe('pattern catalog pagination', () => {
     expect(screen.queryByRole('navigation', { name: '词牌分页' })).toBeNull();
   });
 
-  it('shows every pinyin-sorted tune without pagination on mobile', () => {
-    document.documentElement.dataset['platform'] = 'mobile';
+  it('shows every pinyin-sorted tune without pagination in the compact workspace', () => {
     render(
       <MobilePatternWorkspace
         patterns={patterns}

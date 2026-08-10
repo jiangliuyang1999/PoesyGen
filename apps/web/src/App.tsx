@@ -52,6 +52,7 @@ import { runGenerationSession, type GenerationSessionResult } from './generation
 import { LocalCatalogClient } from './local-catalog.js';
 import { randomLocalCreationIdeas } from './local-ideas.js';
 import { formatPatternVariantSummary, listPatternFamilies, patternRhymeLabels } from './model.js';
+import { useCompactLayout } from './responsive-layout.js';
 import { logConfigSummary, logWebError, logWebEvent } from './web-logger.js';
 
 export interface AppClient {
@@ -81,6 +82,7 @@ const idleStatus: SubmissionStatus = {
 export function App({ client: providedClient }: AppProps = {}) {
   const defaultClient = useMemo(() => new LocalCatalogClient(), []);
   const client = providedClient ?? defaultClient;
+  const compactLayout = useCompactLayout();
   const [view, setView] = useState<ApplicationView>('create');
   const [patterns, setPatterns] = useState<ReadonlyArray<CiPattern>>([]);
   const [rhymeGroups, setRhymeGroups] = useState<ReadonlyArray<RhymeGroupSummary>>([]);
@@ -617,22 +619,21 @@ export function App({ client: providedClient }: AppProps = {}) {
     }));
   };
 
-  const selectMobileView = (nextView: ApplicationView): void => {
-    changeView(nextView, 'mobile-tabbar');
+  const selectCompactView = (nextView: ApplicationView): void => {
+    changeView(nextView, 'compact-tabbar');
   };
-  const mobilePlatform = document.documentElement.dataset['platform'] === 'mobile';
   const generationConnectionLabel = creationServiceAvailable ? 'LLM 已配置' : 'LLM 未配置';
 
   return (
     <div className="app-shell">
-      {mobilePlatform ? (
+      {compactLayout ? (
         <MobileAppChrome
           activeView={view}
           serviceReady={creationServiceAvailable}
           serviceLabel={generationConnectionLabel}
-          onSelectView={selectMobileView}
+          onSelectView={selectCompactView}
           onOpenConfig={() => {
-            logWebEvent('config', '打开 LLM 配置弹窗', { source: 'mobile-header' });
+            logWebEvent('config', '打开 LLM 配置弹窗', { source: 'compact-header' });
             setLlmConfigOpen(true);
           }}
         />
@@ -715,14 +716,14 @@ export function App({ client: providedClient }: AppProps = {}) {
                 <p>浏览词牌与体式，查看逐句字数、平仄和韵位。</p>
               </div>
             </header>
-            {mobilePlatform ? (
+            {compactLayout ? (
               <MobilePatternWorkspace
                 patterns={patterns}
                 query={patternQuery}
                 selectedPattern={catalogPattern}
                 onQueryChange={setPatternQuery}
                 onSelect={(patternId) => {
-                  logWebEvent('catalog', '移动端选择词牌体式', { patternId });
+                  logWebEvent('catalog', '窄屏词谱选择体式', { patternId });
                   setCatalogPatternId(patternId);
                 }}
                 onInspectCharacter={inspectCharacter}
@@ -736,7 +737,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                   selectedPatternId={catalogPattern.id}
                   onQueryChange={setPatternQuery}
                   onSelect={(patternId) => {
-                    logWebEvent('catalog', '桌面端选择词牌', { patternId });
+                    logWebEvent('catalog', '宽屏词谱选择词牌', { patternId });
                     setCatalogPatternId(patternId);
                   }}
                 />
@@ -749,7 +750,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                           aria-label={`${catalogPatternFamily.name}体式`}
                           value={catalogPattern.id}
                           onChange={(event) => {
-                            logWebEvent('catalog', '桌面端切换词牌体式', {
+                            logWebEvent('catalog', '宽屏词谱切换体式', {
                               patternId: event.target.value,
                             });
                             setCatalogPatternId(event.target.value);
@@ -783,6 +784,7 @@ export function App({ client: providedClient }: AppProps = {}) {
               </div>
             </header>
             <GenerationHistoryWorkspace
+              compactLayout={compactLayout}
               entries={generationHistory}
               onInspectCharacter={inspectCharacter}
               onRefine={refineHistoryResult}

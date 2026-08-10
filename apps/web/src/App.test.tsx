@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import type { CiPattern, GenerationResult } from '@poesygen/domain';
@@ -150,6 +150,7 @@ const ideaSuggestions = [
 
 beforeEach(() => {
   delete document.documentElement.dataset['platform'];
+  setViewportWidth(1024);
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
   const localStorage = createTestStorage();
@@ -182,6 +183,7 @@ afterEach(() => {
   vi.mocked(runDirectIdeaSuggestions).mockReset();
   vi.mocked(runDirectThemePolish).mockReset();
   delete document.documentElement.dataset['platform'];
+  setViewportWidth(1024);
 });
 
 describe('web creation workspace', () => {
@@ -390,8 +392,8 @@ describe('web creation workspace', () => {
     );
   });
 
-  it('uses a dedicated bottom tab bar on the mobile platform', async () => {
-    document.documentElement.dataset['platform'] = 'mobile';
+  it('uses the mobile layout when the Web viewport is narrow', async () => {
+    setViewportWidth(390);
     const client = createClient([pattern, alternatePattern]);
     const user = userEvent.setup();
     render(<App client={client} />);
@@ -473,6 +475,22 @@ describe('web creation workspace', () => {
     expect(screen.getByRole<HTMLSelectElement>('combobox', { name: '创作体式' }).value).toBe(
       alternatePattern.id,
     );
+  });
+
+  it('switches the Web layout when the viewport crosses the compact breakpoint', async () => {
+    render(<App client={createClient()} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    expect(screen.getByRole('navigation', { name: '主导航' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: '手机端导航' })).toBeNull();
+
+    act(() => setViewportWidth(390));
+    expect(screen.queryByRole('navigation', { name: '主导航' })).toBeNull();
+    expect(screen.getByRole('navigation', { name: '手机端导航' })).toBeTruthy();
+
+    act(() => setViewportWidth(1024));
+    expect(screen.getByRole('navigation', { name: '主导航' })).toBeTruthy();
+    expect(screen.queryByRole('navigation', { name: '手机端导航' })).toBeNull();
   });
 
   it('does not show the machine review badge for imported patterns', async () => {
@@ -1024,7 +1042,7 @@ describe('web creation workspace', () => {
   });
 
   it('marks stanzas in the annotated result view for double-stanza patterns', async () => {
-    document.documentElement.dataset['platform'] = 'mobile';
+    setViewportWidth(390);
     const client = createClient([doubleStanzaPattern]);
     const user = userEvent.setup();
     render(<App client={client} />);
@@ -1138,6 +1156,14 @@ function createClient(patterns: ReadonlyArray<CiPattern> = [pattern]) {
     getCharacterPronunciations,
   };
   return client;
+}
+
+function setViewportWidth(width: number): void {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: width,
+  });
+  window.dispatchEvent(new Event('resize'));
 }
 
 function createTestStorage(): Storage {

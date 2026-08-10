@@ -35,7 +35,6 @@ const entries = Array.from({ length: 9 }, (_, index) => createEntry(index));
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
-  delete document.documentElement.dataset['platform'];
 });
 
 describe('generation history pagination', () => {
@@ -68,10 +67,9 @@ describe('generation history pagination', () => {
     expect(screen.getByLabelText('历史记录总数').textContent).toBe('筛选 1 条 / 共 9 条');
   });
 
-  it('shows all records without pagination on mobile and preserves the list after detail', async () => {
-    document.documentElement.dataset['platform'] = 'mobile';
+  it('shows all records without pagination in the compact layout and preserves the list after detail', async () => {
     const user = userEvent.setup();
-    renderHistory();
+    renderHistory(vi.fn(), true);
 
     expect(getHistoryCardList().querySelectorAll('.history-list-entry')).toHaveLength(9);
     expect(screen.queryByRole('navigation', { name: '历史记录分页' })).toBeNull();
@@ -154,9 +152,10 @@ describe('generation history pagination', () => {
   });
 });
 
-function renderHistory(onDelete = vi.fn()): void {
+function renderHistory(onDelete = vi.fn(), compactLayout = false): void {
   render(
     <GenerationHistoryWorkspace
+      compactLayout={compactLayout}
       entries={entries}
       onInspectCharacter={vi.fn()}
       onRefine={async (_entry, result) => result}
