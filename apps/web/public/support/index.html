@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="PoesyGen 技术支持，提供使用说明、常见问题、故障排查和反馈入口。"
+    />
+    <meta name="theme-color" content="#9f3c2f" />
+    <link rel="icon" href="../favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../info-page.css" />
+    <title>技术支持 | PoesyGen</title>
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-content">
+        <span class="brand-seal" aria-hidden="true">词</span>
+        <span class="brand-copy">
+          <strong>PoesyGen</strong>
+          <small>格律诗词作</small>
+        </span>
+      </div>
+    </header>
+
+    <main>
+      <h1>技术支持</h1>
+      <p class="page-note">适用于 PoesyGen iOS、Web、桌面端及 Android 应用</p>
+
+      <div class="summary">
+        <p>
+          PoesyGen 是一款 AI
+          词作生成与格律优化工具。词谱、韵书、字典和格律校验可以离线使用；生成、润色和灵感功能需要你自行配置兼容
+          OpenAI 接口的模型服务。
+        </p>
+        <div class="support-actions">
+          <a
+            class="support-action"
+            data-primary="true"
+            href="https://github.com/jiangliuyang1999/PoesyGen/issues/new"
+            rel="noopener noreferrer"
+          >
+            提交问题
+          </a>
+          <a class="support-action" href="../privacy/">查看隐私政策</a>
+        </div>
+      </div>
+
+      <h2>快速开始</h2>
+      <ol>
+        <li>打开应用后，可直接浏览词谱、查询字典和查看格律规则，无需注册账号。</li>
+        <li>
+          如需生成词作，点击右上角的“LLM 未配置”，填写 API Base URL 或完整 Endpoint、Model 和 API
+          Key。
+        </li>
+        <li>
+          在创作页选择词牌和体式，填写主题及可选要求后开始生成。生成结果可查看正文、格律标注并继续局部修改。
+        </li>
+      </ol>
+
+      <h2>系统要求</h2>
+      <ul>
+        <li>iPhone 或 iPad：iOS/iPadOS 15.0 及以上版本。</li>
+        <li>Web：支持现代 JavaScript、Web Storage 和 Fetch API 的主流浏览器。</li>
+        <li>生成相关功能需要网络连接，以及有效且有可用额度的模型服务配置。</li>
+      </ul>
+
+      <h2>常见问题</h2>
+      <div class="faq-list">
+        <details>
+          <summary>为什么未配置模型也能使用部分功能？</summary>
+          <p>
+            词谱、《词林正韵》、字典数据和格律校验随应用提供，在当前设备上运行，不依赖 PoesyGen
+            服务端。只有生成、主题润色、远程灵感推荐和局部修改需要调用你配置的模型服务。
+          </p>
+        </details>
+
+        <details>
+          <summary>API Base URL 和 Endpoint 应该怎样填写？</summary>
+          <p>
+            Base URL 通常填写到服务的版本路径，例如
+            <code>https://api.example.com/v1</code>，应用会请求其
+            <code>/chat/completions</code> 接口。Endpoint 应填写完整的聊天补全接口地址；填写
+            Endpoint 后会优先使用该地址。具体格式以模型服务商文档为准。
+          </p>
+        </details>
+
+        <details>
+          <summary>生成失败或一直没有结果怎么办？</summary>
+          <ul>
+            <li>确认 Base URL 或 Endpoint、Model 和 API Key 均已填写且没有多余空格。</li>
+            <li>确认模型账户状态正常、余额或额度充足，并允许访问所填模型。</li>
+            <li>建议使用有效的 HTTPS 地址，并检查当前网络能否连接模型服务。</li>
+            <li>适当增加超时时间，或降低输出 Token 数后重试。</li>
+            <li>记录页面错误信息，并按本页“提交反馈”部分提供可复现步骤。</li>
+          </ul>
+        </details>
+
+        <details>
+          <summary>为什么浏览器可以失败，但 iOS 应用可以正常请求？</summary>
+          <p>
+            Web 浏览器直连模型服务时受 CORS 跨域策略限制；iOS 和 Android
+            应用使用原生网络请求，不受浏览器 CORS 限制。两者仍然需要模型地址可访问、TLS
+            证书有效且鉴权配置正确。
+          </p>
+        </details>
+
+        <details>
+          <summary>创作历史会在设备之间同步吗？</summary>
+          <p>
+            不会。历史记录只保存在当前应用或浏览器的本地存储中，不会自动同步至其他设备，也不会上传到
+            PoesyGen 开发者运营的服务器。
+          </p>
+        </details>
+
+        <details>
+          <summary>怎样删除创作记录和本地配置？</summary>
+          <p>
+            可在历史记录页逐条删除作品，并在 LLM 配置中清除 API
+            Key。卸载移动应用，或清除浏览器的站点数据，可删除当前安装中的全部本地数据。
+          </p>
+        </details>
+
+        <details>
+          <summary>为什么生成结果显示格律不通过？</summary>
+          <p>
+            模型生成内容不保证一次符合所有字数、平仄和押韵约束。请打开“格律标注”查看错误、存疑及超出字数的字符，再使用局部修改继续调整。格律校验属于辅助工具，涉及多音字或古音时仍建议结合权威资料判断。
+          </p>
+        </details>
+
+        <details>
+          <summary>API Key 和创作内容会发送给谁？</summary>
+          <p>
+            应用会将完成生成任务所需的 API
+            Key、提示词和创作内容直接发送给你选择的模型服务商，不会先经过 PoesyGen
+            开发者的服务器。请选择可信服务，并阅读其隐私政策。更多说明见
+            <a href="../privacy/">PoesyGen 隐私政策</a>。
+          </p>
+        </details>
+      </div>
+
+      <h2>故障排查</h2>
+      <ol>
+        <li>关闭并重新打开应用，确认问题是否仍能复现。</li>
+        <li>检查网络连接，以及模型服务商的状态、额度和接口文档。</li>
+        <li>重新核对模型配置，必要时使用服务商提供的最小示例验证接口。</li>
+        <li>记录出现问题的操作步骤、错误提示、应用版本和系统版本。</li>
+        <li>仍无法解决时，通过下方公开问题页面提交反馈。</li>
+      </ol>
+
+      <h2>提交反馈</h2>
+      <p>为了更快定位问题，请尽量提供以下信息：</p>
+      <ul>
+        <li>PoesyGen 应用版本。</li>
+        <li>设备型号及 iOS、iPadOS、Android、macOS、Windows 或浏览器版本。</li>
+        <li>从打开应用到出现问题的完整操作步骤。</li>
+        <li>预期结果、实际结果和页面显示的错误信息。</li>
+        <li>必要的截图或已脱敏日志。</li>
+      </ul>
+
+      <div class="contact-card">
+        <h3>联系技术支持</h3>
+        <p>
+          请前往
+          <a href="https://github.com/jiangliuyang1999/PoesyGen/issues" rel="noopener noreferrer">
+            PoesyGen 项目问题页面
+          </a>
+          查看已有问题或提交新问题。
+        </p>
+        <p>
+          请勿公开提交 API
+          Key、Authorization、密码、个人联系方式、未公开作品或其他敏感信息。日志和截图应先完成脱敏。
+        </p>
+      </div>
+    </main>
+
+    <footer>PoesyGen · 技术支持 · <a href="../privacy/">隐私政策</a></footer>
+  </body>
+</html>

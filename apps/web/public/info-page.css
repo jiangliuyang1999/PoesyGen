@@ -1,0 +1,283 @@
+:root {
+  color: #292622;
+  background: #eeeae1;
+  font-family: 'Noto Serif SC', 'Songti SC', 'STSong', serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --paper: #faf8f2;
+  --paper-deep: #f3efe6;
+  --ink: #292622;
+  --muted: #776f64;
+  --line: #d8d0c3;
+  --vermilion: #9f3c2f;
+  --vermilion-dark: #7e2c23;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(rgb(81 68 53 / 3%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(81 68 53 / 2%) 1px, transparent 1px), #eeeae1;
+  background-size: 32px 32px;
+  line-height: 1.8;
+}
+
+a {
+  color: var(--vermilion-dark);
+  text-underline-offset: 3px;
+}
+
+a:focus-visible {
+  border-radius: 3px;
+  outline: 2px solid var(--vermilion);
+  outline-offset: 3px;
+}
+
+.page-header {
+  border-bottom: 1px solid var(--line);
+  background: rgb(250 248 242 / 94%);
+}
+
+.header-content,
+main,
+footer {
+  width: min(780px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.header-content {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-height: 72px;
+}
+
+.brand-seal {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 4px solid var(--vermilion);
+  border-radius: 9px;
+  place-items: center;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.brand-copy {
+  display: grid;
+  gap: 1px;
+}
+
+.brand-copy strong {
+  font-family: ui-monospace, 'SFMono-Regular', monospace;
+  font-size: 0.88rem;
+  letter-spacing: 0.08em;
+}
+
+.brand-copy small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+main {
+  margin-top: 28px;
+  margin-bottom: 36px;
+  padding: 34px 40px 42px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 12px 40px rgb(61 49 36 / 6%);
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.35;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 5vw, 2.35rem);
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+h2 {
+  margin: 34px 0 10px;
+  padding-top: 4px;
+  font-size: 1.12rem;
+}
+
+h3 {
+  margin: 0 0 6px;
+  font-size: 0.98rem;
+}
+
+p,
+li {
+  color: #4e4942;
+  font-size: 0.96rem;
+}
+
+p {
+  margin: 10px 0;
+}
+
+ul,
+ol {
+  margin: 10px 0;
+  padding-left: 1.35rem;
+}
+
+li + li {
+  margin-top: 8px;
+}
+
+code {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--paper-deep);
+  color: var(--ink);
+  font-family: ui-monospace, 'SFMono-Regular', monospace;
+  font-size: 0.88em;
+}
+
+.effective-date,
+.page-note {
+  margin: 8px 0 24px;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.summary {
+  margin: 0;
+  padding: 16px 18px;
+  border-left: 3px solid var(--vermilion);
+  border-radius: 0 6px 6px 0;
+  background: var(--paper-deep);
+}
+
+.support-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 0;
+}
+
+.support-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 7px 13px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.88rem;
+  text-decoration: none;
+}
+
+.support-action[data-primary='true'] {
+  border-color: var(--vermilion);
+  background: var(--vermilion);
+  color: #fff;
+}
+
+.faq-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.faq-list details {
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper-deep);
+}
+
+.faq-list summary {
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.94rem;
+  font-weight: 600;
+}
+
+.faq-list details p,
+.faq-list details ul {
+  margin-bottom: 0;
+}
+
+.contact-card {
+  margin-top: 14px;
+  padding: 17px 18px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--paper-deep);
+}
+
+.contact-card p:last-child {
+  margin-bottom: 0;
+}
+
+footer {
+  padding: 0 0 32px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+footer a {
+  color: inherit;
+}
+
+@media (max-width: 600px) {
+  .header-content,
+  main,
+  footer {
+    width: min(100% - 28px, 780px);
+  }
+
+  .header-content {
+    min-height: 64px;
+  }
+
+  main {
+    margin-top: 14px;
+    padding: 26px 20px 32px;
+    border-radius: 10px;
+  }
+
+  h2 {
+    margin-top: 28px;
+  }
+
+  .support-actions {
+    display: grid;
+  }
+
+  .support-action {
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
