@@ -2406,8 +2406,18 @@ button:disabled {
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr);
   gap: 8px;
-  min-height: 42px;
-  padding-bottom: 8px;
+  min-height: 34px;
+  padding-bottom: 10px;
+}
+
+.generation-progress li:not(:last-child)::before {
+  position: absolute;
+  top: 12px;
+  bottom: 0;
+  left: 6px;
+  width: 1px;
+  background: var(--line);
+  content: '';
 }
 
 .generation-progress li > i {
@@ -2419,16 +2429,6 @@ button:disabled {
   border: 2px solid var(--line-strong);
   border-radius: 50%;
   background: var(--paper-deep);
-}
-
-.generation-progress li:not(:last-child) > i::after {
-  position: absolute;
-  top: 8px;
-  left: 2px;
-  width: 1px;
-  height: 34px;
-  background: var(--line);
-  content: '';
 }
 
 .generation-progress li[data-state='completed'] > i {
@@ -2448,15 +2448,19 @@ button:disabled {
   background: var(--vermilion);
 }
 
-.generation-progress li > div {
+.generation-progress-content {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
   min-width: 0;
 }
 
-.generation-progress li > div > span {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+.generation-progress-stage {
+  display: grid;
+  gap: 1px;
+  align-content: start;
+  min-width: 0;
 }
 
 .generation-progress b {
@@ -2469,11 +2473,15 @@ button:disabled {
   color: var(--muted);
   font-family: ui-monospace, monospace;
   font-size: 0.6rem;
+  white-space: nowrap;
 }
 
 .generation-progress li p {
-  margin-top: 2px;
+  min-width: 0;
+  margin: 0;
   font-size: 0.68rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 @keyframes progress-pulse {

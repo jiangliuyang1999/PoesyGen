@@ -221,8 +221,8 @@ export function GenerationProgress({ entries, statusKind, ariaLabel }: Generatio
             {...(state === 'active' ? { 'aria-current': 'step' as const } : {})}
           >
             <i aria-hidden="true" />
-            <div>
-              <span>
+            <div className="generation-progress-content">
+              <span className="generation-progress-stage">
                 <b>{progressStageLabel(entry.stage)}</b>
                 {entry.round !== undefined && entry.maxRounds !== undefined && (
                   <small>
