@@ -230,7 +230,11 @@ describe('web creation workspace', () => {
     const generationSettings = within(settings)
       .getByRole('heading', { name: '生成设置', level: 2 })
       .closest('aside')!;
+    const generationActions = within(settings).getByRole('region', { name: '生成操作' });
+    const generationButton = within(generationActions).getByRole('button', { name: /开始生成/ });
     expect(generationSettings.contains(rhymeSettings)).toBe(false);
+    expect(generationSettings.contains(generationButton)).toBe(false);
+    expect(generationSettings.nextElementSibling).toBe(generationActions);
     expect(
       within(settings).getByRole<HTMLTextAreaElement>('textbox', { name: '作品主题' }).rows,
     ).toBe(3);

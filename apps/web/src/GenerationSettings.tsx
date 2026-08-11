@@ -44,9 +44,13 @@ interface GenerationSettingsProps {
   readonly rounds: number;
   readonly requirements: string;
   readonly status: SubmissionStatus;
-  readonly canSubmit: boolean;
   readonly onRoundsChange: (rounds: number) => void;
   readonly onRequirementsChange: (requirements: string) => void;
+}
+
+interface GenerationActionsProps {
+  readonly status: SubmissionStatus;
+  readonly canSubmit: boolean;
 }
 
 interface RhymeSettingsProps {
@@ -100,7 +104,6 @@ export function GenerationSettings({
   rounds,
   requirements,
   status,
-  canSubmit,
   onRoundsChange,
   onRequirementsChange,
 }: GenerationSettingsProps) {
@@ -152,16 +155,21 @@ export function GenerationSettings({
           placeholder={'避免直白抒情\n使用江南意象'}
         />
       </div>
-
-      <div className="settings-action">
-        <button className="primary-action" type="submit" disabled={!canSubmit || disabled}>
-          <span>{disabled ? '正在生成' : '开始生成'}</span>
-          <span aria-hidden="true">→</span>
-        </button>
-
-        {status.progressTarget !== 'refinement' && <SubmissionNotice status={status} />}
-      </div>
     </aside>
+  );
+}
+
+export function GenerationActions({ status, canSubmit }: GenerationActionsProps) {
+  const disabled = isSubmissionInProgress(status);
+
+  return (
+    <section className="generation-actions" aria-label="生成操作">
+      <button className="primary-action" type="submit" disabled={!canSubmit || disabled}>
+        <span>{disabled ? '正在生成' : '开始生成'}</span>
+        <span aria-hidden="true">→</span>
+      </button>
+      {status.progressTarget !== 'refinement' && <SubmissionNotice status={status} />}
+    </section>
   );
 }
 

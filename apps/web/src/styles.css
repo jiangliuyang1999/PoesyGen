@@ -526,15 +526,15 @@ button:disabled {
 }
 
 .creation-controls-panel {
+  display: grid;
+  gap: 16px;
   min-width: 0;
-  overflow: hidden;
 }
 
 .creation-pattern-panel {
   display: grid;
   gap: 15px;
   padding: 20px;
-  border-bottom: 1px solid var(--line);
 }
 
 .creation-pattern-panel > .selected-pattern-bar {
@@ -552,14 +552,14 @@ button:disabled {
 
 .creation-controls-panel > .theme-editor,
 .creation-controls-panel > .generation-settings {
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 10px 30px rgb(63 51 37 / 5%);
 }
 
 .creation-controls-panel > .theme-editor {
   padding: 20px;
-  border-bottom: 1px solid var(--line);
 }
 
 .creation-controls-panel > .generation-settings {
@@ -590,11 +590,12 @@ button:disabled {
   min-height: 100%;
 }
 
-.creation-controls-panel,
+.creation-pattern-panel,
 .pattern-preview,
 .theme-editor,
 .generation-result,
 .generation-settings,
+.generation-actions,
 .dictionary-lookup,
 .rhyme-browser,
 .history-browser,
@@ -2342,9 +2343,9 @@ button:disabled {
   font-size: 0.78rem;
 }
 
-.settings-action {
+.generation-actions {
   display: grid;
-  padding: 2px;
+  padding: 16px;
 }
 
 .primary-action {
@@ -3032,6 +3033,7 @@ html[data-platform='desktop'] .creation-workspace-grid {
   .creation-controls-panel,
   .pattern-preview,
   .generation-result,
+  .generation-actions,
   .dictionary-lookup,
   .rhyme-browser,
   .history-browser,
@@ -3087,7 +3089,8 @@ html[data-platform='desktop'] .creation-workspace-grid {
   }
 
   .creation-controls-panel > .theme-editor,
-  .creation-controls-panel > .generation-settings {
+  .creation-controls-panel > .generation-settings,
+  .creation-controls-panel > .generation-actions {
     padding: 18px 15px;
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -3101,6 +3104,10 @@ html[data-platform='desktop'] .creation-workspace-grid {
 
   .creation-controls-panel > .generation-settings {
     order: 4;
+  }
+
+  .creation-controls-panel > .generation-actions {
+    order: 5;
   }
 
   .creation-preview-panel > .pattern-preview {
@@ -3141,7 +3148,7 @@ html[data-platform='desktop'] .creation-workspace-grid {
   }
 
   .creation-preview-panel > .generation-result {
-    order: 5;
+    order: 6;
   }
 
   .theme-editor textarea {

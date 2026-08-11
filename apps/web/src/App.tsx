@@ -17,6 +17,7 @@ import { DictionaryWorkspace } from './DictionaryWorkspace.js';
 import { GenerationHistoryWorkspace } from './GenerationHistoryWorkspace.js';
 import { GenerationResultPanel } from './GenerationResultPanel.js';
 import {
+  GenerationActions,
   GenerationSettings,
   isSubmissionInProgress,
   RhymeSettings,
@@ -991,9 +992,12 @@ export function App({ client: providedClient }: AppProps = {}) {
                     rounds={rounds}
                     requirements={requirements}
                     status={submissionStatus}
-                    canSubmit={theme.trim() !== '' && creationServiceAvailable && !themePolishing}
                     onRoundsChange={setRounds}
                     onRequirementsChange={setRequirements}
+                  />
+                  <GenerationActions
+                    status={submissionStatus}
+                    canSubmit={theme.trim() !== '' && creationServiceAvailable && !themePolishing}
                   />
                 </section>
 
