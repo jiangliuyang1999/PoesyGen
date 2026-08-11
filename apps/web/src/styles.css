@@ -2023,6 +2023,7 @@ button:disabled {
 .generation-settings textarea:focus,
 .generation-settings select:focus,
 .creation-rhyme-settings select:focus,
+.direct-llm-fields select:focus,
 .direct-llm-fields input:focus {
   border-color: var(--vermilion);
   box-shadow: 0 0 0 3px rgb(159 60 47 / 8%);

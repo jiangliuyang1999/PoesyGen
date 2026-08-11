@@ -10,6 +10,7 @@ const config: DirectLlmConfig = {
   endpoint: '',
   model: 'test-model',
   apiKey: 'test-secret',
+  providerProfiles: {},
   timeoutMs: 30_000,
   maxTokens: 1_024,
   jsonMode: true,

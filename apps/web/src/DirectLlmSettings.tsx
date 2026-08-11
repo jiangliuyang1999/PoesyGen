@@ -1,4 +1,9 @@
-import type { DirectLlmConfig } from './direct-llm-config.js';
+import {
+  directLlmProviderOptions,
+  switchDirectLlmProvider,
+  updateDirectLlmProviderProfile,
+  type DirectLlmConfig,
+} from './direct-llm-config.js';
 
 interface DirectLlmSettingsProps {
   readonly config: DirectLlmConfig;
@@ -18,34 +23,19 @@ export function DirectLlmSettings({ config, disabled, onChange }: DirectLlmSetti
     <div className="setting-block direct-llm-settings">
       <div className="direct-llm-fields">
         <label>
-          <span>接口协议</span>
-          <select aria-label="LLM 接口协议" value="openai-compatible" disabled>
-            <option value="openai-compatible">OpenAI-compatible</option>
-          </select>
-        </label>
-
-        <label>
-          <span>API Base URL</span>
-          <input
-            type="url"
+          <span>模型服务</span>
+          <select
             aria-label="LLM API Base URL"
             value={config.baseUrl}
             disabled={disabled}
-            placeholder="https://api.openai.com/v1"
-            onChange={(event) => update('baseUrl', event.target.value)}
-          />
-        </label>
-
-        <label>
-          <span>Endpoint（可选）</span>
-          <input
-            type="url"
-            aria-label="LLM Endpoint"
-            value={config.endpoint}
-            disabled={disabled}
-            placeholder="https://example.com/v1/chat/completions"
-            onChange={(event) => update('endpoint', event.target.value)}
-          />
+            onChange={(event) => onChange(switchDirectLlmProvider(config, event.target.value))}
+          >
+            {directLlmProviderOptions.map((provider) => (
+              <option key={provider.id} value={provider.baseUrl}>
+                {provider.name} · {provider.baseUrl}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label>
@@ -54,8 +44,14 @@ export function DirectLlmSettings({ config, disabled, onChange }: DirectLlmSetti
             aria-label="LLM Model"
             value={config.model}
             disabled={disabled}
-            placeholder="模型名或方舟 endpoint-id"
-            onChange={(event) => update('model', event.target.value)}
+            placeholder="模型名或 endpoint-id"
+            onChange={(event) =>
+              onChange(
+                updateDirectLlmProviderProfile(config, {
+                  model: event.target.value,
+                }),
+              )
+            }
           />
         </label>
 
@@ -68,7 +64,13 @@ export function DirectLlmSettings({ config, disabled, onChange }: DirectLlmSetti
             disabled={disabled}
             autoComplete="new-password"
             placeholder="仅保存在当前设备"
-            onChange={(event) => update('apiKey', event.target.value)}
+            onChange={(event) =>
+              onChange(
+                updateDirectLlmProviderProfile(config, {
+                  apiKey: event.target.value,
+                }),
+              )
+            }
           />
         </label>
 

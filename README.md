@@ -79,7 +79,7 @@ Web 地址为 `http://localhost:5173`。页面无需 LLM 配置即可浏览全�
 
 在 LLM 配置中填写以下 OpenAI-compatible 参数：
 
-- API Base URL，或完整 Endpoint
+- 模型服务：从 OpenAI、DeepSeek、方舟和千问的固定 Base URL 中选择
 - Model
 - API Key
 - 可选的输出 Token、超时和 JSON Mode
