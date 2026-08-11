@@ -4,7 +4,7 @@ import { OpenAiCompatibleProvider } from './index.js';
 
 describe('OpenAiCompatibleProvider', () => {
   it('calls a chat-completions endpoint and parses structured JSON', async () => {
-    const fetch = vi.fn(async () =>
+    const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
       Response.json({
         id: 'request-1',
         model: 'test-model',
@@ -31,6 +31,7 @@ describe('OpenAiCompatibleProvider', () => {
     const result = await provider.generateStructured({
       operation: 'draft',
       messages: [{ role: 'user', content: '写词' }],
+      maxTokens: 512,
       parse(value) {
         return value as { title: string; lines: string[] };
       },
@@ -45,6 +46,10 @@ describe('OpenAiCompatibleProvider', () => {
         }),
       }),
     );
+    const requestBody = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) as {
+      max_tokens: number;
+    };
+    expect(requestBody.max_tokens).toBe(512);
     expect(result).toEqual({
       value: {
         title: '春归',

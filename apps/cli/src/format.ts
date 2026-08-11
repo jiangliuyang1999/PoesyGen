@@ -1,10 +1,6 @@
-import {
-  patternRhymeLabels,
-  patternStats,
-  type CiPattern,
-  type GenerationResult,
-} from '@poesygen/domain';
+import { patternStats, type CiPattern, type GenerationResult } from '@poesygen/domain';
 import { findPattern } from '@poesygen/patterns';
+import type { GenerationWorkflowStageResult } from '@poesygen/workflow';
 
 import type {
   CharacterPronunciationResponse,
@@ -112,14 +108,36 @@ export function formatGenerationResult(
     ...formatGenerationLines(draft.lines, pattern),
     '',
     status === 'completed'
-      ? `格律校验通过 · ${rounds} 轮`
-      : `已达到 ${rounds} 轮优化上限 · ${report.issues.length} 项待处理`,
+      ? `格律与文学质量校验通过 · ${rounds} 轮`
+      : status === 'quality_limit_reached'
+        ? `格律校验通过，已达到 ${rounds} 轮文学优化上限`
+        : `已达到 ${rounds} 轮优化上限 · ${report.issues.length} 项格律问题待处理`,
     ...(report.issues.length === 0
       ? []
       : report.issues.map(
           (issue) =>
             `- ${issue.lineId}${issue.charIndex === undefined ? '' : ` 第${issue.charIndex + 1}字`}：${issue.message}`,
         )),
+  ].join('\n');
+}
+
+export function formatGenerationStageResult(result: GenerationWorkflowStageResult): string {
+  const labels = {
+    pattern_blueprint: '词谱蓝图',
+    theme_brief: '主题简报',
+    composition_plan: '篇章规划',
+    draft_candidates: '候选词稿',
+    prosody_reports: '格律报告',
+    quality_reports: '文学评价',
+    optimized_draft: '优化词稿',
+  } as const;
+  const round =
+    result.round === undefined || result.maxRounds === undefined
+      ? ''
+      : ` · ${result.round}/${result.maxRounds}`;
+  return [
+    `[阶段结果 · ${labels[result.kind]}${round}]`,
+    JSON.stringify(result.value, null, 2),
   ].join('\n');
 }
 

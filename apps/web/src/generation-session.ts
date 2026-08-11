@@ -50,7 +50,7 @@ export async function runGenerationSession({
   try {
     const result = await runDirectGeneration(config, request, pattern, {
       onProgress(event) {
-        progress = [...progress, directProgressToSubmissionProgress(event)];
+        progress = mergeProgress(progress, directProgressToSubmissionProgress(event));
         logWebEvent('session', '生成会话状态更新', {
           patternId: pattern.id,
           event,
@@ -77,7 +77,15 @@ export async function runGenerationSession({
     return { result, progress };
   } catch (error) {
     const message = toUserMessage(error);
-    progress = [...progress, { stage: 'error', message }];
+    progress = [
+      ...progress,
+      {
+        stepId: 'error',
+        stage: 'error',
+        activity: 'completed',
+        message,
+      },
+    ];
     onStatus({
       kind: 'error',
       message,
@@ -99,9 +107,23 @@ function directProgressToSubmissionProgress(
 ): SubmissionProgressEntry {
   return {
     stage: progress.stage,
+    ...(progress.stepId === undefined ? {} : { stepId: progress.stepId }),
+    ...(progress.activity === undefined ? {} : { activity: progress.activity }),
     message: progress.message,
     ...(progress.round === undefined ? {} : { round: progress.round }),
     ...(progress.maxRounds === undefined ? {} : { maxRounds: progress.maxRounds }),
     ...(progress.issueCount === undefined ? {} : { issueCount: progress.issueCount }),
+    ...(progress.elapsedMs === undefined ? {} : { elapsedMs: progress.elapsedMs }),
   };
+}
+
+function mergeProgress(
+  entries: ReadonlyArray<SubmissionProgressEntry>,
+  next: SubmissionProgressEntry,
+): ReadonlyArray<SubmissionProgressEntry> {
+  const last = entries.at(-1);
+  if (next.stepId !== undefined && last?.stepId === next.stepId && next.activity !== 'started') {
+    return [...entries.slice(0, -1), next];
+  }
+  return [...entries, next];
 }

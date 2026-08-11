@@ -138,6 +138,126 @@ export interface WorkDraft {
   readonly requestedRhymeGroup?: string;
 }
 
+export interface ThemeBrief {
+  readonly coreTheme: string;
+  readonly subject: string;
+  readonly setting: string;
+  readonly perspective: string;
+  readonly emotionalArc: ReadonlyArray<string>;
+  readonly keyFacts: ReadonlyArray<string>;
+  readonly imagery: ReadonlyArray<string>;
+  readonly avoid: ReadonlyArray<string>;
+  readonly assumptions: ReadonlyArray<string>;
+}
+
+export interface PatternBlueprintLine {
+  readonly lineId: string;
+  readonly sectionId: string;
+  readonly sectionName: string;
+  readonly sequence: number;
+  readonly characterCount: number;
+  readonly tonePattern: string;
+  readonly rhymeLabel?: string;
+  readonly rhymeTone?: ToneRequirement;
+  readonly requestedRhymeGroup?: string;
+  readonly nonRhymeEnding: boolean;
+}
+
+export interface PatternBlueprintSection {
+  readonly sectionId: string;
+  readonly name: string;
+  readonly lineIds: ReadonlyArray<string>;
+}
+
+export interface PatternBlueprint {
+  readonly patternId: string;
+  readonly patternName: string;
+  readonly variant: string;
+  readonly sections: ReadonlyArray<PatternBlueprintSection>;
+  readonly lines: ReadonlyArray<PatternBlueprintLine>;
+}
+
+export interface PlannedAllusion {
+  readonly phrase: string;
+  readonly source?: string;
+  readonly meaning: string;
+  readonly purpose: string;
+  readonly verified: boolean;
+}
+
+export interface CompositionSectionPlan {
+  readonly sectionId: string;
+  readonly task: string;
+  readonly arc: string;
+}
+
+export interface CompositionLinePlan {
+  readonly lineId: string;
+  readonly task: string;
+  readonly emotion: string;
+  readonly image: string;
+  readonly ending: string;
+}
+
+export interface CompositionPlan {
+  readonly thesis: string;
+  readonly style: string;
+  readonly voice: string;
+  readonly imagery: ReadonlyArray<string>;
+  readonly allusions: ReadonlyArray<PlannedAllusion>;
+  readonly sections: ReadonlyArray<CompositionSectionPlan>;
+  readonly lines: ReadonlyArray<CompositionLinePlan>;
+}
+
+export type QualityDimension =
+  | 'themeFidelity'
+  | 'coherence'
+  | 'emotionalArc'
+  | 'imagery'
+  | 'diction'
+  | 'originality'
+  | 'allusionFitness';
+
+export interface QualityScores {
+  readonly themeFidelity: number;
+  readonly coherence: number;
+  readonly emotionalArc: number;
+  readonly imagery: number;
+  readonly diction: number;
+  readonly originality: number;
+  readonly allusionFitness: number;
+}
+
+export interface QualityIssue {
+  readonly dimension: QualityDimension;
+  readonly severity: 'error' | 'warning';
+  readonly message: string;
+  readonly suggestion: string;
+  readonly lineId?: string;
+}
+
+export interface ThemeEvidence {
+  readonly requirement: string;
+  readonly status: 'clear' | 'implicit' | 'missing';
+  readonly lineIds: ReadonlyArray<string>;
+  readonly quotes: ReadonlyArray<string>;
+  readonly explanation: string;
+}
+
+export interface QualityReport {
+  readonly passed: boolean;
+  readonly summary: string;
+  readonly themeRecognizable: boolean;
+  readonly themeEvidence: ReadonlyArray<ThemeEvidence>;
+  readonly scores: QualityScores;
+  readonly issues: ReadonlyArray<QualityIssue>;
+}
+
+export interface GenerationContext {
+  readonly themeBrief: ThemeBrief;
+  readonly plan: CompositionPlan;
+}
+
 export type ProsodyRule = 'length' | 'tone' | 'rhyme' | 'structure';
 
 export interface ProsodyIssue {
@@ -157,10 +277,12 @@ export interface ProsodyReport {
 }
 
 export interface GenerationResult {
-  readonly status: 'completed' | 'round_limit_reached';
+  readonly status: 'completed' | 'round_limit_reached' | 'quality_limit_reached';
   readonly draft: WorkDraft;
   readonly report: ProsodyReport;
   readonly rounds: number;
+  readonly context?: GenerationContext;
+  readonly qualityReport?: QualityReport;
 }
 
 export interface GenerationRequest {
@@ -171,6 +293,7 @@ export interface GenerationRequest {
   readonly maxRounds?: number;
   readonly sourceDraft?: WorkDraft;
   readonly selections?: ReadonlyArray<TextSelection>;
+  readonly sourceContext?: GenerationContext;
 }
 
 export interface TextSelection {

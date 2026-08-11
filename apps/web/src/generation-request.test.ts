@@ -57,6 +57,42 @@ const sourceResult: GenerationResult = {
     passed: true,
     issues: [],
   },
+  context: {
+    themeBrief: {
+      coreTheme: '暮春怀人',
+      subject: '怀人者',
+      setting: '暮春',
+      perspective: '第一人称',
+      emotionalArc: ['见景', '怀人'],
+      keyFacts: ['暮春'],
+      imagery: ['春'],
+      avoid: [],
+      assumptions: [],
+    },
+    plan: {
+      thesis: '借春景怀人',
+      style: '含蓄',
+      voice: '第一人称',
+      imagery: ['春'],
+      allusions: [],
+      sections: [
+        {
+          sectionId: 'single',
+          task: '写春景并由景入情',
+          arc: '由景入情后收束',
+        },
+      ],
+      lines: [
+        {
+          lineId: 'line-1',
+          task: '点明春景并借景怀人',
+          emotion: '惆怅',
+          image: '春',
+          ending: '落在春字',
+        },
+      ],
+    },
+  },
 };
 
 describe('web generation request model', () => {
@@ -140,6 +176,7 @@ describe('web generation request model', () => {
         patternId: pattern.id,
         theme: sourceResult.draft.theme,
         sourceDraft: sourceResult.draft,
+        sourceContext: sourceResult.context,
         selections: [{ lineId: 'line-1', start: 0, end: 1, instruction: '改为秋' }],
         maxRounds: 6,
         preferredRhymeGroup: 'cilin-17',

@@ -393,9 +393,12 @@ export function App({ client: providedClient }: AppProps = {}) {
       });
       setSubmissionStatus({
         kind: 'completed',
-        message: result.report.passed
-          ? `《${creationPattern.name}》已通过格律校验。`
-          : `《${creationPattern.name}》已达到优化轮次上限。`,
+        message:
+          result.status === 'completed'
+            ? `《${creationPattern.name}》已通过格律与文学质量校验。`
+            : result.report.passed
+              ? `《${creationPattern.name}》格律已通过，达到优化轮次上限后保留最佳版本。`
+              : `《${creationPattern.name}》已达到优化轮次上限，保留格律问题最少的版本。`,
         result,
         progress,
       });
@@ -424,7 +427,9 @@ export function App({ client: providedClient }: AppProps = {}) {
         request: generationRequest,
         pattern: creationPattern,
         initialProgress: {
+          stepId: 'prepare',
           stage: 'preparing',
+          activity: 'completed',
           message: '已锁定创作设置，正在准备生成',
         },
         loadingMessage: '正在准备页面直连生成流程。',
@@ -465,7 +470,9 @@ export function App({ client: providedClient }: AppProps = {}) {
       request,
       pattern,
       initialProgress: {
+        stepId: 'prepare-refinement',
         stage: 'preparing',
+        activity: 'completed',
         message: '已接收修改意见，正在准备新版本',
       },
       loadingMessage: '已接收修改意见，正在准备新版本',
@@ -474,9 +481,12 @@ export function App({ client: providedClient }: AppProps = {}) {
     });
     onStatus?.({
       kind: 'completed',
-      message: result.report.passed
-        ? '新版本已按意见修改并通过格律校验。'
-        : '新版本已生成，但仍有格律问题。',
+      message:
+        result.status === 'completed'
+          ? '新版本已按意见修改，并通过格律与文学质量校验。'
+          : result.report.passed
+            ? '新版本格律已通过，已保留当前文学质量最佳版本。'
+            : '新版本已生成，但仍有格律问题。',
       result,
       progress,
     });

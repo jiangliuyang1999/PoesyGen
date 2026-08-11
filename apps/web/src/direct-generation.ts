@@ -12,10 +12,13 @@ let llmRequestSequence = 0;
 export interface DirectGenerationProgress {
   readonly phase: 'loading' | 'running';
   readonly stage: 'loading' | GenerationWorkflowStage;
+  readonly stepId?: string;
+  readonly activity?: GenerationWorkflowProgress['activity'];
   readonly message: string;
   readonly round?: number;
   readonly maxRounds?: number;
   readonly issueCount?: number;
+  readonly elapsedMs?: number;
 }
 
 export async function runDirectGeneration(
@@ -36,18 +39,27 @@ export async function runDirectGeneration(
   options.onProgress?.({
     phase: 'loading',
     stage: 'loading',
-    message: '正在加载本地格律校验数据。',
+    stepId: 'load-workflow',
+    activity: 'started',
+    message: '正在加载本地词谱、韵书与创作工作流',
   });
 
-  const [{ createGenerationWorkflow, LlmDraftEngine }, { cilinZhengyunLexicon }] =
+  const [{ createGenerationWorkflow, LlmCompositionEngine }, { cilinZhengyunLexicon }] =
     await Promise.all([import('@poesygen/workflow'), import('@poesygen/prosody')]);
+  options.onProgress?.({
+    phase: 'loading',
+    stage: 'loading',
+    stepId: 'load-workflow',
+    activity: 'completed',
+    message: '本地词谱、韵书与创作工作流加载完成',
+  });
   logWebEvent('generation', '格律工作流依赖加载完成', {
     durationMs: Math.round(performance.now() - startedAt),
   });
 
   const provider = createDirectLlmProvider(config);
   const workflow = createGenerationWorkflow({
-    draftEngine: new LlmDraftEngine(provider),
+    compositionEngine: new LlmCompositionEngine(provider),
     lexicon: cilinZhengyunLexicon,
     onProgress(progress: GenerationWorkflowProgress) {
       logWebEvent('generation', '工作流进度更新', { ...progress });
@@ -91,6 +103,7 @@ export async function runDirectIdeaSuggestions(
     const generated = await provider.generateStructured({
       operation: 'recommend',
       temperature: 1,
+      maxTokens: 256,
       messages: [
         {
           role: 'system',
@@ -135,6 +148,7 @@ export async function runDirectThemePolish(
     const generated = await provider.generateStructured({
       operation: 'recommend',
       temperature: 0.65,
+      maxTokens: 600,
       messages: [
         {
           role: 'system',

@@ -3,8 +3,9 @@ import { OpenAiCompatibleProvider, type OpenAiCompatibleProviderOptions } from '
 import { cilinZhengyunLexicon } from '@poesygen/prosody';
 import {
   createGenerationWorkflow,
-  LlmDraftEngine,
+  LlmCompositionEngine,
   type GenerationWorkflowProgress,
+  type GenerationWorkflowStageResult,
 } from '@poesygen/workflow';
 
 export interface Environment {
@@ -27,6 +28,7 @@ export interface CliLlmConfig {
 export interface LocalGenerationOptions {
   readonly environment?: Environment;
   readonly onProgress?: (progress: GenerationWorkflowProgress) => void;
+  readonly onStageResult?: (result: GenerationWorkflowStageResult) => void;
 }
 
 export function loadCliLlmConfig(environment: Environment = process.env): CliLlmConfig {
@@ -87,9 +89,10 @@ export async function runLocalGeneration(
     headers: config.headers,
   };
   const workflow = createGenerationWorkflow({
-    draftEngine: new LlmDraftEngine(new OpenAiCompatibleProvider(providerOptions)),
+    compositionEngine: new LlmCompositionEngine(new OpenAiCompatibleProvider(providerOptions)),
     lexicon: cilinZhengyunLexicon,
     ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
+    ...(options.onStageResult === undefined ? {} : { onStageResult: options.onStageResult }),
   });
   return workflow.run({ request, pattern });
 }

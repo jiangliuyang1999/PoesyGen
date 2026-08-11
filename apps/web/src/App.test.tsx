@@ -668,6 +668,8 @@ describe('web creation workspace', () => {
       options?.onProgress?.({
         phase: 'running',
         stage: 'drafting',
+        stepId: 'generate-test-candidate',
+        activity: 'started',
         message: '正在生成初稿',
         round: 1,
         maxRounds: request.maxRounds ?? 8,
@@ -685,11 +687,13 @@ describe('web creation workspace', () => {
     const theme = screen.getByRole<HTMLTextAreaElement>('textbox', { name: '作品主题' });
     await user.type(theme, '江上晚归');
     await user.click(screen.getByRole('button', { name: /开始生成/ }));
-    await screen.findByText('正在优化');
+    await screen.findByText('正在创作');
     const generationProgress = screen.getByLabelText('生成进度');
     expect(within(generationProgress).getByText('准备')).toBeTruthy();
     expect(within(generationProgress).getByText('加载')).toBeTruthy();
     expect(within(generationProgress).getByText('创作')).toBeTruthy();
+    expect(within(generationProgress).getAllByText('创作')).toHaveLength(1);
+    expect(within(generationProgress).getByText('正在生成初稿')).toBeTruthy();
     expect(within(generationProgress).getByText('1/8')).toBeTruthy();
     expect(generationProgress.lastElementChild?.getAttribute('data-state')).toBe('active');
 

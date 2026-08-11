@@ -11,6 +11,7 @@ import { loadLocalEnvironment } from './environment.js';
 import {
   formatCharacter,
   formatGenerationResult,
+  formatGenerationStageResult,
   formatPattern,
   formatPatternSummary,
   formatRhymeGroup,
@@ -229,6 +230,9 @@ async function generateAndPrint(request: GenerationRequest, pattern: CiPattern):
     onProgress(progress) {
       if (!jsonOutput) process.stdout.write(`${formatGenerationProgress(progress)}\n`);
     },
+    onStageResult(stageResult) {
+      if (!jsonOutput) process.stdout.write(`${formatGenerationStageResult(stageResult)}\n`);
+    },
   });
   print(result, formatGenerationResult(result, pattern));
 }
@@ -313,11 +317,19 @@ function formatError(error: unknown): string {
 
 function formatGenerationProgress(progress: GenerationWorkflowProgress): string {
   const labels = {
+    parsing: '解析',
+    planning: '规划',
     drafting: '创作',
     validating: '校验',
-    repairing: '修订',
+    evaluating: '评价',
+    optimizing: '优化',
     completed: '完成',
   } as const;
-  const round = progress.stage === 'completed' ? '' : ` ${progress.round}/${progress.maxRounds}`;
+  const round =
+    progress.stage === 'completed' ||
+    progress.round === undefined ||
+    progress.maxRounds === undefined
+      ? ''
+      : ` ${progress.round}/${progress.maxRounds}`;
   return `[${labels[progress.stage]}${round}] ${progress.message}`;
 }

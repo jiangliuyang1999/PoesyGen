@@ -4,10 +4,12 @@ export interface LlmMessage {
 }
 
 export interface StructuredGenerationRequest<T> {
-  readonly operation: 'plan' | 'draft' | 'repair' | 'evaluate' | 'refine' | 'recommend';
+  readonly operation:
+    'analyze' | 'plan' | 'draft' | 'repair' | 'evaluate' | 'optimize' | 'refine' | 'recommend';
   readonly messages: ReadonlyArray<LlmMessage>;
   readonly parse: (value: unknown) => T;
   readonly temperature?: number;
+  readonly maxTokens?: number;
   readonly metadata?: Readonly<Record<string, string>>;
 }
 
@@ -109,7 +111,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         model: this.#model,
         messages: request.messages,
         temperature: request.temperature ?? 0.6,
-        max_tokens: this.#maxTokens,
+        max_tokens: Math.min(request.maxTokens ?? this.#maxTokens, this.#maxTokens),
         ...(this.#jsonMode ? { response_format: { type: 'json_object' } } : {}),
       }),
       signal: combineSignals(signal, AbortSignal.timeout(this.#timeoutMs)),

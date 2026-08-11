@@ -6,14 +6,26 @@ import type { RhymeGroupSummary } from './catalog-types.js';
 import { compatibleRhymeGroups, displayRhymeLabel, patternRhymeLabels } from './model.js';
 
 export type SubmissionProgressStage =
-  'preparing' | 'loading' | 'drafting' | 'validating' | 'repairing' | 'completed' | 'error';
+  | 'preparing'
+  | 'loading'
+  | 'parsing'
+  | 'planning'
+  | 'drafting'
+  | 'validating'
+  | 'evaluating'
+  | 'optimizing'
+  | 'completed'
+  | 'error';
 
 export interface SubmissionProgressEntry {
   readonly stage: SubmissionProgressStage;
+  readonly stepId?: string;
+  readonly activity?: 'started' | 'completed';
   readonly message: string;
   readonly round?: number;
   readonly maxRounds?: number;
   readonly issueCount?: number;
+  readonly elapsedMs?: number;
 }
 
 export interface SubmissionStatus {
@@ -164,7 +176,7 @@ function SubmissionNotice({ status }: { readonly status: SubmissionStatus }) {
         {status.kind === 'completed'
           ? '词作已完成'
           : status.kind === 'running'
-            ? '正在优化'
+            ? '正在创作'
             : status.kind === 'error'
               ? '生成失败'
               : '正在准备生成'}
@@ -185,10 +197,11 @@ interface GenerationProgressProps {
 
 export function GenerationProgress({ entries, statusKind, ariaLabel }: GenerationProgressProps) {
   const latestProgressItem = useRef<HTMLLIElement>(null);
+  const latestMessage = entries.at(-1)?.message;
   useEffect(() => {
     if (statusKind !== 'loading' && statusKind !== 'running') return;
     latestProgressItem.current?.scrollIntoView?.({ block: 'nearest' });
-  }, [entries.length, statusKind]);
+  }, [entries.length, latestMessage, statusKind]);
 
   return (
     <ol className="generation-progress" aria-label={ariaLabel}>
@@ -203,7 +216,7 @@ export function GenerationProgress({ entries, statusKind, ariaLabel }: Generatio
         return (
           <li
             data-state={state}
-            key={`${entry.stage}-${entry.round ?? 0}-${index}`}
+            key={entry.stepId ?? `${entry.stage}-${entry.round ?? 0}-${index}`}
             {...(last ? { ref: latestProgressItem } : {})}
             {...(state === 'active' ? { 'aria-current': 'step' as const } : {})}
           >
@@ -229,9 +242,12 @@ export function GenerationProgress({ entries, statusKind, ariaLabel }: Generatio
 function progressStageLabel(stage: SubmissionProgressStage): string {
   if (stage === 'preparing') return '准备';
   if (stage === 'loading') return '加载';
+  if (stage === 'parsing') return '解析';
+  if (stage === 'planning') return '规划';
   if (stage === 'drafting') return '创作';
   if (stage === 'validating') return '校验';
-  if (stage === 'repairing') return '修订';
+  if (stage === 'evaluating') return '评价';
+  if (stage === 'optimizing') return '优化';
   if (stage === 'completed') return '完成';
   return '失败';
 }

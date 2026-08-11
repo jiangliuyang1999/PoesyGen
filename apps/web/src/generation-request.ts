@@ -137,6 +137,7 @@ export function createRefinementRequest({
         ? {}
         : { requestedRhymeGroup: sourceResult.draft.requestedRhymeGroup }),
     },
+    ...(sourceResult.context === undefined ? {} : { sourceContext: sourceResult.context }),
     selections: selections.map((selection) => ({
       ...selection,
       instruction: selection.instruction.trim(),

@@ -1,7 +1,0 @@
-{
-  "name": "@poesygen/ui-web",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Web and desktop shared UI components",
-  "type": "module"
-}

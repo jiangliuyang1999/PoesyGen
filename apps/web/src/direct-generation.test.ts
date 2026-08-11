@@ -74,6 +74,7 @@ describe('direct generation logging', () => {
         },
         body: {
           model: 'test-model',
+          max_tokens: 256,
         },
       },
     });

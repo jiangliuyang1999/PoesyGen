@@ -6,6 +6,7 @@ import { findPattern } from '@poesygen/patterns';
 import {
   formatCharacter,
   formatGenerationResult,
+  formatGenerationStageResult,
   formatPattern,
   formatPatternSummary,
   patternRhymeLabels,
@@ -81,6 +82,22 @@ describe('CLI formatters', () => {
     expect(formatGenerationResult(createGenerationResult('如梦令·如梦令·春归'))).toMatch(
       /^如梦令·春归\n/u,
     );
+  });
+
+  it('renders structured stage results for CLI debugging', () => {
+    const output = formatGenerationStageResult({
+      stepId: 'analyze-theme',
+      stage: 'parsing',
+      kind: 'theme_brief',
+      value: {
+        coreTheme: '久病初愈',
+        keyFacts: ['久病', '初愈'],
+      },
+    });
+
+    expect(output).toContain('[阶段结果 · 主题简报]');
+    expect(output).toContain('"coreTheme": "久病初愈"');
+    expect(output).toContain('"keyFacts"');
   });
 
   it('separates upper and lower stanzas in generated work and example patterns', () => {

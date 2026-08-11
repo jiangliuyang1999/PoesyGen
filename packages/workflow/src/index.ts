@@ -2,220 +2,92 @@ import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 
 import type {
   CiPattern,
+  CompositionPlan,
   GenerationRequest,
   GenerationResult,
+  PatternBlueprint,
   ProsodyReport,
+  QualityReport,
+  ThemeBrief,
   WorkDraft,
 } from '@poesygen/domain';
-import type { LlmProvider } from '@poesygen/llm';
-import { checkProsody, type ProsodyLexicon } from '@poesygen/prosody';
+import type { ProsodyLexicon } from '@poesygen/prosody';
 
-export interface RepairDraftInput {
-  readonly request: GenerationRequest;
-  readonly pattern: CiPattern;
-  readonly draft: WorkDraft;
-  readonly report: ProsodyReport;
-}
+import { LlmCompositionEngine } from './agent/engine.js';
+import { PatternParserRole } from './agent/roles/pattern-parser.js';
+import { ProsodyValidatorRole } from './agent/roles/prosody-validator.js';
+import { defaultAgentSkillRegistry, type SkillRegistry } from './agent/skills/index.js';
+import { type CompositionEngine, type OptimizationMode } from './composition.js';
 
-export interface DraftEngine {
-  createDraft(
-    request: GenerationRequest,
-    pattern: CiPattern,
-    signal?: AbortSignal,
-  ): Promise<WorkDraft>;
-  repairDraft(input: RepairDraftInput, signal?: AbortSignal): Promise<WorkDraft>;
-}
+export { LlmCompositionEngine, type LlmCompositionEngineOptions } from './agent/engine.js';
+export { CompositionArchitectRole } from './agent/roles/composition-architect.js';
+export { DraftWriterRole } from './agent/roles/draft-writer.js';
+export { LiteraryCriticRole } from './agent/roles/literary-critic.js';
+export { PatternParserRole } from './agent/roles/pattern-parser.js';
+export { ProsodyValidatorRole } from './agent/roles/prosody-validator.js';
+export { RevisionEditorRole } from './agent/roles/revision-editor.js';
+export type { AgentRole } from './agent/roles/types.js';
+export {
+  type AgentSkill,
+  type AgentSkillKind,
+  defaultAgentSkillRegistry,
+  defaultAgentSkills,
+  SkillRegistry,
+} from './agent/skills/index.js';
+export { createPatternBlueprint } from './agent/tools/pattern-blueprint.js';
+export {
+  type CompositionEngine,
+  type EvaluateDraftsInput,
+  type GenerateCandidatesInput,
+  type OptimizationMode,
+  type OptimizeDraftInput,
+  type PreparedComposition,
+  type PrepareCompositionInput,
+} from './composition.js';
 
-interface LlmDraftPayload {
-  readonly title?: string;
-  readonly lines: ReadonlyArray<string>;
-}
-
-export class LlmDraftEngine implements DraftEngine {
-  readonly #provider: LlmProvider;
-
-  public constructor(provider: LlmProvider) {
-    this.#provider = provider;
-  }
-
-  public async createDraft(
-    request: GenerationRequest,
-    pattern: CiPattern,
-    signal?: AbortSignal,
-  ): Promise<WorkDraft> {
-    if (request.sourceDraft !== undefined || request.selections !== undefined) {
-      if (request.sourceDraft === undefined || request.selections === undefined) {
-        throw new Error('Refinement requires both sourceDraft and selections');
-      }
-      return this.#refineDraft(request, pattern, signal);
-    }
-
-    const result = await this.#provider.generateStructured(
-      {
-        operation: 'draft',
-        messages: [
-          {
-            role: 'system',
-            content: [
-              '你是严谨的宋词创作者。',
-              '根据给定词牌、主题和格律创作一首完整词作。',
-              '只输出 JSON 对象：{"title":"可选题目","lines":["逐句文本"]}。',
-              'lines 必须严格按模板顺序，每个数组元素只含一句正文，不含序号、标点或解释。',
-              '“中”表示可平可仄；韵脚须遵守指定词林正韵韵部。',
-              '标记韵脚的句尾必须押韵；未标记韵脚的句尾须避开本词各押韵组使用的韵部。',
-              '相邻韵组必须换用不同韵部；非相邻韵组可以重新使用更早的韵部。',
-            ].join('\n'),
-          },
-          {
-            role: 'user',
-            content: createDraftPrompt(request, pattern),
-          },
-        ],
-        parse: parseDraftPayload,
-        temperature: 0.75,
-        metadata: {
-          patternId: pattern.id,
-          promptVersion: 'draft-v1',
-        },
-      },
-      signal,
-    );
-    return payloadToDraft(result.value, request, pattern, 1);
-  }
-
-  async #refineDraft(
-    request: GenerationRequest,
-    pattern: CiPattern,
-    signal?: AbortSignal,
-  ): Promise<WorkDraft> {
-    const sourceDraft = request.sourceDraft!;
-    const result = await this.#provider.generateStructured(
-      {
-        operation: 'refine',
-        messages: [
-          {
-            role: 'system',
-            content: [
-              '你是宋词局部修改编辑。',
-              '严格按照用户对选中字、词或句的意见修改，同时保持全词主题、意象和语气连贯。',
-              '只输出 JSON 对象：{"title":"可选题目","lines":["逐句文本"]}。',
-              'lines 必须包含修改后的完整词稿，不含序号、标点或解释。',
-              '未被选中的内容尽量保持不变；仅在语义衔接、平仄或押韵确有必要时做最小联动修改。',
-              '修改后仍须满足给定词牌的字数、平仄和押韵约束。',
-              '未标记韵脚的句尾不得使用本词各押韵组使用的韵部。',
-              '相邻韵组必须换用不同韵部；非相邻韵组允许复用。',
-            ].join('\n'),
-          },
-          {
-            role: 'user',
-            content: createRefinementPrompt(request, pattern),
-          },
-        ],
-        parse: parseDraftPayload,
-        temperature: 0.45,
-        metadata: {
-          patternId: pattern.id,
-          promptVersion: 'refine-v1',
-          version: String(sourceDraft.version),
-        },
-      },
-      signal,
-    );
-    const payload =
-      result.value.title === undefined && sourceDraft.title !== undefined
-        ? { ...result.value, title: sourceDraft.title }
-        : result.value;
-    return payloadToDraft(payload, request, pattern, sourceDraft.version + 1);
-  }
-
-  public async repairDraft(input: RepairDraftInput, signal?: AbortSignal): Promise<WorkDraft> {
-    const result = await this.#provider.generateStructured(
-      {
-        operation: 'repair',
-        messages: [
-          {
-            role: 'system',
-            content: [
-              '你是宋词格律修订者。',
-              '依据程序给出的确定性校验错误修订词稿，同时保持主题、意象和语义连贯。',
-              '只输出 JSON 对象：{"title":"可选题目","lines":["逐句文本"]}。',
-              'lines 必须包含完整词稿，不含序号、标点或解释。',
-              '优先只修改报错位置；若为押韵冲突，可联动修改同组韵脚。',
-              '若非韵句句尾误用了押韵韵部，应替换句尾并保持该句不押该韵。',
-              '若相邻韵组使用了同一韵部，应将后一组整体换到不同韵部。',
-            ].join('\n'),
-          },
-          {
-            role: 'user',
-            content: createRepairPrompt(input),
-          },
-        ],
-        parse: parseDraftPayload,
-        temperature: 0.35,
-        metadata: {
-          patternId: input.pattern.id,
-          promptVersion: 'repair-v1',
-          version: String(input.draft.version),
-        },
-      },
-      signal,
-    );
-    return payloadToDraft(result.value, input.request, input.pattern, input.draft.version + 1);
-  }
-}
-
-export class ExampleDraftEngine implements DraftEngine {
-  public createDraft(
-    request: GenerationRequest,
-    pattern: CiPattern,
-    _signal?: AbortSignal,
-  ): Promise<WorkDraft> {
-    if (request.sourceDraft !== undefined && request.selections !== undefined) {
-      return Promise.resolve({
-        ...request.sourceDraft,
-        id: globalThis.crypto.randomUUID(),
-        version: request.sourceDraft.version + 1,
-      });
-    }
-    if (pattern.example === undefined) {
-      return Promise.reject(new Error(`Pattern ${pattern.id} has no example draft`));
-    }
-    return Promise.resolve(
-      payloadToDraft(
-        {
-          title: `${pattern.name}·${request.theme.slice(0, 12)}`,
-          lines: pattern.example.lines,
-        },
-        request,
-        pattern,
-        1,
-      ),
-    );
-  }
-
-  public repairDraft(input: RepairDraftInput, _signal?: AbortSignal): Promise<WorkDraft> {
-    return Promise.resolve({
-      ...input.draft,
-      id: globalThis.crypto.randomUUID(),
-      version: input.draft.version + 1,
-    });
-  }
-}
+// Kept as a source-compatible name for integrations that constructed the old engine directly.
+export class LlmDraftEngine extends LlmCompositionEngine {}
 
 export interface GenerationWorkflowDependencies {
-  readonly draftEngine: DraftEngine;
+  readonly compositionEngine: CompositionEngine;
   readonly lexicon: ProsodyLexicon;
+  readonly skills?: SkillRegistry;
   readonly onProgress?: (progress: GenerationWorkflowProgress) => void;
+  readonly onStageResult?: (result: GenerationWorkflowStageResult) => void;
 }
 
-export type GenerationWorkflowStage = 'drafting' | 'validating' | 'repairing' | 'completed';
+export type GenerationWorkflowStage =
+  'parsing' | 'planning' | 'drafting' | 'validating' | 'evaluating' | 'optimizing' | 'completed';
+
+export type GenerationProgressActivity = 'started' | 'completed';
 
 export interface GenerationWorkflowProgress {
+  readonly stepId: string;
   readonly stage: GenerationWorkflowStage;
+  readonly activity: GenerationProgressActivity;
   readonly message: string;
-  readonly round: number;
-  readonly maxRounds: number;
+  readonly round?: number;
+  readonly maxRounds?: number;
   readonly issueCount?: number;
+  readonly elapsedMs?: number;
+}
+
+export type GenerationWorkflowStageResultKind =
+  | 'pattern_blueprint'
+  | 'theme_brief'
+  | 'composition_plan'
+  | 'draft_candidates'
+  | 'prosody_reports'
+  | 'quality_reports'
+  | 'optimized_draft';
+
+export interface GenerationWorkflowStageResult {
+  readonly stepId: string;
+  readonly stage: Exclude<GenerationWorkflowStage, 'completed'>;
+  readonly kind: GenerationWorkflowStageResultKind;
+  readonly value: unknown;
+  readonly round?: number;
+  readonly maxRounds?: number;
 }
 
 export interface GenerationWorkflowInput {
@@ -232,10 +104,17 @@ export interface GenerationWorkflow {
 const WorkflowState = Annotation.Root({
   request: Annotation<GenerationRequest>(),
   pattern: Annotation<CiPattern>(),
+  blueprint: Annotation<PatternBlueprint | undefined>(),
+  brief: Annotation<ThemeBrief | undefined>(),
+  plan: Annotation<CompositionPlan | undefined>(),
+  candidates: Annotation<ReadonlyArray<WorkDraft>>(),
+  candidateReports: Annotation<ReadonlyArray<ProsodyReport>>(),
   draft: Annotation<WorkDraft | undefined>(),
   report: Annotation<ProsodyReport | undefined>(),
+  qualityReport: Annotation<QualityReport | undefined>(),
   bestDraft: Annotation<WorkDraft | undefined>(),
   bestReport: Annotation<ProsodyReport | undefined>(),
+  bestQualityReport: Annotation<QualityReport | undefined>(),
   round: Annotation<number>(),
   maxRounds: Annotation<number>(),
 });
@@ -243,100 +122,360 @@ const WorkflowState = Annotation.Root({
 export function createGenerationWorkflow(
   dependencies: GenerationWorkflowDependencies,
 ): GenerationWorkflow {
+  const progress = createProgressReporter(dependencies);
+  const skills = dependencies.skills ?? defaultAgentSkillRegistry;
+  const patternParser = new PatternParserRole(skills);
+  const prosodyValidator = new ProsodyValidatorRole(dependencies.lexicon, skills);
+
   const graph = new StateGraph(WorkflowState)
+    .addNode('parse', (state) => {
+      const stepId = 'parse-pattern';
+      progress.emit({
+        stepId,
+        stage: 'parsing',
+        activity: 'started',
+        message: '正在解析词谱结构、逐句字数、平仄与韵位',
+      });
+      const blueprint = patternParser.execute({
+        pattern: state.pattern,
+        request: state.request,
+      });
+      progress.emit({
+        stepId,
+        stage: 'parsing',
+        activity: 'completed',
+        message: `词谱解析完成：${state.pattern.sections.length} 个分段、${blueprint.lines.length} 句`,
+        elapsedMs: 0,
+      });
+      emitStageResult(dependencies, {
+        stepId,
+        stage: 'parsing',
+        kind: 'pattern_blueprint',
+        value: blueprint,
+      });
+      return { blueprint };
+    })
+    .addNode('prepare', async (state, config) => {
+      if (state.blueprint === undefined) throw new Error('Cannot plan before parsing');
+      const prepared = await progress.run(
+        {
+          stepId: 'prepare-composition',
+          stage: 'planning',
+          start:
+            state.request.sourceContext === undefined
+              ? '正在解析主题并规划全篇立意、分阕内容和逐句任务'
+              : '正在根据局部修改意见调整受影响的逐句规划',
+          complete: (value) =>
+            `创作准备完成：提取 ${value.brief.keyFacts.length} 项主题事实，形成 ${value.plan.sections.length} 个分阕计划、${value.plan.lines.length} 个逐句任务`,
+        },
+        () =>
+          dependencies.compositionEngine.prepareComposition(
+            {
+              request: state.request,
+              pattern: state.pattern,
+              blueprint: state.blueprint!,
+            },
+            config.signal,
+          ),
+      );
+      emitStageResult(dependencies, {
+        stepId: 'prepare-composition',
+        stage: 'planning',
+        kind: 'theme_brief',
+        value: prepared.brief,
+      });
+      emitStageResult(dependencies, {
+        stepId: 'prepare-composition',
+        stage: 'planning',
+        kind: 'composition_plan',
+        value: prepared.plan,
+      });
+      return prepared;
+    })
     .addNode('generate', async (state, config) => {
-      dependencies.onProgress?.({
+      if (state.blueprint === undefined || state.brief === undefined || state.plan === undefined) {
+        throw new Error('Cannot generate before planning');
+      }
+      const candidateCount = state.request.sourceDraft === undefined ? 2 : 1;
+      const candidates = await progress.run(
+        {
+          stepId: 'generate-candidates',
+          stage: 'drafting',
+          round: 1,
+          maxRounds: state.maxRounds,
+          start:
+            candidateCount === 1
+              ? '正在按修改意见和原篇规划生成完整新版本'
+              : '正在按逐句规划生成两个完整候选词稿',
+          complete: (value: ReadonlyArray<WorkDraft>) =>
+            `候选生成完成：收到 ${value.length} 个完整词稿，准备执行程序校验`,
+        },
+        () =>
+          dependencies.compositionEngine.generateCandidates(
+            {
+              request: state.request,
+              pattern: state.pattern,
+              blueprint: state.blueprint!,
+              brief: state.brief!,
+              plan: state.plan!,
+              candidateCount,
+            },
+            config.signal,
+          ),
+      );
+      emitStageResult(dependencies, {
+        stepId: 'generate-candidates',
         stage: 'drafting',
-        message:
-          state.request.sourceDraft === undefined ? '正在生成初稿' : '正在根据修改意见生成新版本',
+        kind: 'draft_candidates',
+        value: candidates,
         round: 1,
         maxRounds: state.maxRounds,
       });
       return {
-        draft: await dependencies.draftEngine.createDraft(
-          state.request,
-          state.pattern,
-          config.signal,
-        ),
+        candidates,
+        candidateReports: [],
         round: 1,
+        qualityReport: undefined,
       };
     })
     .addNode('validate', (state) => {
-      if (state.draft === undefined) {
-        throw new Error('Cannot validate before a draft has been generated');
-      }
-
-      const report = checkProsody(
-        state.draft,
-        state.pattern,
-        dependencies.lexicon,
-        state.request.preferredRhymeGroup === undefined
-          ? {}
-          : { expectedRhymeGroup: state.request.preferredRhymeGroup },
-      );
-      const issueCount = countErrors(report);
-      dependencies.onProgress?.({
+      if (state.candidates.length === 0) throw new Error('Cannot validate without candidates');
+      const stepId = `validate-round-${state.round}`;
+      progress.emit({
+        stepId,
         stage: 'validating',
-        message: report.passed
-          ? `第 ${state.round} 轮格律校验通过`
-          : `第 ${state.round} 轮校验发现 ${issueCount} 项错误`,
+        activity: 'started',
+        message: `正在执行第 ${state.round} 轮确定性格律校验`,
+        round: state.round,
+        maxRounds: state.maxRounds,
+      });
+      const reports = state.candidates.map((draft) =>
+        prosodyValidator.execute({
+          draft,
+          pattern: state.pattern,
+          request: state.request,
+        }),
+      );
+      const passing = state.candidates
+        .map((draft, index) => ({ draft, report: reports[index]! }))
+        .filter(({ report }) => report.passed);
+      const ranked = [
+        ...(passing.length > 0
+          ? passing
+          : state.candidates.map((draft, index) => ({ draft, report: reports[index]! }))),
+      ].sort(compareProsodyArtifacts);
+      const selected = ranked[0]!;
+      const issueCount = countErrors(selected.report);
+      const nextBest = chooseBestProsody(
+        {
+          draft: state.bestDraft,
+          report: state.bestReport,
+          quality: state.bestQualityReport,
+        },
+        selected,
+      );
+      progress.emit({
+        stepId,
+        stage: 'validating',
+        activity: 'completed',
+        message:
+          passing.length > 0
+            ? `第 ${state.round} 轮格律校验完成：${passing.length} 个候选通过硬性规则`
+            : `第 ${state.round} 轮发现 ${issueCount} 项格律错误，已选取问题最少的候选准备修订`,
         round: state.round,
         maxRounds: state.maxRounds,
         issueCount,
       });
-      const shouldReplaceBest =
-        state.bestReport === undefined ||
-        issueCount < countErrors(state.bestReport) ||
-        (issueCount === countErrors(state.bestReport) &&
-          report.issues.length < state.bestReport.issues.length);
-
-      return {
-        report,
-        ...(shouldReplaceBest ? { bestDraft: state.draft, bestReport: report } : {}),
-      };
-    })
-    .addNode('repair', async (state, config) => {
-      if (state.draft === undefined || state.report === undefined) {
-        throw new Error('Cannot repair before validation');
-      }
-
-      const nextRound = state.round + 1;
-      dependencies.onProgress?.({
-        stage: 'repairing',
-        message: `正在进行第 ${nextRound} 轮格律修订`,
-        round: nextRound,
+      emitStageResult(dependencies, {
+        stepId,
+        stage: 'validating',
+        kind: 'prosody_reports',
+        value: {
+          candidates: state.candidates.map((draft, index) => ({
+            draft,
+            report: reports[index],
+          })),
+          passingDraftIds: passing.map(({ draft }) => draft.id),
+          selectedDraftId: selected.draft.id,
+        },
+        round: state.round,
         maxRounds: state.maxRounds,
-        issueCount: countErrors(state.report),
       });
       return {
-        draft: await dependencies.draftEngine.repairDraft(
-          {
-            request: state.request,
-            pattern: state.pattern,
-            draft: state.draft,
-            report: state.report,
+        candidates: passing.length > 0 ? passing.map(({ draft }) => draft) : [selected.draft],
+        candidateReports:
+          passing.length > 0 ? passing.map(({ report }) => report) : [selected.report],
+        draft: selected.draft,
+        report: selected.report,
+        qualityReport: undefined,
+        bestDraft: nextBest.draft,
+        bestReport: nextBest.report,
+        bestQualityReport: nextBest.quality,
+      };
+    })
+    .addNode('evaluate', async (state, config) => {
+      if (
+        state.blueprint === undefined ||
+        state.brief === undefined ||
+        state.plan === undefined ||
+        state.candidates.length === 0
+      ) {
+        throw new Error('Cannot evaluate before valid candidates exist');
+      }
+      const reports = await progress.run(
+        {
+          stepId: `evaluate-round-${state.round}`,
+          stage: 'evaluating',
+          round: state.round,
+          maxRounds: state.maxRounds,
+          start: `正在评价第 ${state.round} 轮候选的主题、结构、意象与语言质量`,
+          complete: (value: ReadonlyArray<QualityReport>) => {
+            const passed = value.filter((report) => report.passed).length;
+            return passed > 0
+              ? `文学评价完成：${passed} 个候选达到质量标准`
+              : '文学评价完成：已定位需要继续优化的具体句子和维度';
           },
-          config.signal,
-        ),
+        },
+        () =>
+          dependencies.compositionEngine.evaluateDrafts(
+            {
+              request: state.request,
+              pattern: state.pattern,
+              blueprint: state.blueprint!,
+              brief: state.brief!,
+              plan: state.plan!,
+              drafts: state.candidates,
+            },
+            config.signal,
+          ),
+      );
+      emitStageResult(dependencies, {
+        stepId: `evaluate-round-${state.round}`,
+        stage: 'evaluating',
+        kind: 'quality_reports',
+        value: state.candidates.map((draft, index) => ({
+          draft,
+          report: reports[index],
+        })),
+        round: state.round,
+        maxRounds: state.maxRounds,
+      });
+      const evaluated = state.candidates
+        .map((draft, index) => ({
+          draft,
+          report: state.candidateReports[index]!,
+          quality: reports[index]!,
+        }))
+        .sort(compareCompleteArtifacts);
+      const selected = evaluated[0]!;
+      const nextBest = chooseBestComplete(
+        {
+          draft: state.bestDraft,
+          report: state.bestReport,
+          quality: state.bestQualityReport,
+        },
+        selected,
+      );
+      return {
+        candidates: [selected.draft],
+        candidateReports: [selected.report],
+        draft: selected.draft,
+        report: selected.report,
+        qualityReport: selected.quality,
+        bestDraft: nextBest.draft,
+        bestReport: nextBest.report,
+        bestQualityReport: nextBest.quality,
+      };
+    })
+    .addNode('optimize', async (state, config) => {
+      if (
+        state.blueprint === undefined ||
+        state.brief === undefined ||
+        state.plan === undefined ||
+        state.draft === undefined ||
+        state.report === undefined
+      ) {
+        throw new Error('Cannot optimize before validation');
+      }
+      const mode = selectOptimizationMode(state.report, state.qualityReport);
+      const nextRound = state.round + 1;
+      const optimized = await progress.run(
+        {
+          stepId: `optimize-${mode}-${nextRound}`,
+          stage: 'optimizing',
+          round: nextRound,
+          maxRounds: state.maxRounds,
+          start: optimizationStartMessage(mode, nextRound),
+          complete: () => `第 ${nextRound} 轮优化稿已生成，正在重新执行格律校验`,
+          issueCount:
+            mode === 'prosody_repair'
+              ? countErrors(state.report)
+              : countQualityErrors(state.qualityReport),
+        },
+        () =>
+          dependencies.compositionEngine.optimizeDraft(
+            {
+              request: state.request,
+              pattern: state.pattern,
+              blueprint: state.blueprint!,
+              brief: state.brief!,
+              plan: state.plan!,
+              draft: state.draft!,
+              prosodyReport: state.report!,
+              ...(state.qualityReport === undefined ? {} : { qualityReport: state.qualityReport }),
+              mode,
+            },
+            config.signal,
+          ),
+      );
+      emitStageResult(dependencies, {
+        stepId: `optimize-${mode}-${nextRound}`,
+        stage: 'optimizing',
+        kind: 'optimized_draft',
+        value: {
+          mode,
+          draft: optimized,
+        },
+        round: nextRound,
+        maxRounds: state.maxRounds,
+      });
+      return {
+        candidates: [optimized],
+        candidateReports: [],
+        draft: optimized,
+        report: undefined,
+        qualityReport: undefined,
         round: nextRound,
       };
     })
-    .addEdge(START, 'generate')
+    .addEdge(START, 'parse')
+    .addEdge('parse', 'prepare')
+    .addEdge('prepare', 'generate')
     .addEdge('generate', 'validate')
     .addConditionalEdges(
       'validate',
       (state) => {
-        if (state.report?.passed === true || state.round >= state.maxRounds) {
-          return 'done';
-        }
-        return 'repair';
+        if (state.report?.passed === true) return 'evaluate';
+        return state.round >= state.maxRounds ? 'done' : 'optimize';
       },
       {
-        repair: 'repair',
+        evaluate: 'evaluate',
+        optimize: 'optimize',
         done: END,
       },
     )
-    .addEdge('repair', 'validate')
+    .addConditionalEdges(
+      'evaluate',
+      (state) => {
+        if (state.qualityReport?.passed === true || state.round >= state.maxRounds) return 'done';
+        return 'optimize';
+      },
+      {
+        optimize: 'optimize',
+        done: END,
+      },
+    )
+    .addEdge('optimize', 'validate')
     .compile();
 
   return {
@@ -345,208 +484,224 @@ export function createGenerationWorkflow(
         {
           request: input.request,
           pattern: input.pattern,
+          blueprint: undefined,
+          brief: undefined,
+          plan: undefined,
+          candidates: [],
+          candidateReports: [],
           draft: undefined,
           report: undefined,
+          qualityReport: undefined,
           bestDraft: undefined,
           bestReport: undefined,
+          bestQualityReport: undefined,
           round: 0,
-          maxRounds: input.request.maxRounds ?? 8,
+          maxRounds: Math.max(1, input.request.maxRounds ?? 8),
         },
         signal === undefined ? undefined : { signal },
       );
       const draft = result.bestDraft ?? result.draft;
       const report = result.bestReport ?? result.report;
-      if (draft === undefined || report === undefined) {
-        throw new Error('Generation workflow completed without a validated draft');
+      const qualityReport = result.bestQualityReport ?? result.qualityReport;
+      if (
+        draft === undefined ||
+        report === undefined ||
+        result.brief === undefined ||
+        result.plan === undefined
+      ) {
+        throw new Error('Generation workflow completed without a validated artifact');
       }
-
+      const status: GenerationResult['status'] =
+        report.passed && qualityReport?.passed === true
+          ? 'completed'
+          : report.passed
+            ? 'quality_limit_reached'
+            : 'round_limit_reached';
       const workflowResult: GenerationWorkflowResult = {
-        status: report.passed ? 'completed' : 'round_limit_reached',
+        status,
         draft,
         report,
         rounds: result.round,
+        context: {
+          themeBrief: result.brief,
+          plan: result.plan,
+        },
+        ...(qualityReport === undefined ? {} : { qualityReport }),
       };
-      dependencies.onProgress?.({
+      progress.emit({
+        stepId: 'complete',
         stage: 'completed',
-        message: report.passed
-          ? `格律校验通过，共完成 ${result.round} 轮`
-          : `达到 ${result.round} 轮上限，已保留最佳版本`,
+        activity: 'completed',
+        message:
+          status === 'completed'
+            ? `创作完成：格律与文学质量均已通过，共生成 ${result.round} 轮词稿`
+            : status === 'quality_limit_reached'
+              ? `已达到 ${result.round} 轮上限：格律通过，保留文学质量最佳版本`
+              : `已达到 ${result.round} 轮上限：保留格律问题最少的版本`,
         round: result.round,
         maxRounds: input.request.maxRounds ?? 8,
-        issueCount: countErrors(report),
+        issueCount: countErrors(report) + countQualityErrors(qualityReport),
       });
       return workflowResult;
     },
   };
 }
 
+function emitStageResult(
+  dependencies: GenerationWorkflowDependencies,
+  result: GenerationWorkflowStageResult,
+): void {
+  dependencies.onStageResult?.(result);
+}
+
+function createProgressReporter(dependencies: GenerationWorkflowDependencies): {
+  emit(progress: GenerationWorkflowProgress): void;
+  run<Value>(
+    options: {
+      readonly stepId: string;
+      readonly stage: GenerationWorkflowStage;
+      readonly start: string;
+      readonly complete: (value: Value) => string;
+      readonly round?: number;
+      readonly maxRounds?: number;
+      readonly issueCount?: number;
+    },
+    operation: () => Promise<Value>,
+  ): Promise<Value>;
+} {
+  const emit = (event: GenerationWorkflowProgress): void => dependencies.onProgress?.(event);
+  return {
+    emit,
+    async run(options, operation) {
+      const startedAt = Date.now();
+      const common = {
+        stepId: options.stepId,
+        stage: options.stage,
+        ...(options.round === undefined ? {} : { round: options.round }),
+        ...(options.maxRounds === undefined ? {} : { maxRounds: options.maxRounds }),
+        ...(options.issueCount === undefined ? {} : { issueCount: options.issueCount }),
+      };
+      emit({
+        ...common,
+        activity: 'started',
+        message: options.start,
+      });
+      const value = await operation();
+      const elapsedMs = Date.now() - startedAt;
+      emit({
+        ...common,
+        activity: 'completed',
+        message: `${options.complete(value)}（${formatElapsed(elapsedMs)}）`,
+        elapsedMs,
+      });
+      return value;
+    },
+  };
+}
+
+function chooseBestProsody(
+  best: Artifact,
+  candidate: { readonly draft: WorkDraft; readonly report: ProsodyReport },
+): RequiredArtifact {
+  if (best.draft === undefined || best.report === undefined) {
+    return { ...candidate, quality: undefined };
+  }
+  const current = { draft: best.draft, report: best.report, quality: best.quality };
+  return compareProsodyArtifacts(candidate, current) < 0
+    ? { ...candidate, quality: undefined }
+    : current;
+}
+
+function chooseBestComplete(best: Artifact, candidate: RequiredArtifact): RequiredArtifact {
+  if (best.draft === undefined || best.report === undefined) return candidate;
+  const current = { draft: best.draft, report: best.report, quality: best.quality };
+  return compareCompleteArtifacts(candidate, current) < 0 ? candidate : current;
+}
+
+interface Artifact {
+  readonly draft: WorkDraft | undefined;
+  readonly report: ProsodyReport | undefined;
+  readonly quality: QualityReport | undefined;
+}
+
+interface RequiredArtifact {
+  readonly draft: WorkDraft;
+  readonly report: ProsodyReport;
+  readonly quality: QualityReport | undefined;
+}
+
+function compareProsodyArtifacts(
+  left: { readonly report: ProsodyReport },
+  right: { readonly report: ProsodyReport },
+): number {
+  return (
+    countErrors(left.report) - countErrors(right.report) ||
+    left.report.issues.length - right.report.issues.length
+  );
+}
+
+function compareCompleteArtifacts(left: RequiredArtifact, right: RequiredArtifact): number {
+  const hardErrorDifference = countErrors(left.report) - countErrors(right.report);
+  if (hardErrorDifference !== 0) return hardErrorDifference;
+  if (left.quality === undefined) return right.quality === undefined ? 0 : 1;
+  if (right.quality === undefined) return -1;
+  return (
+    countQualityErrors(left.quality) - countQualityErrors(right.quality) ||
+    qualityCoreMinimum(right.quality) - qualityCoreMinimum(left.quality) ||
+    qualityTotal(right.quality) - qualityTotal(left.quality) ||
+    left.report.issues.length - right.report.issues.length
+  );
+}
+
+function selectOptimizationMode(
+  report: ProsodyReport,
+  quality: QualityReport | undefined,
+): OptimizationMode {
+  if (!report.passed) return 'prosody_repair';
+  if (quality === undefined) return 'literary_polish';
+  if (
+    quality.scores.allusionFitness < 3 ||
+    quality.issues.some(
+      ({ dimension, severity }) => dimension === 'allusionFitness' && severity === 'error',
+    )
+  ) {
+    return 'allusion_repair';
+  }
+  if (quality.scores.themeFidelity < 4) return 'theme_repair';
+  if (quality.scores.coherence < 4 || quality.scores.emotionalArc < 3) {
+    return 'structure_repair';
+  }
+  return 'literary_polish';
+}
+
+function optimizationStartMessage(mode: OptimizationMode, round: number): string {
+  const descriptions: Record<OptimizationMode, string> = {
+    prosody_repair: '修复字数、平仄和押韵错误',
+    theme_repair: '修复偏题和主题事实遗漏',
+    structure_repair: '调整上下阕承接与情感推进',
+    literary_polish: '炼字并统一意象和语言质感',
+    allusion_repair: '核正或移除不可靠的典故表达',
+  };
+  return `正在进行第 ${round} 轮优化：${descriptions[mode]}`;
+}
+
 function countErrors(report: ProsodyReport): number {
   return report.issues.filter(({ severity }) => severity === 'error').length;
 }
 
-function createDraftPrompt(request: GenerationRequest, pattern: CiPattern): string {
-  return [
-    `词牌：${pattern.name}·${pattern.variant}`,
-    `主题：${request.theme}`,
-    `格律模板：\n${formatPatternConstraints(pattern, request)}`,
-    request.additionalRequirements === undefined
-      ? ''
-      : `附加要求：\n${request.additionalRequirements.map((value) => `- ${value}`).join('\n')}`,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+function countQualityErrors(report: QualityReport | undefined): number {
+  return report?.issues.filter(({ severity }) => severity === 'error').length ?? 0;
 }
 
-function createRepairPrompt(input: RepairDraftInput): string {
-  return [
-    `词牌：${input.pattern.name}·${input.pattern.variant}`,
-    `主题：${input.request.theme}`,
-    `格律模板：\n${formatPatternConstraints(input.pattern, input.request)}`,
-    `当前词稿：\n${input.draft.lines
-      .map((line, index) => `${index + 1}. ${line.text}`)
-      .join('\n')}`,
-    `程序校验错误：\n${input.report.issues
-      .map(
-        (issue) =>
-          `- ${issue.lineId}${issue.charIndex === undefined ? '' : ` 第${issue.charIndex + 1}字`}：${issue.message}` +
-          `${issue.expected === undefined ? '' : `；期望 ${issue.expected}`}` +
-          `${issue.actual === undefined ? '' : `；实际 ${issue.actual}`}`,
-      )
-      .join('\n')}`,
-    input.request.sourceDraft === undefined || input.request.selections === undefined
-      ? ''
-      : `用户局部修改要求：\n${formatSelections(
-          input.request.sourceDraft,
-          input.request.selections,
-        )}`,
-  ].join('\n\n');
+function qualityCoreMinimum(report: QualityReport): number {
+  return Math.min(report.scores.themeFidelity, report.scores.coherence);
 }
 
-function createRefinementPrompt(request: GenerationRequest, pattern: CiPattern): string {
-  const sourceDraft = request.sourceDraft!;
-  const selections = request.selections!;
-  return [
-    `词牌：${pattern.name}·${pattern.variant}`,
-    `主题：${request.theme}`,
-    `格律模板：\n${formatPatternConstraints(pattern, request)}`,
-    `当前标题：${sourceDraft.title ?? '无题'}`,
-    `当前词稿：\n${sourceDraft.lines
-      .map((line, index) => `${index + 1}. ${line.text}`)
-      .join('\n')}`,
-    `用户局部修改要求：\n${formatSelections(sourceDraft, selections)}`,
-    request.additionalRequirements === undefined
-      ? ''
-      : `原附加要求：\n${request.additionalRequirements.map((value) => `- ${value}`).join('\n')}`,
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+function qualityTotal(report: QualityReport): number {
+  return Object.values(report.scores).reduce((sum, score) => sum + score, 0);
 }
 
-function formatSelections(
-  draft: WorkDraft,
-  selections: NonNullable<GenerationRequest['selections']>,
-): string {
-  const lineNumbers = new Map(draft.lines.map((line, index) => [line.id, index + 1]));
-  const lines = new Map(draft.lines.map((line) => [line.id, line.text]));
-  return selections
-    .map((selection) => {
-      const line = lines.get(selection.lineId) ?? '';
-      const selectedText = Array.from(line).slice(selection.start, selection.end).join('');
-      return `- 第${lineNumbers.get(selection.lineId) ?? '?'}句“${selectedText}”：${selection.instruction}`;
-    })
-    .join('\n');
-}
-
-function formatPatternConstraints(pattern: CiPattern, request: GenerationRequest): string {
-  let lineNumber = 0;
-  const rhymeLabels = [
-    ...new Set(
-      pattern.sections.flatMap((section) =>
-        section.lines.flatMap((line) =>
-          line.positions.flatMap((position) =>
-            position.rhyme === undefined ? [] : [position.rhyme],
-          ),
-        ),
-      ),
-    ),
-  ];
-  const rhymeGroupNumbers = new Map(rhymeLabels.map((label, index) => [label, index + 1]));
-  return pattern.sections
-    .flatMap((section) => [
-      `[${section.name}]`,
-      ...section.lines.map((line) => {
-        lineNumber += 1;
-        const tones = line.positions
-          .map(({ tone, rhyme }) => {
-            const marker = tone === 'level' ? '平' : tone === 'oblique' ? '仄' : '中';
-            if (rhyme === undefined) return marker;
-            const requested =
-              typeof request.preferredRhymeGroup === 'string'
-                ? request.preferredRhymeGroup
-                : request.preferredRhymeGroup?.[rhyme];
-            return `${marker}韵组${rhymeGroupNumbers.get(rhyme) ?? '?'}${
-              requested === undefined ? '' : `(${requested})`
-            }`;
-          })
-          .join('');
-        const lineEnding = line.positions.at(-1);
-        const nonRhymeEndingRequirement =
-          lineEnding?.rhyme === undefined ? '（句尾不押韵，须避开本词各押韵组使用的韵部）' : '';
-        return `${lineNumber}. ${line.positions.length}字：${tones}${nonRhymeEndingRequirement}`;
-      }),
-    ])
-    .join('\n');
-}
-
-function parseDraftPayload(value: unknown): LlmDraftPayload {
-  if (typeof value !== 'object' || value === null) {
-    throw new Error('LLM draft must be a JSON object');
-  }
-  const candidate = value as { title?: unknown; lines?: unknown };
-  if (!Array.isArray(candidate.lines) || candidate.lines.length === 0) {
-    throw new Error('LLM draft must contain a non-empty lines array');
-  }
-  const lines = candidate.lines.map((line) => {
-    if (typeof line !== 'string' || normalizeLine(line) === '') {
-      throw new Error('Every LLM draft line must be a non-empty string');
-    }
-    return normalizeLine(line);
-  });
-  return {
-    lines,
-    ...(typeof candidate.title === 'string' && candidate.title.trim() !== ''
-      ? { title: candidate.title.trim() }
-      : {}),
-  };
-}
-
-function payloadToDraft(
-  payload: LlmDraftPayload,
-  request: GenerationRequest,
-  pattern: CiPattern,
-  version: number,
-): WorkDraft {
-  const expectedLines = pattern.sections.flatMap((section) => section.lines);
-  return {
-    id: globalThis.crypto.randomUUID(),
-    patternId: pattern.id,
-    theme: request.theme,
-    ...(typeof request.preferredRhymeGroup === 'string'
-      ? { requestedRhymeGroup: request.preferredRhymeGroup }
-      : {}),
-    lines: payload.lines.map((text, index) => ({
-      id: expectedLines[index]?.id ?? `extra-line-${index + 1}`,
-      text: normalizeLine(text),
-    })),
-    version,
-    ...(payload.title === undefined ? {} : { title: payload.title }),
-  };
-}
-
-function normalizeLine(value: string): string {
-  return value
-    .trim()
-    .replace(/^\s*(?:第?[一二三四五六七八九十\d]+[.、:：)]\s*)/u, '')
-    .replace(/[，。！？；：、,.!?;:]+$/u, '')
-    .replace(/\s+/gu, '');
+function formatElapsed(elapsedMs: number): string {
+  if (elapsedMs < 1_000) return `${elapsedMs} 毫秒`;
+  return `${Math.max(1, Math.round(elapsedMs / 1_000))} 秒`;
 }
