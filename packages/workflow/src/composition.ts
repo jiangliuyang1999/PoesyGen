@@ -328,7 +328,7 @@ export function parseQualityReports(
 function missingQualityReport(candidate: number): QualityReport {
   return {
     passed: false,
-    summary: `模型未返回候选 ${candidate} 的完整文学评价。`,
+    summary: `模型未返回词稿 ${candidate} 的完整文学评价。`,
     themeRecognizable: false,
     themeEvidence: [],
     scores: {
@@ -345,7 +345,7 @@ function missingQualityReport(candidate: number): QualityReport {
         dimension: 'coherence',
         severity: 'error',
         message: '缺少完整文学评价',
-        suggestion: '重新评价或选择其他候选',
+        suggestion: '重新评价当前词稿',
       },
     ],
   };

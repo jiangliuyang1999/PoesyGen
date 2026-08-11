@@ -196,7 +196,7 @@ export function createGenerationWorkflow(
       if (state.blueprint === undefined || state.brief === undefined || state.plan === undefined) {
         throw new Error('Cannot generate before planning');
       }
-      const candidateCount = state.request.sourceDraft === undefined ? 2 : 1;
+      const candidateCount = 1;
       const candidates = await progress.run(
         {
           stepId: 'generate-candidates',
@@ -204,11 +204,10 @@ export function createGenerationWorkflow(
           round: 1,
           maxRounds: state.maxRounds,
           start:
-            candidateCount === 1
-              ? '正在按修改意见和原篇规划生成完整新版本'
-              : '正在按逐句规划生成两个完整候选词稿',
-          complete: (value: ReadonlyArray<WorkDraft>) =>
-            `候选生成完成：收到 ${value.length} 个完整词稿，准备执行程序校验`,
+            state.request.sourceDraft === undefined
+              ? '正在按逐句规划生成完整初稿'
+              : '正在按修改意见和原篇规划生成完整新版本',
+          complete: () => '完整词稿生成完成，准备执行程序校验',
         },
         () =>
           dependencies.compositionEngine.generateCandidates(
@@ -280,8 +279,8 @@ export function createGenerationWorkflow(
         activity: 'completed',
         message:
           passing.length > 0
-            ? `第 ${state.round} 轮格律校验完成：${passing.length} 个候选通过硬性规则`
-            : `第 ${state.round} 轮发现 ${issueCount} 项格律错误，已选取问题最少的候选准备修订`,
+            ? `第 ${state.round} 轮格律校验完成：当前词稿通过硬性规则`
+            : `第 ${state.round} 轮发现 ${issueCount} 项格律错误，准备进入下一轮修订`,
         round: state.round,
         maxRounds: state.maxRounds,
         issueCount,
@@ -328,11 +327,11 @@ export function createGenerationWorkflow(
           stage: 'evaluating',
           round: state.round,
           maxRounds: state.maxRounds,
-          start: `正在评价第 ${state.round} 轮候选的主题、结构、意象与语言质量`,
+          start: `正在评价第 ${state.round} 轮词稿的主题、结构、意象与语言质量`,
           complete: (value: ReadonlyArray<QualityReport>) => {
             const passed = value.filter((report) => report.passed).length;
             return passed > 0
-              ? `文学评价完成：${passed} 个候选达到质量标准`
+              ? '文学评价完成：当前词稿达到质量标准'
               : '文学评价完成：已定位需要继续优化的具体句子和维度';
           },
         },
@@ -591,7 +590,7 @@ function createProgressReporter(dependencies: GenerationWorkflowDependencies): {
       emit({
         ...common,
         activity: 'completed',
-        message: `${options.complete(value)}（${formatElapsed(elapsedMs)}）`,
+        message: options.complete(value),
         elapsedMs,
       });
       return value;
@@ -699,9 +698,4 @@ function qualityCoreMinimum(report: QualityReport): number {
 
 function qualityTotal(report: QualityReport): number {
   return Object.values(report.scores).reduce((sum, score) => sum + score, 0);
-}
-
-function formatElapsed(elapsedMs: number): string {
-  if (elapsedMs < 1_000) return `${elapsedMs} 毫秒`;
-  return `${Math.max(1, Math.round(elapsedMs / 1_000))} 秒`;
 }

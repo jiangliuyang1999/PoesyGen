@@ -192,6 +192,10 @@ describe('generation workflow', () => {
     expect(result.draft.lines[0]?.text).toBe('春');
     expect(result.context).toEqual({ themeBrief: brief, plan });
     expect(result.qualityReport).toEqual(passingQuality);
+    expect(engine.generateCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ candidateCount: 1 }),
+      expect.any(AbortSignal),
+    );
     expect(optimizeDraft).toHaveBeenCalledWith(
       expect.objectContaining({ mode: 'prosody_repair' }),
       expect.any(AbortSignal),
@@ -320,6 +324,11 @@ describe('generation workflow', () => {
         .filter(({ stepId }) => stepId === 'prepare-composition')
         .map(({ activity }) => activity),
     ).toEqual(['started', 'completed']);
+    const completed = onProgress.mock.calls
+      .map(([event]) => event)
+      .find(({ stepId, activity }) => stepId === 'prepare-composition' && activity === 'completed');
+    expect(completed?.message).not.toMatch(/（\d+ (?:毫秒|秒)）/u);
+    expect(completed?.elapsedMs).toEqual(expect.any(Number));
   });
 });
 
@@ -410,28 +419,27 @@ describe('composition contracts', () => {
           payload = { brief, plan };
         } else if (generationRequest.operation === 'draft') {
           payload = {
-            candidates: [
-              { title: '春归', lines: [{ lineId: 'expected-line', text: '春' }] },
-              { title: '江春', lines: [{ lineId: 'expected-line', text: '春' }] },
-            ],
+            candidates: [{ title: '春归', lines: [{ lineId: 'expected-line', text: '春' }] }],
           };
         } else if (generationRequest.operation === 'evaluate') {
           const requirements = [request.theme, ...brief.keyFacts];
           payload = {
-            evaluations: [1, 2].map((candidate) => ({
-              candidate,
-              summary: '主题集中，语言凝练。',
-              themeRecognizable: true,
-              themeEvidence: requirements.map((requirement) => ({
-                requirement,
-                status: 'clear',
-                lineIds: ['expected-line'],
-                quotes: ['春'],
-                explanation: '测试证据',
-              })),
-              scores: passingQuality.scores,
-              issues: [],
-            })),
+            evaluations: [
+              {
+                candidate: 1,
+                summary: '主题集中，语言凝练。',
+                themeRecognizable: true,
+                themeEvidence: requirements.map((requirement) => ({
+                  requirement,
+                  status: 'clear',
+                  lineIds: ['expected-line'],
+                  quotes: ['春'],
+                  explanation: '测试证据',
+                })),
+                scores: passingQuality.scores,
+                issues: [],
+              },
+            ],
           };
         } else {
           throw new Error(`Unexpected operation ${generationRequest.operation}`);
@@ -459,7 +467,7 @@ describe('composition contracts', () => {
       'ci-writing,theme-fidelity,prosody-awareness,allusion-safety',
       'literary-evaluation,theme-evidence,allusion-safety',
     ]);
-    expect(tokenLimits).toEqual([1_200, 800, 1_146]);
+    expect(tokenLimits).toEqual([1_200, 800, 848]);
   });
 
   it('creates a stable blueprint with requested rhyme information', () => {

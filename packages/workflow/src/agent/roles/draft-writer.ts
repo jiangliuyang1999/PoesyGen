@@ -49,7 +49,7 @@ export class DraftWriterRole implements AgentRole<
               ['你是严谨而有审美判断的宋词创作者。'],
               [
                 input.request.sourceDraft === undefined
-                  ? `生成 ${input.candidateCount} 个完整候选，候选之间可在措辞上不同，但不得改变主题和规划。`
+                  ? '生成一个完整初稿，逐句落实主题与篇章规划，后续将依据校验和评价结果逐轮优化。'
                   : '根据用户意见生成一个完整新版本；未涉及的句子尽量保持，只做必要的格律和衔接联动。',
                 '只输出 JSON，不含序号、标点说明或额外文字。',
               ],

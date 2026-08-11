@@ -126,7 +126,7 @@ export function formatGenerationStageResult(result: GenerationWorkflowStageResul
     pattern_blueprint: '词谱蓝图',
     theme_brief: '主题简报',
     composition_plan: '篇章规划',
-    draft_candidates: '候选词稿',
+    draft_candidates: '创作初稿',
     prosody_reports: '格律报告',
     quality_reports: '文学评价',
     optimized_draft: '优化词稿',

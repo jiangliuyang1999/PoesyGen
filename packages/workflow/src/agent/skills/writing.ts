@@ -4,7 +4,7 @@ export const ciWritingSkill: AgentSkill = {
   id: 'ci-writing',
   version: '1.0.0',
   kind: 'prompt',
-  description: '依据篇章规划生成完整宋词，在候选创作或局部重写时加载。',
+  description: '依据篇章规划生成完整宋词，在初稿创作或局部重写时加载。',
   instructions: [
     '先在内部逐句落实规划，再输出完整词稿；不要输出思考过程。',
     '每句必须完成对应 line plan，语言应凝练含蓄、语义通顺。',

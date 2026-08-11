@@ -46,8 +46,8 @@ export class LiteraryCriticRole implements AgentRole<
               `用户原始主题（评价基准）：${input.request.theme}`,
               `主题简报：\n${JSON.stringify(input.brief)}`,
               `篇章规划：\n${JSON.stringify(input.plan)}`,
-              `待评价候选：\n${input.drafts
-                .map((draft, index) => `候选 ${index + 1}：\n${formatDraft(draft)}`)
+              `待评价词稿：\n${input.drafts
+                .map((draft, index) => `词稿 ${index + 1}：\n${formatDraft(draft)}`)
                 .join('\n\n')}`,
               '返回格式：',
               '{"evaluations":[{"candidate":1,"summary":"总体评价","themeRecognizable":true,"themeEvidence":[{"requirement":"必须原样填写用户原始主题","status":"clear或implicit或missing","lineIds":["词稿中的lineId"],"quotes":["词稿中的原文片段"],"explanation":"为何这些原文足以或不足以表现主题"}],"scores":{"themeFidelity":0,"coherence":0,"emotionalArc":0,"imagery":0,"diction":0,"originality":0,"allusionFitness":0},"issues":[{"dimension":"themeFidelity","severity":"error或warning","lineId":"可选","message":"问题","suggestion":"建议"}]}]}',
