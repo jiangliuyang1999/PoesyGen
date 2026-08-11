@@ -68,6 +68,8 @@ interface ChatCompletionResponse {
   };
 }
 
+const maxInvalidJsonRetries = 5;
+
 export class OpenAiCompatibleProvider implements LlmProvider {
   public readonly name = 'openai-compatible';
   readonly #apiKey: string;
@@ -99,42 +101,66 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     request: StructuredGenerationRequest<T>,
     signal?: AbortSignal,
   ): Promise<StructuredGenerationResult<T>> {
-    const response = await this.#fetch(this.#endpoint, {
-      method: 'POST',
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${this.#apiKey}`,
-        'content-type': 'application/json',
-        ...this.#headers,
-      },
-      body: JSON.stringify({
-        model: this.#model,
-        messages: request.messages,
-        temperature: request.temperature ?? 0.6,
-        max_tokens: Math.min(request.maxTokens ?? this.#maxTokens, this.#maxTokens),
-        ...(this.#jsonMode ? { response_format: { type: 'json_object' } } : {}),
-      }),
-      signal: combineSignals(signal, AbortSignal.timeout(this.#timeoutMs)),
-    });
-    const payload = (await response.json().catch(() => undefined)) as
-      ChatCompletionResponse | undefined;
-    if (!response.ok) {
-      throw new Error(
-        `LLM request failed (${response.status}): ${payload?.error?.message ?? response.statusText}`,
-      );
+    let messages = request.messages;
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    for (let attempt = 0; attempt <= maxInvalidJsonRetries; attempt += 1) {
+      const response = await this.#fetch(this.#endpoint, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          authorization: `Bearer ${this.#apiKey}`,
+          'content-type': 'application/json',
+          ...this.#headers,
+        },
+        body: JSON.stringify({
+          model: this.#model,
+          messages,
+          temperature: request.temperature ?? 0.6,
+          max_tokens: Math.min(request.maxTokens ?? this.#maxTokens, this.#maxTokens),
+          ...(this.#jsonMode ? { response_format: { type: 'json_object' } } : {}),
+        }),
+        signal: combineSignals(signal, AbortSignal.timeout(this.#timeoutMs)),
+      });
+      const payload = (await response.json().catch(() => undefined)) as
+        ChatCompletionResponse | undefined;
+      if (!response.ok) {
+        throw new Error(
+          `LLM request failed (${response.status}): ${payload?.error?.message ?? response.statusText}`,
+        );
+      }
+
+      inputTokens += payload?.usage?.prompt_tokens ?? 0;
+      outputTokens += payload?.usage?.completion_tokens ?? 0;
+      try {
+        const content = extractMessageContent(payload);
+        const value = request.parse(parseJsonContent(content));
+        return {
+          value,
+          model: payload?.model ?? this.#model,
+          usage: {
+            inputTokens,
+            outputTokens,
+          },
+          ...(payload?.id === undefined ? {} : { requestId: payload.id }),
+        };
+      } catch (error) {
+        if (!(error instanceof InvalidJsonResponseError) || attempt >= maxInvalidJsonRetries) {
+          throw error;
+        }
+        messages = [
+          ...request.messages,
+          {
+            role: 'user',
+            content:
+              '上一次生成的 JSON 语法无效。请重新执行请求，只输出一个语法完整、可直接解析且符合指定结构的 JSON 对象，不要输出解释或 Markdown。',
+          },
+        ];
+      }
     }
 
-    const content = extractMessageContent(payload);
-    const value = request.parse(parseJsonContent(content));
-    return {
-      value,
-      model: payload?.model ?? this.#model,
-      usage: {
-        inputTokens: payload?.usage?.prompt_tokens ?? 0,
-        outputTokens: payload?.usage?.completion_tokens ?? 0,
-      },
-      ...(payload?.id === undefined ? {} : { requestId: payload.id }),
-    };
+    throw new Error('LLM response was not valid JSON');
   }
 }
 
@@ -174,19 +200,14 @@ function parseJsonContent(content: string): unknown {
     .replace(/\s*```$/u, '');
   try {
     return JSON.parse(trimmed) as unknown;
-  } catch {
-    const objectStart = trimmed.indexOf('{');
-    const arrayStart = trimmed.indexOf('[');
-    const start =
-      objectStart < 0
-        ? arrayStart
-        : arrayStart < 0
-          ? objectStart
-          : Math.min(objectStart, arrayStart);
-    const end = Math.max(trimmed.lastIndexOf('}'), trimmed.lastIndexOf(']'));
-    if (start >= 0 && end > start) {
-      return JSON.parse(trimmed.slice(start, end + 1)) as unknown;
-    }
-    throw new Error('LLM response was not valid JSON');
+  } catch (cause) {
+    throw new InvalidJsonResponseError(cause);
+  }
+}
+
+class InvalidJsonResponseError extends Error {
+  public constructor(cause: unknown) {
+    super('LLM response was not valid JSON', { cause });
+    this.name = 'InvalidJsonResponseError';
   }
 }

@@ -88,4 +88,104 @@ describe('OpenAiCompatibleProvider', () => {
       }),
     ).rejects.toThrow('LLM request failed (400): invalid model');
   });
+
+  it('does not tolerate an extra closing brace', async () => {
+    const fetch = vi.fn(async () =>
+      Response.json({
+        choices: [{ message: { content: '{"brief":{"coreTheme":"春归"},"plan":{}}}' } }],
+      }),
+    );
+    const provider = new OpenAiCompatibleProvider({
+      apiKey: 'secret',
+      model: 'test-model',
+      fetch,
+    });
+
+    await expect(
+      provider.generateStructured({
+        operation: 'plan',
+        messages: [{ role: 'user', content: '规划' }],
+        parse: (value) => value,
+      }),
+    ).rejects.toThrow('LLM response was not valid JSON');
+    expect(fetch).toHaveBeenCalledTimes(6);
+  });
+
+  it('rejects incomplete JSON instead of guessing missing structure', async () => {
+    const fetch = vi.fn(async () =>
+      Response.json({
+        choices: [{ message: { content: '{"brief":{"coreTheme":"春归"}' } }],
+      }),
+    );
+    const provider = new OpenAiCompatibleProvider({
+      apiKey: 'secret',
+      model: 'test-model',
+      fetch,
+    });
+
+    await expect(
+      provider.generateStructured({
+        operation: 'plan',
+        messages: [{ role: 'user', content: '规划' }],
+        parse: (value) => value,
+      }),
+    ).rejects.toThrow('LLM response was not valid JSON');
+    expect(fetch).toHaveBeenCalledTimes(6);
+  });
+
+  it('retries malformed JSON until valid and accumulates usage', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [{ message: { content: '{"brief":}' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          choices: [{ message: { content: '{"brief":' } }],
+          usage: { prompt_tokens: 11, completion_tokens: 6 },
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          id: 'retry-request',
+          choices: [{ message: { content: '{"brief":{"coreTheme":"春归"},"plan":{}}' } }],
+          usage: { prompt_tokens: 12, completion_tokens: 8 },
+        }),
+      );
+    const provider = new OpenAiCompatibleProvider({
+      apiKey: 'secret',
+      model: 'test-model',
+      fetch,
+    });
+
+    const result = await provider.generateStructured({
+      operation: 'plan',
+      messages: [{ role: 'user', content: '规划' }],
+      parse: (value) => value as { brief: { coreTheme: string }; plan: object },
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(3);
+    const retryBody = JSON.parse(String(fetch.mock.calls[2]?.[1]?.body)) as {
+      messages: ReadonlyArray<{ role: string; content: string }>;
+    };
+    expect(retryBody.messages.at(-1)).toEqual({
+      role: 'user',
+      content: expect.stringContaining('JSON 语法无效'),
+    });
+    expect(result).toEqual({
+      value: {
+        brief: { coreTheme: '春归' },
+        plan: {},
+      },
+      model: 'test-model',
+      requestId: 'retry-request',
+      usage: {
+        inputTokens: 33,
+        outputTokens: 19,
+      },
+    });
+  });
 });
