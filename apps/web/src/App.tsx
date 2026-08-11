@@ -911,7 +911,7 @@ export function App({ client: providedClient }: AppProps = {}) {
                           onChange={(event) => updateTheme(event.target.value)}
                           placeholder="暮春江上归舟，忽忆多年未见的故友。希望词意含蓄，以江风、残照和远帆寄托惆怅。"
                           minRows={3}
-                          maxRows={10}
+                          maxRows={compactLayout ? 3 : 10}
                           maxLength={2_000}
                           required
                         />

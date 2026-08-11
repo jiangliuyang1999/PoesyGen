@@ -56,4 +56,37 @@ describe('auto-resize textarea', () => {
     expect(Number.parseFloat(textarea.style.height)).toBeLessThan(maximumHeight);
     expect(textarea.style.overflowY).toBe('hidden');
   });
+
+  it('keeps a fixed height and scrolls when minimum and maximum rows match', () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <AutoResizeTextarea
+        aria-label="固定高度输入框"
+        value=""
+        minRows={3}
+        maxRows={3}
+        onChange={onChange}
+      />,
+    );
+    const textarea = screen.getByRole<HTMLTextAreaElement>('textbox', {
+      name: '固定高度输入框',
+    });
+    Object.defineProperty(textarea, 'scrollHeight', {
+      configurable: true,
+      value: 500,
+    });
+
+    rerender(
+      <AutoResizeTextarea
+        aria-label="固定高度输入框"
+        value="超出三行的较长内容"
+        minRows={3}
+        maxRows={3}
+        onChange={onChange}
+      />,
+    );
+
+    expect(Number.parseFloat(textarea.style.height)).toBeLessThan(130);
+    expect(textarea.style.overflowY).toBe('auto');
+  });
 });

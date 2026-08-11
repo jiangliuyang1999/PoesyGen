@@ -493,6 +493,23 @@ describe('web creation workspace', () => {
     expect(screen.queryByRole('navigation', { name: '手机端导航' })).toBeNull();
   });
 
+  it('keeps the theme input at three rows in the compact layout', async () => {
+    setViewportWidth(390);
+    const user = userEvent.setup();
+    render(<App client={createClient()} />);
+    await screen.findByRole('heading', { name: '测试令', level: 2 });
+
+    const theme = screen.getByRole<HTMLTextAreaElement>('textbox', { name: '作品主题' });
+    Object.defineProperty(theme, 'scrollHeight', {
+      configurable: true,
+      value: 500,
+    });
+    await user.type(theme, '输入一段在窄屏下会自动换行的较长创作主题');
+
+    expect(Number.parseFloat(theme.style.height)).toBeLessThan(150);
+    expect(theme.style.overflowY).toBe('auto');
+  });
+
   it('does not show the machine review badge for imported patterns', async () => {
     const client = createClient([pattern, alternatePattern]);
     const user = userEvent.setup();
